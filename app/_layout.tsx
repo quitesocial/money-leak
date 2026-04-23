@@ -1,7 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+
+import { initDatabase } from '@/db/transactions';
 
 export default function RootLayout() {
+  useEffect(() => {
+    void initDatabase().catch((error) => {
+      console.error('Failed to initialize SQLite database', error);
+    });
+  }, []);
+
   return (
     <>
       <StatusBar style="dark" />
