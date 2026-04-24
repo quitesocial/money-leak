@@ -1,6 +1,13 @@
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
@@ -44,6 +51,9 @@ export function HomeScreen() {
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
+  const removeTransaction = useTransactionsStore(
+    (state) => state.removeTransaction,
+  );
 
   const skipNextFocusRefreshRef = useRef(true);
 
@@ -63,6 +73,31 @@ export function HomeScreen() {
 
       void loadTransactions();
     }, [isInitialized, loadTransactions]),
+  );
+
+  const handleDeleteTransaction = useCallback(
+    (id: string) => {
+      if (isLoading) return;
+
+      Alert.alert(
+        'Delete transaction?',
+        'This will permanently remove this transaction from Home.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void removeTransaction(id);
+            },
+          },
+        ],
+      );
+    },
+    [isLoading, removeTransaction],
   );
 
   if (!isInitialized) {
@@ -110,7 +145,7 @@ export function HomeScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total spent</Text>
-            
+
             <Text style={styles.summaryValue}>
               {formatCurrency(summary.totalSpent)}
             </Text>
@@ -118,7 +153,7 @@ export function HomeScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total leaked</Text>
-            
+
             <Text style={styles.summaryValue}>
               {formatCurrency(summary.totalLeaks)}
             </Text>
@@ -126,7 +161,7 @@ export function HomeScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Leak percentage</Text>
-            
+
             <Text style={styles.summaryValue}>
               {formatPercentage(summary.leakPercentage)}
             </Text>
@@ -203,6 +238,20 @@ export function HomeScreen() {
                       Note: {transaction.note}
                     </Text>
                   ) : null}
+
+                  <View style={styles.actionRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isLoading}
+                      onPress={() => handleDeleteTransaction(transaction.id)}
+                      style={[
+                        styles.deleteButton,
+                        isLoading ? styles.deleteButtonDisabled : null,
+                      ]}
+                    >
+                      <Text style={styles.deleteButtonText}>Delete</Text>
+                    </Pressable>
+                  </View>
                 </View>
               );
             })}
@@ -397,5 +446,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#374151',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.5,
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#b91c1c',
   },
 });
