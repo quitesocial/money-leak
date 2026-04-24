@@ -16,8 +16,11 @@ import {
   formatLabel,
   formatPercentage,
 } from '@/lib/display-formatters';
+import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
+import { PeriodSelector } from '@/components/period-selector';
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
@@ -50,8 +53,21 @@ export function HomeScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
-  const summary = calculateTransactionsSummary(transactions);
-  const hasTransactions = transactions.length > 0;
+  const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+
+  const setSelectedPeriod = usePeriodScopeStore(
+    (state) => state.setSelectedPeriod,
+  );
+
+  const filteredTransactions = filterTransactionsByPeriod({
+    transactions,
+    period: selectedPeriod,
+  });
+
+  const summary = calculateTransactionsSummary(filteredTransactions);
+  const hasTransactions = filteredTransactions.length > 0;
+  const hasAnyTransactions = transactions.length > 0;
+  const selectedPeriodLabel = getPeriodLabel(selectedPeriod);
 
   const [deletingTransactionId, setDeletingTransactionId] = useState<
     string | null
@@ -113,7 +129,7 @@ export function HomeScreen() {
     );
   }
 
-  if (error && transactions.length === 0) {
+  if (error && !hasAnyTransactions) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
@@ -144,6 +160,12 @@ export function HomeScreen() {
 
           <AddTransactionAction />
         </View>
+
+        <PeriodSelector
+          label="Period"
+          selectedPeriod={selectedPeriod}
+          onSelectPeriod={setSelectedPeriod}
+        />
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
@@ -183,7 +205,7 @@ export function HomeScreen() {
 
         {hasTransactions ? (
           <View style={styles.transactionList}>
-            {transactions.map((transaction) => {
+            {filteredTransactions.map((transaction) => {
               const isLeak = transaction.isLeak;
 
               const isDeletingThisTransaction =
@@ -287,10 +309,16 @@ export function HomeScreen() {
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.stateTitle}>No transactions yet</Text>
+            <Text style={styles.stateTitle}>
+              {hasAnyTransactions
+                ? `No transactions for ${selectedPeriodLabel}`
+                : 'No transactions yet'}
+            </Text>
 
             <Text style={styles.stateMessage}>
-              Add your first expense and mark the ones that felt avoidable.
+              {hasAnyTransactions
+                ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}. Switch periods or add a new one.`
+                : 'Add your first expense and mark the ones that felt avoidable.'}
             </Text>
 
             <AddTransactionAction />

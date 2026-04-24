@@ -5,11 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ViewShot from 'react-native-view-shot';
 
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import { PeriodSelector } from '@/components/period-selector';
 import {
   generateShameCardContent,
   type ShameCardTone,
 } from '@/features/shame-card/generate-shame-card';
+import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 type ToneOption = {
@@ -34,6 +37,18 @@ export function ShameCardScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
+  const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+
+  const setSelectedPeriod = usePeriodScopeStore(
+    (state) => state.setSelectedPeriod,
+  );
+
+  const filteredTransactions = filterTransactionsByPeriod({
+    transactions,
+    period: selectedPeriod,
+  });
+
+  const selectedPeriodLabel = getPeriodLabel(selectedPeriod);
 
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
@@ -47,8 +62,9 @@ export function ShameCardScreen() {
 
   useTransactionsRefresh({ isInitialized, loadTransactions });
 
-  const analytics = calculateAnalytics(transactions);
-  const hasTransactions = transactions.length > 0;
+  const analytics = calculateAnalytics(filteredTransactions);
+  const hasTransactions = filteredTransactions.length > 0;
+  const hasAnyTransactions = transactions.length > 0;
   const hasLeaks = analytics.totalLeaks > 0;
 
   const canShareShameCard =
@@ -109,7 +125,7 @@ export function ShameCardScreen() {
     );
   }
 
-  if (error && !hasTransactions) {
+  if (error && !hasAnyTransactions) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
@@ -133,6 +149,12 @@ export function ShameCardScreen() {
           </Text>
         </View>
 
+        <PeriodSelector
+          label="Period"
+          selectedPeriod={selectedPeriod}
+          onSelectPeriod={setSelectedPeriod}
+        />
+
         {isLoading ? (
           <Text style={styles.refreshingText}>Refreshing shame card...</Text>
         ) : null}
@@ -145,11 +167,16 @@ export function ShameCardScreen() {
 
         {!hasTransactions ? (
           <View style={styles.emptyState}>
-            <Text style={styles.stateTitle}>No transactions yet</Text>
+            <Text style={styles.stateTitle}>
+              {hasAnyTransactions
+                ? `No transactions for ${selectedPeriodLabel}`
+                : 'No transactions yet'}
+            </Text>
 
             <Text style={styles.stateMessage}>
-              Add a few expenses first. The shame card only uses real data from
-              this device.
+              {hasAnyTransactions
+                ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}. Switch periods or add a new expense to generate a card here.`
+                : 'Add a few expenses first. The shame card only uses real data from this device.'}
             </Text>
           </View>
         ) : null}
@@ -159,8 +186,9 @@ export function ShameCardScreen() {
             <Text style={styles.sectionTitle}>No leaks yet</Text>
 
             <Text style={styles.sectionMessage}>
-              You have expenses, but none are marked as leaks. Mark one as a
-              leak to generate a shame card.
+              {selectedPeriod === 'all_time'
+                ? 'You have expenses, but none are marked as leaks. Mark one as a leak to generate a shame card.'
+                : `You have expenses in ${selectedPeriodLabel.toLowerCase()}, but none are marked as leaks. Mark one as a leak to generate a shame card.`}
             </Text>
           </View>
         ) : null}
@@ -207,7 +235,15 @@ export function ShameCardScreen() {
               }}
             >
               <View style={styles.previewCard}>
-                <Text style={styles.previewEyebrow}>Preview</Text>
+                <View style={styles.previewHeader}>
+                  <Text style={styles.previewEyebrow}>Preview</Text>
+
+                  <View style={styles.previewPeriodBadge}>
+                    <Text style={styles.previewPeriodText}>
+                      {selectedPeriodLabel}
+                    </Text>
+                  </View>
+                </View>
 
                 <Text style={styles.previewTitle}>
                   {shameCardContent.title}
@@ -391,11 +427,28 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   previewEyebrow: {
     fontSize: 13,
     fontWeight: '700',
     color: '#6b7280',
     textTransform: 'uppercase',
+  },
+  previewPeriodBadge: {
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  previewPeriodText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
   },
   previewTitle: {
     fontSize: 28,

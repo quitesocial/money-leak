@@ -2,13 +2,16 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import { PeriodSelector } from '@/components/period-selector';
 import {
   formatEuro,
   formatHour,
   formatLabel,
   formatPercentage,
 } from '@/lib/display-formatters';
+import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 type MetricCardProps = {
@@ -36,6 +39,18 @@ export function AnalyticsScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
+  const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+
+  const setSelectedPeriod = usePeriodScopeStore(
+    (state) => state.setSelectedPeriod,
+  );
+
+  const filteredTransactions = filterTransactionsByPeriod({
+    transactions,
+    period: selectedPeriod,
+  });
+
+  const selectedPeriodLabel = getPeriodLabel(selectedPeriod);
 
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
@@ -43,8 +58,9 @@ export function AnalyticsScreen() {
 
   useTransactionsRefresh({ isInitialized, loadTransactions });
 
-  const analytics = calculateAnalytics(transactions);
-  const hasTransactions = transactions.length > 0;
+  const analytics = calculateAnalytics(filteredTransactions);
+  const hasTransactions = filteredTransactions.length > 0;
+  const hasAnyTransactions = transactions.length > 0;
   const hasLeaks = analytics.totalLeaks > 0;
 
   if (!isInitialized) {
@@ -61,7 +77,7 @@ export function AnalyticsScreen() {
     );
   }
 
-  if (error && !hasTransactions) {
+  if (error && !hasAnyTransactions) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
@@ -84,6 +100,12 @@ export function AnalyticsScreen() {
             Simple signals about where your money leaks are showing up.
           </Text>
         </View>
+
+        <PeriodSelector
+          label="Period"
+          selectedPeriod={selectedPeriod}
+          onSelectPeriod={setSelectedPeriod}
+        />
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
@@ -123,11 +145,16 @@ export function AnalyticsScreen() {
 
         {!hasTransactions ? (
           <View style={styles.emptyState}>
-            <Text style={styles.stateTitle}>No transactions yet</Text>
+            <Text style={styles.stateTitle}>
+              {hasAnyTransactions
+                ? `No transactions for ${selectedPeriodLabel}`
+                : 'No transactions yet'}
+            </Text>
 
             <Text style={styles.stateMessage}>
-              Add an expense first. Leak patterns will show up once there is
-              something real to compare.
+              {hasAnyTransactions
+                ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}. Switch periods or add a new expense to see more here.`
+                : 'Add an expense first. Leak patterns will show up once there is something real to compare.'}
             </Text>
           </View>
         ) : null}
@@ -137,8 +164,9 @@ export function AnalyticsScreen() {
             <Text style={styles.sectionTitle}>No leaks yet</Text>
 
             <Text style={styles.sectionMessage}>
-              You have expenses, but none are marked as leaks yet. Once you add
-              one, this screen will show the strongest patterns.
+              {selectedPeriod === 'all_time'
+                ? 'You have expenses, but none are marked as leaks yet. Once you add one, this screen will show the strongest patterns.'
+                : `You have expenses in ${selectedPeriodLabel.toLowerCase()}, but none are marked as leaks yet. Once you add one, this screen will show the strongest patterns.`}
             </Text>
           </View>
         ) : null}
