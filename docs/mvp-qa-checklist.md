@@ -566,3 +566,107 @@
 - If capture or share fails for another reason, the screen shows `Could not share the shame card. Try again.`
 - App does not crash.
 - Share button returns from `Sharing...` to its normal state after the failure.
+
+## Settings / Data Export
+
+### 29. Export CSV with an empty database
+
+**Preconditions**
+
+- Test on a native device or simulator where sharing is available.
+- Local transaction data is empty.
+
+**Steps**
+
+1. Open `Settings`.
+2. In the `Data` section, tap `Export CSV`.
+3. Wait for the native share sheet.
+4. Open the generated CSV in any available preview target if the platform allows it.
+
+**Expected result**
+
+- `Export CSV` changes to `Exporting...` while the export is in flight.
+- Native share sheet opens with a CSV file named like `money-leak-transactions-YYYY-MM-DD.csv`.
+- The CSV contains only the header row: `id,amount,category,isLeak,leakReason,note,createdAt`.
+- App stays responsive after dismissing or completing the share sheet.
+
+### 30. Export CSV with normal and leak transactions
+
+**Preconditions**
+
+- Test on a native device or simulator where sharing is available.
+- At least one normal transaction and one leak transaction exist.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Export CSV`.
+3. Open the generated CSV in any available preview target if the platform allows it.
+
+**Expected result**
+
+- Native share sheet opens with the CSV file.
+- CSV columns appear in this exact order: `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Each transaction is exported on its own row in newest-first order.
+- Normal transactions export `isLeak` as `false` with empty `leakReason` and empty `note` when those values are null.
+- Leak transactions export `isLeak` as `true`, include the saved `leakReason`, and preserve any saved note.
+- `createdAt` values are ISO date strings.
+
+### 31. Export CSV escapes commas, quotes, and newlines
+
+**Preconditions**
+
+- Test on a native device or simulator where sharing is available.
+- At least one transaction exists with a note containing commas, double quotes, and a line break.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Export CSV`.
+3. Open the generated CSV in any available preview target if the platform allows it.
+
+**Expected result**
+
+- Native share sheet opens without crashing.
+- Fields containing commas, quotes, or newlines are wrapped in quotes.
+- Embedded quotes are doubled inside the quoted CSV field.
+- Line breaks inside notes stay inside the same CSV field instead of shifting later columns.
+
+### 32. Export CSV loading state
+
+**Preconditions**
+
+- App has just launched, or `Settings` is the first tab opened in the session.
+
+**Steps**
+
+1. Open `Settings` immediately after launch.
+2. Review the `Data` section before transaction loading settles.
+3. Wait for loading to complete.
+4. Tap `Export CSV`.
+
+**Expected result**
+
+- The `Data` section shows `Preparing your local transaction history for export…` while transaction data is still initializing.
+- `Export CSV` is disabled until transaction loading finishes.
+- Once loading finishes, `Export CSV` becomes enabled.
+- Tapping the button changes the label to `Exporting...` until the export flow finishes.
+
+### 33. Export CSV unavailable/error path
+
+**Preconditions**
+
+- Use a runtime where sharing is unavailable, or simulate a file/share failure if the environment allows it.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Export CSV`.
+
+**Expected result**
+
+- If sharing is unavailable, the screen shows `Sharing is not available on this device.`
+- If CSV file creation or sharing fails for another reason, the screen shows `Couldn't export transactions. Try again.`
+- App does not crash.
+- The button returns from `Exporting...` to `Export CSV` after the failure.
+- Existing reminder controls still work after the error.

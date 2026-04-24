@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
@@ -10,6 +18,8 @@ import {
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
+import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { useTransactionsStore } from '@/store/transactions-store';
 
 function getReminderPermissionError(
   permissionStatus: ReminderPermissionStatus,
@@ -26,11 +36,22 @@ function getReminderPermissionError(
 }
 
 export function SettingsScreen() {
+  const transactions = useTransactionsStore((state) => state.transactions);
+  
+  const isTransactionsInitialized = useTransactionsStore(
+    (state) => state.isInitialized,
+  );
+  
+  const loadTransactions = useTransactionsStore(
+    (state) => state.loadTransactions,
+  );
+
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
-  
+  const [exportError, setExportError] = useState<string | null>(null);
   const [reminderPermissionStatus, setReminderPermissionStatus] =
     useState<ReminderPermissionStatus>('undetermined');
 
@@ -38,6 +59,13 @@ export function SettingsScreen() {
   
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
+  
+  const isExportDisabled = !isTransactionsInitialized || isExporting;
+
+  useTransactionsRefresh({
+    isInitialized: isTransactionsInitialized,
+    loadTransactions,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -121,6 +149,26 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleExportPress() {
+    if (isExportDisabled) return;
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      await exportTransactionsCsv(transactions);
+    } catch (error) {
+      console.error('Failed to export transactions CSV', error);
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't export transactions. Try again.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -170,6 +218,42 @@ export function SettingsScreen() {
 
           {reminderError ? (
             <Text style={styles.errorText}>{reminderError}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Data</Text>
+
+            <Text style={styles.sectionBody}>
+              Export every transaction saved on this device as a CSV backup.
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isExportDisabled}
+            onPress={() => {
+              void handleExportPress();
+            }}
+            style={[
+              styles.exportButton,
+              isExportDisabled ? styles.exportButtonDisabled : null,
+            ]}
+          >
+            <Text style={styles.exportButtonText}>
+              {isExporting ? 'Exporting...' : 'Export CSV'}
+            </Text>
+          </Pressable>
+
+          <Text style={styles.metaText}>
+            {!isTransactionsInitialized
+              ? 'Preparing your local transaction history for export…'
+              : 'This stays on-device and opens the native share sheet with a CSV copy.'}
+          </Text>
+
+          {exportError ? (
+            <Text style={styles.errorText}>{exportError}</Text>
           ) : null}
         </View>
       </ScrollView>
@@ -241,6 +325,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#4b5563',
+  },
+  exportButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    paddingVertical: 14,
+  },
+  exportButtonDisabled: {
+    opacity: 0.6,
+  },
+  exportButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   errorText: {
     fontSize: 14,
