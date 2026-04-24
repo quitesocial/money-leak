@@ -28,6 +28,7 @@ export default function TabLayout() {
 
       <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
       <Tabs.Screen name="shame-card" options={{ title: 'Shame Card' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
     </Tabs>
   );
 }
