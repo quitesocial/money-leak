@@ -75,8 +75,8 @@ export function ShameCardScreen() {
       const isAvailable = await Sharing.isAvailableAsync();
 
       if (!isAvailable) {
-        setShareError('Could not share the shame card. Try again.');
-        
+        setShareError('Sharing is not available on this device.');
+
         return;
       }
 
@@ -99,7 +99,11 @@ export function ShameCardScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading shame card...</Text>
+          <Text style={styles.stateTitle}>Loading shame card</Text>
+
+          <Text style={styles.stateMessage}>
+            Building the preview from your latest leaks.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -144,19 +148,19 @@ export function ShameCardScreen() {
             <Text style={styles.stateTitle}>No transactions yet</Text>
 
             <Text style={styles.stateMessage}>
-              Add a few expenses first. The shame card only uses real
-              transaction data.
+              Add a few expenses first. The shame card only uses real data from
+              this device.
             </Text>
           </View>
         ) : null}
 
         {hasTransactions && !hasLeaks ? (
-          <View style={styles.previewCard}>
-            <Text style={styles.previewTitle}>No leaks yet</Text>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>No leaks yet</Text>
 
-            <Text style={styles.previewLine}>
-              You have transactions, but none are marked as leaks. Nothing to
-              shame here yet.
+            <Text style={styles.sectionMessage}>
+              You have expenses, but none are marked as leaks. Mark one as a
+              leak to generate a shame card.
             </Text>
           </View>
         ) : null}
@@ -204,7 +208,7 @@ export function ShameCardScreen() {
             >
               <View style={styles.previewCard}>
                 <Text style={styles.previewEyebrow}>Preview</Text>
-                
+
                 <Text style={styles.previewTitle}>
                   {shameCardContent.title}
                 </Text>
@@ -328,6 +332,24 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingVertical: 24,
   },
+  sectionCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    padding: 16,
+    gap: 10,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sectionMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#4b5563',
+  },
   toneSection: {
     gap: 10,
   },
@@ -417,6 +439,7 @@ const styles = StyleSheet.create({
   },
   shareErrorText: {
     fontSize: 13,
+    lineHeight: 18,
     color: '#dc2626',
   },
 });

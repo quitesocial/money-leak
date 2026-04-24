@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import { formatLabel } from '@/lib/display-formatters';
 import { useTransactionsStore } from '@/store/transactions-store';
 import {
   LEAK_REASONS,
@@ -45,12 +46,12 @@ function validateTransactionForm(
   let parsedAmount: number | null = null;
 
   if (!trimmedAmount) {
-    errors.amount = 'Amount is required.';
+    errors.amount = 'Enter an amount.';
   } else {
     const amount = Number(trimmedAmount);
 
     if (!Number.isFinite(amount)) {
-      errors.amount = 'Amount must be a valid number.';
+      errors.amount = 'Use a number like 12.50.';
     } else if (amount <= 0) {
       errors.amount = 'Amount must be greater than 0.';
     } else {
@@ -59,14 +60,14 @@ function validateTransactionForm(
   }
 
   if (!selectedCategory || !transactionCategorySet.has(selectedCategory)) {
-    errors.category = 'Select a category.';
+    errors.category = 'Choose a category.';
   }
 
   if (
     isLeak &&
     (!selectedLeakReason || !leakReasonSet.has(selectedLeakReason))
   ) {
-    errors.leakReason = 'Select a leak reason.';
+    errors.leakReason = 'Choose why this felt like a leak.';
   }
 
   return { errors, parsedAmount };
@@ -194,7 +195,7 @@ export function AddTransactionScreen() {
           <Text style={styles.title}>Add Transaction</Text>
 
           <Text style={styles.subtitle}>
-            Save a normal expense or mark it as a leak.
+            Save the expense, then mark it as normal or a money leak.
           </Text>
         </View>
 
@@ -205,7 +206,7 @@ export function AddTransactionScreen() {
             <TextInput
               value={amountText}
               onChangeText={handleAmountChange}
-              placeholder="0.00"
+              placeholder="12.50"
               keyboardType="decimal-pad"
               autoCapitalize="none"
               autoCorrect={false}
@@ -239,7 +240,7 @@ export function AddTransactionScreen() {
                         isSelected ? styles.categoryChipTextSelected : null,
                       ]}
                     >
-                      {category}
+                      {formatLabel(category)}
                     </Text>
                   </Pressable>
                 );
@@ -294,7 +295,7 @@ export function AddTransactionScreen() {
           {isLeak ? (
             <>
               <View style={styles.field}>
-                <Text style={styles.label}>Leak Reason</Text>
+                <Text style={styles.label}>Leak reason</Text>
 
                 <View style={styles.categoryList}>
                   {LEAK_REASONS.map((reason) => {
@@ -315,7 +316,7 @@ export function AddTransactionScreen() {
                             isSelected ? styles.categoryChipTextSelected : null,
                           ]}
                         >
-                          {reason}
+                          {formatLabel(reason)}
                         </Text>
                       </Pressable>
                     );
@@ -328,7 +329,7 @@ export function AddTransactionScreen() {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Note (Optional)</Text>
+                <Text style={styles.label}>Note (optional)</Text>
 
                 <TextInput
                   value={noteText}
@@ -376,10 +377,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
+    gap: 24,
   },
   header: {
     gap: 8,
-    marginBottom: 32,
   },
   title: {
     fontSize: 28,
@@ -392,7 +393,7 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   form: {
-    gap: 24,
+    gap: 20,
   },
   field: {
     gap: 10,
@@ -439,13 +440,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#374151',
-    textTransform: 'capitalize',
   },
   categoryChipTextSelected: {
     color: '#ffffff',
   },
   fieldError: {
     fontSize: 13,
+    lineHeight: 18,
     color: '#dc2626',
   },
   storeErrorBox: {
