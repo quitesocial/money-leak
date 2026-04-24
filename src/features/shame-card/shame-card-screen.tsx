@@ -265,6 +265,12 @@ export function ShameCardScreen() {
                       {shameCardContent.peakTimeLine}
                     </Text>
                   ) : null}
+
+                  {shameCardContent.alternativeRealityLine ? (
+                    <Text style={styles.previewLine}>
+                      {shameCardContent.alternativeRealityLine}
+                    </Text>
+                  ) : null}
                 </View>
 
                 <Text style={styles.verdict}>{shameCardContent.verdict}</Text>
