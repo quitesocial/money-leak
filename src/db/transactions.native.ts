@@ -64,11 +64,11 @@ export async function initDatabase() {
   if (!initPromise) {
     initPromise = (async () => {
       const database = await getDatabase();
-      
+
       await database.execAsync(CREATE_TRANSACTIONS_TABLE_SQL);
     })().catch((error) => {
       initPromise = null;
-      
+
       throw error;
     });
   }
