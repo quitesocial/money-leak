@@ -161,9 +161,136 @@
 - Saved transaction is marked `Normal`.
 - Saved transaction does not display a leak reason or note that came from the leak-only fields.
 
+## Edit Transaction
+
+### 8. Edit a normal transaction preserves identity and original timestamp
+
+**Preconditions**
+
+- At least one normal transaction exists on `Home`.
+
+**Steps**
+
+1. Open `Home`.
+2. Pick a normal transaction and note its current amount, category, and timestamp.
+3. Tap `Edit`.
+4. Change the amount.
+5. Change the category.
+6. Tap `Save Changes`.
+
+**Expected result**
+
+- Save succeeds without validation errors.
+- App returns to `Home`.
+- The edited transaction shows the new amount and category.
+- The transaction keeps the same `id` and `createdAt`; in-app this means no duplicate transaction appears, the original timestamp stays the same, and sort order still matches the original creation time.
+
+### 9. Edit a transaction to update leak fields
+
+**Preconditions**
+
+- At least one existing transaction is present.
+
+**Steps**
+
+1. Open `Home`.
+2. Pick any transaction and tap `Edit`.
+3. Change the amount.
+4. Change the category.
+5. Switch type to `Leak`.
+6. Select a leak reason.
+7. Enter a note such as `Impulse snack run`.
+8. Tap `Save Changes`.
+
+**Expected result**
+
+- Save succeeds without validation errors.
+- App returns to `Home`.
+- The edited transaction shows the new amount and category.
+- The transaction now shows the `Leak` badge.
+- Leak reason and note are shown with the updated values.
+- Editing updates `amount`, `category`, `isLeak`, `leakReason`, and `note` for the saved transaction.
+
+### 10. Switching Leak -> Normal clears leak-only fields on edit
+
+**Preconditions**
+
+- At least one leak transaction exists with a leak reason.
+
+**Steps**
+
+1. Open `Home`.
+2. Pick a leak transaction and tap `Edit`.
+3. Confirm a leak reason is selected.
+4. Enter or update the note field.
+5. Switch type to `Normal`.
+6. Tap `Save Changes`.
+
+**Expected result**
+
+- Leak reason chips and note field disappear after switching back to `Normal`.
+- Save succeeds and returns to `Home`.
+- Saved transaction is marked `Normal`.
+- Saved transaction does not display a leak reason or note from the previous leak-only fields.
+
+### 11. Home summary recalculates after edit
+
+**Preconditions**
+
+- At least one transaction exists on `Home`.
+
+**Steps**
+
+1. Open `Home`.
+2. Note the current summary values.
+3. Tap `Edit` on any transaction.
+4. Change the amount and, if useful for verification, change the type between `Normal` and `Leak`.
+5. Tap `Save Changes`.
+
+**Expected result**
+
+- App returns to `Home` after saving.
+- The edited transaction card shows the updated values.
+- `Total spent`, `Total leaks`, and `Leak percentage` recalculate immediately based on the edited transaction data.
+
+### 12. Analytics reflects edited transaction data
+
+**Preconditions**
+
+- At least one transaction has been edited in the current session.
+
+**Steps**
+
+1. Edit a transaction so that it changes amount, category, type, or leak details.
+2. After saving, open `Analytics`.
+3. Review the summary card.
+4. Review any visible metric cards or empty states.
+
+**Expected result**
+
+- Analytics reflects the latest edited transaction data without requiring app restart.
+- Summary values match the current transaction list.
+- Leak-related metric cards or no-leaks states update to match the post-edit data.
+
+### 13. Add Transaction regression after shared form reuse
+
+**Preconditions**
+
+- App is running.
+
+**Steps**
+
+1. Re-run `Add Transaction` cases `2` through `7` without changing their steps.
+
+**Expected result**
+
+- Add Transaction behavior is unchanged after the Edit Transaction work.
+- Normal and leak saves still work.
+- Existing add-form validation and leak-field clearing behavior still match this checklist.
+
 ## Home
 
-### 8. Home list rendering
+### 14. Home list rendering
 
 **Preconditions**
 
@@ -181,7 +308,7 @@
 - Leak transactions use the leak styling and show leak reason when present.
 - Normal transactions use the normal styling and do not show leak-only details.
 
-### 9. Home summary recalculation
+### 15. Home summary recalculation
 
 **Preconditions**
 
@@ -200,7 +327,7 @@
 - `Total leaks` increases only by the leak transaction amount.
 - `Leak percentage` recalculates after each change.
 
-### 10. Delete confirmation cancel
+### 16. Delete confirmation cancel
 
 **Preconditions**
 
@@ -217,7 +344,7 @@
 - No loading or deleting state remains stuck on screen.
 - Summary values do not change.
 
-### 11. Delete confirmation confirm
+### 17. Delete confirmation confirm
 
 **Preconditions**
 
@@ -234,7 +361,7 @@
 - Summary values recalculate immediately after deletion completes.
 - Delete button returns to its normal state after completion.
 
-### 12. Deleting last transaction
+### 18. Deleting last transaction
 
 **Preconditions**
 
@@ -256,7 +383,7 @@
 
 ## Analytics
 
-### 13. Analytics empty state
+### 19. Analytics empty state
 
 **Preconditions**
 
@@ -272,7 +399,7 @@
 - No leak insight cards are shown.
 - Summary values remain zero.
 
-### 14. Analytics with only normal transactions
+### 20. Analytics with only normal transactions
 
 **Preconditions**
 
@@ -290,7 +417,7 @@
 - `No leaks yet` state is shown.
 - Top leak and insight cards are not shown.
 
-### 15. Analytics with leak transactions
+### 21. Analytics with leak transactions
 
 **Preconditions**
 
@@ -312,7 +439,7 @@
 
 ## Shame Card
 
-### 16. Shame Card empty state
+### 22. Shame Card empty state
 
 **Preconditions**
 
@@ -328,7 +455,7 @@
 - No preview card is shown.
 - Share button is not shown.
 
-### 17. Shame Card no-leaks state
+### 23. Shame Card no-leaks state
 
 **Preconditions**
 
@@ -345,7 +472,7 @@
 - Preview card is not shown.
 - Share button is not shown.
 
-### 18. Shame Card with leaks
+### 24. Shame Card with leaks
 
 **Preconditions**
 
@@ -362,7 +489,7 @@
 - Card includes a title, total leaks line, verdict, and any available top-category or peak-time lines.
 - Screen does not crash when preview is rendered.
 
-### 19. Shame Card tone switching
+### 25. Shame Card tone switching
 
 **Preconditions**
 
@@ -382,7 +509,7 @@
 - Preview title and verdict change with the selected tone.
 - No other leak data is lost while switching tone.
 
-### 20. Share button visibility rules
+### 26. Share button visibility rules
 
 **Preconditions**
 
@@ -400,7 +527,7 @@
 - Share button is hidden when there are transactions but no leaks.
 - Share button is visible only when the shame card preview is available for leak data.
 
-### 21. Share action success path
+### 27. Share action success path
 
 **Preconditions**
 
@@ -421,7 +548,7 @@
 - App stays responsive after dismissing or completing the share sheet.
 - No error message is shown on success.
 
-### 22. Share unavailable/error path
+### 28. Share unavailable/error path
 
 **Preconditions**
 
