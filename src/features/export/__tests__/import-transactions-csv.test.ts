@@ -66,6 +66,38 @@ describe('parseTransactionsCsv', () => {
     });
   });
 
+  it('parses quoted notes containing CRLF content', () => {
+    const csv = [
+      HEADER,
+      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
+      'txn-2,18.4,shopping,true,impulse,"line 1\r\nline 2",2025-01-02T12:00:00.000Z',
+    ].join('\r\n');
+
+    expect(parseTransactionsCsv(csv)).toEqual({
+      transactions: [
+        {
+          id: 'txn-1',
+          amount: 12.5,
+          category: 'food',
+          isLeak: false,
+          leakReason: null,
+          note: null,
+          createdAt: 1735732800000,
+        },
+        {
+          id: 'txn-2',
+          amount: 18.4,
+          category: 'shopping',
+          isLeak: true,
+          leakReason: 'impulse',
+          note: 'line 1\r\nline 2',
+          createdAt: 1735819200000,
+        },
+      ],
+      skippedCount: 0,
+    });
+  });
+
   it('fails when the header does not match the Money Leak export format', () => {
     const csv = [
       'id,amount,category,isLeak,note,leakReason,createdAt',
