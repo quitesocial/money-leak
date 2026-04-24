@@ -55,6 +55,12 @@ function formatImportResult({ importedCount, skippedCount }: ImportResult) {
 
 export function SettingsScreen() {
   const transactions = useTransactionsStore((state) => state.transactions);
+  
+  const isTransactionsLoading = useTransactionsStore(
+    (state) => state.isLoading,
+  );
+  
+  const transactionsError = useTransactionsStore((state) => state.error);
 
   const isTransactionsInitialized = useTransactionsStore(
     (state) => state.isInitialized,
@@ -92,10 +98,16 @@ export function SettingsScreen() {
     isReminderLoading || isReminderBusy || isReminderUnsupported;
 
   const isDataActionBusy = isExporting || isImporting;
-  const isExportDisabled = !isTransactionsInitialized || isDataActionBusy;
+  
+  const isDataPreparing =
+    !isTransactionsInitialized || isTransactionsLoading || isDataActionBusy;
+  
+  const isExportDisabled = isDataPreparing || transactionsError !== null;
 
-  const isImportDisabled =
-    !isTransactionsInitialized || isDataActionBusy || isImportUnsupported;
+  const isImportDisabled = isDataPreparing || isImportUnsupported;
+  
+  const shouldShowTransactionsError =
+    transactionsError !== null && transactionsError !== importError;
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -208,6 +220,8 @@ export function SettingsScreen() {
     if (isImportDisabled) return;
 
     setIsImporting(true);
+    setImportResult(null);
+    setImportError(null);
 
     try {
       const selection = await pickTransactionsCsvImport();
@@ -355,7 +369,11 @@ export function SettingsScreen() {
           <Text style={styles.metaText}>
             {!isTransactionsInitialized
               ? 'Preparing your local transaction history for import and export…'
-              : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.'}
+              : isTransactionsLoading
+                ? 'Refreshing your local transaction history for import and export…'
+                : transactionsError
+                  ? 'Your local transaction history could not be fully prepared. Import can still restore a Money Leak CSV backup.'
+                  : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.'}
           </Text>
 
           {isImportUnsupported ? (
@@ -373,6 +391,10 @@ export function SettingsScreen() {
             <Text style={styles.infoText}>
               {formatImportResult(importResult)}
             </Text>
+          ) : null}
+
+          {shouldShowTransactionsError ? (
+            <Text style={styles.errorText}>{transactionsError}</Text>
           ) : null}
 
           {importError ? (

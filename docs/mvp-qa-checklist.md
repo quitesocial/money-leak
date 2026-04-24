@@ -647,7 +647,7 @@
 
 **Expected result**
 
-- The `Data` section shows `Preparing your local transaction history for export…` while transaction data is still initializing.
+- The `Data` section shows `Preparing your local transaction history for import and export…` while transaction data is still initializing.
 - `Export CSV` is disabled until transaction loading finishes.
 - Once loading finishes, `Export CSV` becomes enabled.
 - Tapping the button changes the label to `Exporting...` until the export flow finishes.
@@ -673,6 +673,10 @@
 
 ## Settings / Data Import
 
+**Verification note**
+
+- The default period is `This month`. Before verifying imported data in `Home`, `Analytics`, or `Shame Card`, switch each screen to `All time` unless the CSV fixture dates are guaranteed to fall in the current period.
+
 ### 34. Import a valid Money Leak CSV backup
 
 **Preconditions**
@@ -686,9 +690,9 @@
 2. In the `Data` section, tap `Import CSV`.
 3. Pick the exported CSV file in the native document picker.
 4. Wait for the import to finish.
-5. Open `Home`.
-6. Open `Analytics`.
-7. Open `Shame Card`.
+5. Open `Home` and switch the period to `All time` unless the imported fixture dates are in the current period.
+6. Open `Analytics` and switch the period to `All time` unless the imported fixture dates are in the current period.
+7. Open `Shame Card` and switch the period to `All time` unless the imported fixture dates are in the current period.
 
 **Expected result**
 
@@ -829,3 +833,138 @@
 - Reminder controls still work after both successful and failed imports.
 - Import errors appear separately from export errors and reminder errors.
 - The app remains responsive throughout the sequence.
+
+## Onboarding
+
+### 41. First-run onboarding can be skipped
+
+**Preconditions**
+
+- App is installed with no existing onboarding completion state.
+
+**Steps**
+
+1. Launch the app for the first time.
+2. Wait for the onboarding screen to appear.
+3. Tap `Skip`.
+4. Let the redirect complete.
+5. Fully close and relaunch the app.
+
+**Expected result**
+
+- Tapping `Skip` completes onboarding without crashing.
+- App redirects to the main tab flow.
+- On relaunch, the app opens the main tab flow instead of showing onboarding again.
+
+### 42. First-run onboarding completes from the final step
+
+**Preconditions**
+
+- App is installed with no existing onboarding completion state.
+
+**Steps**
+
+1. Launch the app for the first time.
+2. Tap `Next` until the final onboarding step appears.
+3. Leave the reminder toggle unchanged.
+4. Tap `Start tracking`.
+5. Fully close and relaunch the app.
+
+**Expected result**
+
+- The final step appears without layout or state issues.
+- Tapping `Start tracking` completes onboarding without crashing.
+- App redirects to the main tab flow.
+- On relaunch, the app opens the main tab flow instead of showing onboarding again.
+
+### 43. Onboarding final-step reminder enable, deny, and disable flow
+
+**Preconditions**
+
+- App is installed with no existing onboarding completion state.
+- Test on a native device or simulator where notifications are available.
+
+**Steps**
+
+1. Launch the app and advance to the final onboarding step.
+2. Turn the daily reminder on.
+3. If the system permission prompt appears, deny it once and verify the inline error state.
+4. Turn the reminder on again and allow notifications.
+5. Turn the reminder off.
+6. Tap `Start tracking`.
+
+**Expected result**
+
+- The reminder card only appears on the final onboarding step.
+- While reminder support is loading, the screen shows `Checking reminder support…` and the toggle is disabled.
+- If notification permission is denied, the toggle returns to off and the screen shows `Notifications are off for Money Leak. Turn them on in system settings to get the daily check-in.`
+- After notifications are allowed, the toggle stays on with no crash or stuck loading state.
+- Turning the reminder off works on the onboarding screen before completing setup.
+- Completing onboarding still succeeds after each reminder interaction.
+
+## Settings / Reminders
+
+### 44. Settings reminder enable and disable flow
+
+**Preconditions**
+
+- Test on a native device or simulator where notifications are available.
+- App has already completed onboarding and is on the main tab flow.
+
+**Steps**
+
+1. Open `Settings`.
+2. Wait for the reminder state to finish loading.
+3. Turn the daily reminder on and allow notifications if prompted.
+4. Turn the daily reminder off.
+
+**Expected result**
+
+- While reminder support is loading, the screen shows `Checking reminder support…` and the toggle is disabled.
+- Turning the reminder on succeeds without crashing and leaves the toggle enabled.
+- Turning the reminder off succeeds without crashing and leaves the toggle disabled.
+- The reminder section stays responsive after the toggle is used more than once.
+
+### 45. Settings reminder denied and unsupported states
+
+**Preconditions**
+
+- Use either:
+- A native device or simulator where notification permission can be denied.
+- Or a web runtime where reminders are unsupported.
+
+**Steps**
+
+1. Open `Settings`.
+2. If notifications are available, try turning the reminder on and deny permission.
+3. If reminders are unsupported, review the reminder section without toggling.
+
+**Expected result**
+
+- On native with denied permission, the toggle returns to off and the screen shows `Notifications are off for Money Leak. Turn them on in system settings to get the daily check-in.`
+- On an unsupported platform, the toggle stays disabled and the screen shows `Daily reminders are not available on this platform.`
+- The reminder section does not crash or block the rest of `Settings`.
+
+## Web Fallback
+
+### 46. Web Settings safely reflects native-only persistence limits
+
+**Preconditions**
+
+- Test in the web build.
+
+**Steps**
+
+1. Open the app on web.
+2. Open `Settings`.
+3. Wait for the `Data` section to finish its initial loading state.
+4. Review the reminder and data sections.
+
+**Expected result**
+
+- App does not crash while `Settings` loads on web.
+- The `Data` section shows `Import CSV is only available on native devices in this build.`
+- The `Data` section shows an inline transaction error explaining that SQLite transaction persistence is only available on native platforms in this build.
+- `Import CSV` stays disabled on web.
+- `Export CSV` stays disabled when local transaction history could not be prepared on web.
+- Reminder UI safely shows the unsupported platform state without affecting the rest of the screen.
