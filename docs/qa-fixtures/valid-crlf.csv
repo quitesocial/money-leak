@@ -1,0 +1,4 @@
+id,amount,category,isLeak,leakReason,note,createdAt
+txn-crlf-normal,9.99,transport,false,,,2025-01-03T12:00:00.000Z
+txn-crlf-leak,27.5,other,true,stress,"first line
+second line",2025-01-04T12:00:00.000Z

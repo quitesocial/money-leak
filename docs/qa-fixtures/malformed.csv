@@ -1,0 +1,2 @@
+id,amount,category,isLeak,leakReason,note,createdAt
+txn-malformed,12.5,food,false,,"broken note,2025-01-01T12:00:00.000Z

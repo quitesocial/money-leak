@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it, jest } from '@jest/globals';
+
 import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
 
 jest.mock('expo-document-picker', () => ({
@@ -9,104 +13,104 @@ jest.mock('expo-file-system/legacy', () => ({
   readAsStringAsync: jest.fn(),
 }));
 
-const HEADER = 'id,amount,category,isLeak,leakReason,note,createdAt';
+function readCsvFixture(fileName: string) {
+  return readFileSync(
+    path.join(process.cwd(), 'docs', 'qa-fixtures', fileName),
+    'utf8',
+  );
+}
+
+const VALID_MONEY_LEAK_TRANSACTIONS = [
+  {
+    id: 'txn-fixture-normal',
+    amount: 12.5,
+    category: 'food',
+    isLeak: false,
+    leakReason: null,
+    note: null,
+    createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
+  },
+  {
+    id: 'txn-fixture-leak',
+    amount: 18.4,
+    category: 'shopping',
+    isLeak: true,
+    leakReason: 'impulse',
+    note: 'comma, "quote"\nline two',
+    createdAt: Date.parse('2025-01-02T12:00:00.000Z'),
+  },
+];
+
+const VALID_CRLF_TRANSACTIONS = [
+  {
+    id: 'txn-crlf-normal',
+    amount: 9.99,
+    category: 'transport',
+    isLeak: false,
+    leakReason: null,
+    note: null,
+    createdAt: Date.parse('2025-01-03T12:00:00.000Z'),
+  },
+  {
+    id: 'txn-crlf-leak',
+    amount: 27.5,
+    category: 'other',
+    isLeak: true,
+    leakReason: 'stress',
+    note: 'first line\r\nsecond line',
+    createdAt: Date.parse('2025-01-04T12:00:00.000Z'),
+  },
+];
+
+const DUPLICATE_ID_TRANSACTIONS = [
+  {
+    id: 'txn-duplicate',
+    amount: 12.5,
+    category: 'food',
+    isLeak: false,
+    leakReason: null,
+    note: null,
+    createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
+  },
+  {
+    id: 'txn-duplicate',
+    amount: 18.4,
+    category: 'shopping',
+    isLeak: true,
+    leakReason: 'impulse',
+    note: 'Later duplicate',
+    createdAt: Date.parse('2025-01-02T12:00:00.000Z'),
+  },
+];
 
 describe('parseTransactionsCsv', () => {
-  it('parses a CSV with a UTF-8 BOM at the start', () => {
-    const csv = [
-      `\uFEFF${HEADER}`,
-      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-    ].join('\n');
-
-    expect(parseTransactionsCsv(csv)).toEqual({
-      transactions: [
-        {
-          id: 'txn-1',
-          amount: 12.5,
-          category: 'food',
-          isLeak: false,
-          leakReason: null,
-          note: null,
-          createdAt: 1735732800000,
-        },
-      ],
+  it('parses the shared valid-money-leak fixture', () => {
+    expect(
+      parseTransactionsCsv(readCsvFixture('valid-money-leak.csv')),
+    ).toEqual({
+      transactions: VALID_MONEY_LEAK_TRANSACTIONS,
       skippedCount: 0,
     });
   });
 
-  it('parses CRLF row endings', () => {
-    const csv = [
-      HEADER,
-      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-      'txn-2,18.4,shopping,true,impulse,Keep it,2025-01-02T12:00:00.000Z',
-    ].join('\r\n');
-
-    expect(parseTransactionsCsv(csv)).toEqual({
-      transactions: [
-        {
-          id: 'txn-1',
-          amount: 12.5,
-          category: 'food',
-          isLeak: false,
-          leakReason: null,
-          note: null,
-          createdAt: 1735732800000,
-        },
-        {
-          id: 'txn-2',
-          amount: 18.4,
-          category: 'shopping',
-          isLeak: true,
-          leakReason: 'impulse',
-          note: 'Keep it',
-          createdAt: 1735819200000,
-        },
-      ],
+  it('parses the shared UTF-8 BOM fixture', () => {
+    expect(parseTransactionsCsv(readCsvFixture('valid-with-bom.csv'))).toEqual({
+      transactions: VALID_MONEY_LEAK_TRANSACTIONS,
       skippedCount: 0,
     });
   });
 
-  it('parses quoted notes containing CRLF content', () => {
-    const csv = [
-      HEADER,
-      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-      'txn-2,18.4,shopping,true,impulse,"line 1\r\nline 2",2025-01-02T12:00:00.000Z',
-    ].join('\r\n');
-
-    expect(parseTransactionsCsv(csv)).toEqual({
-      transactions: [
-        {
-          id: 'txn-1',
-          amount: 12.5,
-          category: 'food',
-          isLeak: false,
-          leakReason: null,
-          note: null,
-          createdAt: 1735732800000,
-        },
-        {
-          id: 'txn-2',
-          amount: 18.4,
-          category: 'shopping',
-          isLeak: true,
-          leakReason: 'impulse',
-          note: 'line 1\r\nline 2',
-          createdAt: 1735819200000,
-        },
-      ],
+  it('parses the shared CRLF fixture and preserves embedded CRLF notes', () => {
+    expect(parseTransactionsCsv(readCsvFixture('valid-crlf.csv'))).toEqual({
+      transactions: VALID_CRLF_TRANSACTIONS,
       skippedCount: 0,
     });
   });
 
   it('fails when the header does not match the Money Leak export format', () => {
-    const csv = [
-      'id,amount,category,isLeak,note,leakReason,createdAt',
-      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-    ].join('\n');
-
-    expect(() => parseTransactionsCsv(csv)).toThrow(
-      "This CSV file doesn't match the Money Leak export format.",
-    );
+    expect(() =>
+      parseTransactionsCsv(readCsvFixture('wrong-header.csv')),
+    ).toThrow("This CSV file doesn't match the Money Leak export format.");
   });
 
   it('fails for an empty file', () => {
@@ -114,80 +118,33 @@ describe('parseTransactionsCsv', () => {
   });
 
   it('fails for malformed quoted CSV', () => {
-    const csv = [
-      HEADER,
-      'txn-1,12.5,food,false,,"broken note,2025-01-01T12:00:00.000Z',
-    ].join('\n');
-
-    expect(() => parseTransactionsCsv(csv)).toThrow(
+    expect(() => parseTransactionsCsv(readCsvFixture('malformed.csv'))).toThrow(
       'This CSV file is malformed.',
     );
   });
 
-  it('skips invalid rows without failing the whole import', () => {
-    const csv = [
-      HEADER,
-      'txn-1,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-      'txn-bad-amount,0,food,false,,,2025-01-01T12:00:00.000Z',
-      'txn-bad-category,5,invalid,false,,,2025-01-01T12:00:00.000Z',
-      'txn-bad-leak,9,shopping,true,not-a-reason,,2025-01-01T12:00:00.000Z',
-      '',
-      'txn-2,18.4,shopping,true,impulse,"line 1\nline 2",2025-01-02T12:00:00.000Z',
-    ].join('\n');
-
-    expect(parseTransactionsCsv(csv)).toEqual({
+  it('skips invalid rows from the mixed-valid-invalid fixture', () => {
+    expect(
+      parseTransactionsCsv(readCsvFixture('mixed-valid-invalid.csv')),
+    ).toEqual({
       transactions: [
         {
-          id: 'txn-1',
+          id: 'txn-valid-1',
           amount: 12.5,
           category: 'food',
           isLeak: false,
           leakReason: null,
           note: null,
-          createdAt: 1735732800000,
-        },
-        {
-          id: 'txn-2',
-          amount: 18.4,
-          category: 'shopping',
-          isLeak: true,
-          leakReason: 'impulse',
-          note: 'line 1\nline 2',
-          createdAt: 1735819200000,
+          createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
         },
       ],
-      skippedCount: 3,
+      skippedCount: 5,
     });
   });
 
-  it('keeps duplicate IDs as valid parsed rows', () => {
-    const csv = [
-      HEADER,
-      'txn-dup,12.5,food,false,,,2025-01-01T12:00:00.000Z',
-      'txn-dup,18.4,shopping,true,impulse,Later duplicate,2025-01-02T12:00:00.000Z',
-    ].join('\n');
-
-    expect(parseTransactionsCsv(csv)).toEqual({
-      transactions: [
-        {
-          id: 'txn-dup',
-          amount: 12.5,
-          category: 'food',
-          isLeak: false,
-          leakReason: null,
-          note: null,
-          createdAt: 1735732800000,
-        },
-        {
-          id: 'txn-dup',
-          amount: 18.4,
-          category: 'shopping',
-          isLeak: true,
-          leakReason: 'impulse',
-          note: 'Later duplicate',
-          createdAt: 1735819200000,
-        },
-      ],
+  it('keeps duplicate IDs from the fixture as valid parsed rows', () => {
+    expect(parseTransactionsCsv(readCsvFixture('duplicate-ids.csv'))).toEqual({
+      transactions: DUPLICATE_ID_TRANSACTIONS,
       skippedCount: 0,
     });
   });

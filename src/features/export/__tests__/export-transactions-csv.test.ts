@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it, jest } from '@jest/globals';
+
 import { transactionsToCsv } from '@/features/export/export-transactions-csv';
+import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
 import type { Transaction } from '@/types/transaction';
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -32,6 +37,13 @@ const LEAK_TRANSACTION: Transaction = {
   createdAt: 1735819200000,
 };
 
+function readCsvFixture(fileName: string) {
+  return readFileSync(
+    path.join(process.cwd(), 'docs', 'qa-fixtures', fileName),
+    'utf8',
+  );
+}
+
 describe('transactionsToCsv', () => {
   it('returns the header only for empty transactions', () => {
     expect(transactionsToCsv([])).toBe(
@@ -57,6 +69,14 @@ describe('transactionsToCsv', () => {
     );
   });
 
+  it('keeps the shared valid-money-leak fixture export-compatible', () => {
+    const fixtureCsv = readCsvFixture('valid-money-leak.csv');
+    const { transactions, skippedCount } = parseTransactionsCsv(fixtureCsv);
+
+    expect(skippedCount).toBe(0);
+    expect(transactionsToCsv(transactions)).toBe(fixtureCsv.trimEnd());
+  });
+
   it('escapes commas, quotes, CRLF, LF, and embedded newlines inside quoted fields', () => {
     const transaction: Transaction = {
       id: 'txn-escape',
@@ -74,5 +94,22 @@ describe('transactionsToCsv', () => {
         'txn-escape,42,other,true,stress,"comma, ""quote""\r\nline two\nline three\rand line four",2025-01-03T12:00:00.000Z',
       ].join('\n'),
     );
+  });
+
+  it('round-trips exported CSV through the import parser', () => {
+    const transaction: Transaction = {
+      id: 'txn-round-trip',
+      amount: 42,
+      category: 'other',
+      isLeak: true,
+      leakReason: 'stress',
+      note: 'comma, "quote"\r\nline two\nline three\rand line four',
+      createdAt: 1735905600000,
+    };
+
+    expect(parseTransactionsCsv(transactionsToCsv([transaction]))).toEqual({
+      transactions: [transaction],
+      skippedCount: 0,
+    });
   });
 });

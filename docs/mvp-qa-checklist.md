@@ -617,7 +617,8 @@
 **Preconditions**
 
 - Test on a native device or simulator where sharing is available.
-- At least one transaction exists with a note containing commas, double quotes, and a line break.
+- At least two transactions exist whose notes collectively cover commas, double quotes, LF newlines, CRLF newlines, and embedded multi-line content.
+- If useful, import `docs/qa-fixtures/valid-money-leak.csv` and `docs/qa-fixtures/valid-crlf.csv` first to create the data before exporting it again.
 
 **Steps**
 
@@ -628,7 +629,7 @@
 **Expected result**
 
 - Native share sheet opens without crashing.
-- Fields containing commas, quotes, or newlines are wrapped in quotes.
+- Fields containing commas, quotes, LF newlines, CRLF newlines, or embedded multi-line content are wrapped in quotes.
 - Embedded quotes are doubled inside the quoted CSV field.
 - Line breaks inside notes stay inside the same CSV field instead of shifting later columns.
 
@@ -675,57 +676,104 @@
 
 **Verification note**
 
-- The default period is `This month`. Before verifying imported data in `Home`, `Analytics`, or `Shame Card`, switch each screen to `All time` unless the CSV fixture dates are guaranteed to fall in the current period.
+- The shared CSV fixtures live in `docs/qa-fixtures/`.
+- The shared period selector defaults to `This month` and persists across `Home`, `Analytics`, and `Shame Card`. Before verifying imported fixture data, switch the selector to `All time` once and then revisit each screen.
+- The fixture dates are fixed historical ISO timestamps. Clear app data before re-importing the same fixture if you need deterministic imported/skipped counts.
 
 ### 34. Import a valid Money Leak CSV backup
 
 **Preconditions**
 
 - Test on a native device or simulator.
-- Prepare a CSV previously exported by Money Leak with at least one normal transaction and one leak transaction.
+- `docs/qa-fixtures/valid-money-leak.csv` is available on the device.
+- Local transaction data is empty, or the fixture IDs have not been imported yet.
 
 **Steps**
 
 1. Open `Settings`.
 2. In the `Data` section, tap `Import CSV`.
-3. Pick the exported CSV file in the native document picker.
+3. Pick `docs/qa-fixtures/valid-money-leak.csv` in the native document picker.
 4. Wait for the import to finish.
-5. Open `Home` and switch the period to `All time` unless the imported fixture dates are in the current period.
-6. Open `Analytics` and switch the period to `All time` unless the imported fixture dates are in the current period.
-7. Open `Shame Card` and switch the period to `All time` unless the imported fixture dates are in the current period.
+5. Open `Home`, confirm the shared period selector is `All time`, and review the list and summary.
+6. Open `Analytics` and review the summary and any visible metric cards.
+7. Open `Shame Card` and review the preview state.
 
 **Expected result**
 
 - Native document picker opens.
 - `Import CSV` changes to `Importing...` while the import is in flight.
-- Settings shows an inline result with the imported count and skipped count.
+- Settings shows `Imported 2 transactions. Skipped 0 rows.`
 - Valid transactions from the CSV appear in `Home` without needing an app restart.
 - Imported leak transactions show their saved leak reason and optional note.
 - `Analytics` and `Shame Card` reflect the imported data immediately.
 - App stays responsive after the import completes.
 
-### 35. Import preserves quoted commas, quotes, and newlines
+### 35. Import a UTF-8 BOM CSV
 
 **Preconditions**
 
 - Test on a native device or simulator.
-- Prepare a Money Leak-exported CSV containing a transaction note with commas, double quotes, and a line break.
+- `docs/qa-fixtures/valid-with-bom.csv` is available on the device.
+- Local transaction data is empty, or the fixture IDs have not been imported yet.
 
 **Steps**
 
 1. Open `Settings`.
 2. Tap `Import CSV`.
-3. Pick the CSV file.
-4. Open the imported transaction in `Home`.
+3. Pick `docs/qa-fixtures/valid-with-bom.csv`.
+4. Wait for the import to finish.
+5. Open `Home` with the shared period selector set to `All time`.
 
 **Expected result**
 
 - Import succeeds without crashing.
-- Settings shows the transaction as imported with no unexpected skipped rows.
-- The imported note keeps the original commas, embedded quotes, and line breaks.
-- The quoted note content does not shift later columns or create extra transactions.
+- Settings shows `Imported 2 transactions. Skipped 0 rows.`
+- The BOM at the start of the file does not create a header error or corrupt the first transaction ID.
+- Both imported transactions appear in `Home`.
 
-### 36. Header-only CSV import
+### 36. Import a CRLF CSV
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- `docs/qa-fixtures/valid-crlf.csv` is available on the device.
+- Local transaction data is empty, or the fixture IDs have not been imported yet.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Import CSV`.
+3. Pick `docs/qa-fixtures/valid-crlf.csv`.
+4. Wait for the import to finish.
+5. Open the imported leak transaction in `Home`.
+
+**Expected result**
+
+- Import succeeds without crashing.
+- Settings shows `Imported 2 transactions. Skipped 0 rows.`
+- CRLF row endings do not create malformed rows.
+- The imported leak note keeps its embedded CRLF line break.
+
+### 37. Import preserves quoted commas, quotes, LF, and embedded newlines
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- `docs/qa-fixtures/valid-money-leak.csv` has just been imported.
+
+**Steps**
+
+1. Open `Home`.
+2. Confirm the shared period selector is still `All time`.
+3. Open the imported leak transaction from `docs/qa-fixtures/valid-money-leak.csv`.
+
+**Expected result**
+
+- The imported note keeps the original comma, embedded double quotes, and LF newline.
+- The note content appears in a single transaction instead of shifting later CSV columns into the UI.
+- No extra transactions are created from the embedded newline.
+
+### 38. Header-only CSV import
 
 **Preconditions**
 
@@ -744,63 +792,66 @@
 - Settings shows `Imported 0 transactions. Skipped 0 rows.`
 - Existing transaction data remains unchanged.
 
-### 37. Duplicate re-import skips existing transaction IDs
+### 39. Duplicate IDs in one CSV file are skipped
 
 **Preconditions**
 
 - Test on a native device or simulator.
-- A valid Money Leak CSV backup has already been imported once.
+- `docs/qa-fixtures/duplicate-ids.csv` is available on the device.
+- Local transaction data is empty, or the duplicate fixture ID has not been imported yet.
 
 **Steps**
 
 1. Open `Settings`.
 2. Tap `Import CSV`.
-3. Pick the same CSV file again.
+3. Pick `docs/qa-fixtures/duplicate-ids.csv`.
+4. Open `Home` with the shared period selector set to `All time`.
 
 **Expected result**
 
 - Import completes without crashing.
-- Settings shows `Imported 0 transactions` and a skipped count matching the duplicate rows in the file.
-- No duplicate transaction cards appear in `Home`.
-- Existing analytics totals stay unchanged after the duplicate re-import.
+- Settings shows `Imported 1 transaction. Skipped 1 row.`
+- Only one transaction card appears in `Home` for the duplicate ID.
+- No duplicate transaction cards appear after the import completes.
 
-### 38. Mixed valid and invalid rows skip bad rows only
+### 40. Mixed valid and invalid rows skip bad rows only
 
 **Preconditions**
 
 - Test on a native device or simulator.
-- Prepare a CSV with the correct Money Leak header, one valid row, and invalid rows such as unsupported category, invalid amount, wrong leak reason, invalid ISO date, or wrong column count.
+- `docs/qa-fixtures/mixed-valid-invalid.csv` is available on the device.
+- Local transaction data is empty, or the valid fixture ID has not been imported yet.
 
 **Steps**
 
 1. Open `Settings`.
 2. Tap `Import CSV`.
-3. Pick the mixed-validity CSV file.
+3. Pick `docs/qa-fixtures/mixed-valid-invalid.csv`.
 4. Open `Home`.
 
 **Expected result**
 
 - Import completes without crashing.
-- Settings shows the valid row as imported and the invalid rows as skipped.
+- Settings shows `Imported 1 transaction. Skipped 5 rows.`
 - Only the valid transaction appears in `Home`.
 - The app does not partially render broken transaction data from invalid rows.
 
-### 39. Empty file, wrong header, and malformed CSV show fatal inline errors
+### 41. Empty file, wrong header, and malformed CSV show fatal inline errors
 
 **Preconditions**
 
 - Test on a native device or simulator.
 - Prepare three files:
 - An empty file with no content.
-- A CSV with the wrong header order or names.
-- A malformed CSV with unmatched quotes.
+- `docs/qa-fixtures/wrong-header.csv`.
+- `docs/qa-fixtures/malformed.csv`.
 
 **Steps**
 
 1. Open `Settings`.
 2. Import the empty file.
-3. Import the wrong-header file.
-4. Import the malformed CSV file.
+3. Import `docs/qa-fixtures/wrong-header.csv`.
+4. Import `docs/qa-fixtures/malformed.csv`.
 
 **Expected result**
 
@@ -810,20 +861,20 @@
 - The button returns to `Import CSV` after each failure.
 - App does not crash and existing transaction data remains unchanged.
 
-### 40. Import success and failure do not break export or reminders
+### 42. Import success and failure do not break export or reminders
 
 **Preconditions**
 
 - Test on a native device or simulator where sharing and notifications are available.
-- Prepare one valid Money Leak CSV file and one invalid CSV file.
+- `docs/qa-fixtures/valid-money-leak.csv` and `docs/qa-fixtures/wrong-header.csv` are available on the device.
 
 **Steps**
 
 1. Open `Settings`.
-2. Import the valid CSV file.
+2. Import `docs/qa-fixtures/valid-money-leak.csv`.
 3. Tap `Export CSV`.
 4. Toggle the daily reminder.
-5. Import the invalid CSV file.
+5. Import `docs/qa-fixtures/wrong-header.csv`.
 6. Tap `Export CSV` again.
 7. Toggle the daily reminder again.
 
@@ -836,7 +887,7 @@
 
 ## Onboarding
 
-### 41. First-run onboarding can be skipped
+### 43. First-run onboarding can be skipped
 
 **Preconditions**
 
@@ -856,7 +907,7 @@
 - App redirects to the main tab flow.
 - On relaunch, the app opens the main tab flow instead of showing onboarding again.
 
-### 42. First-run onboarding completes from the final step
+### 44. First-run onboarding completes from the final step
 
 **Preconditions**
 
@@ -877,7 +928,7 @@
 - App redirects to the main tab flow.
 - On relaunch, the app opens the main tab flow instead of showing onboarding again.
 
-### 43. Onboarding final-step reminder enable, deny, and disable flow
+### 45. Onboarding final-step reminder enable, deny, and disable flow
 
 **Preconditions**
 
@@ -904,7 +955,7 @@
 
 ## Settings / Reminders
 
-### 44. Settings reminder enable and disable flow
+### 46. Settings reminder enable and disable flow
 
 **Preconditions**
 
@@ -925,7 +976,7 @@
 - Turning the reminder off succeeds without crashing and leaves the toggle disabled.
 - The reminder section stays responsive after the toggle is used more than once.
 
-### 45. Settings reminder denied and unsupported states
+### 47. Settings reminder denied and unsupported states
 
 **Preconditions**
 
@@ -947,7 +998,7 @@
 
 ## Web Fallback
 
-### 46. Web Settings safely reflects native-only persistence limits
+### 48. Web Settings safely reflects native-only persistence limits
 
 **Preconditions**
 
@@ -963,6 +1014,7 @@
 **Expected result**
 
 - App does not crash while `Settings` loads on web.
+- The status text above the data actions shows `Your local transaction history could not be fully prepared on this platform.`
 - The `Data` section shows `Import CSV is only available on native devices in this build.`
 - The `Data` section shows an inline transaction error explaining that SQLite transaction persistence is only available on native platforms in this build.
 - `Import CSV` stays disabled on web.
