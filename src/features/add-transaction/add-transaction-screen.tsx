@@ -12,7 +12,9 @@ import { useRouter } from 'expo-router';
 
 import { useTransactionsStore } from '@/store/transactions-store';
 import {
+  LEAK_REASONS,
   TRANSACTION_CATEGORIES,
+  type LeakReason,
   type Transaction,
   type TransactionCategory,
 } from '@/types/transaction';
@@ -20,21 +22,26 @@ import {
 type ValidationErrors = {
   amount: string | null;
   category: string | null;
+  leakReason: string | null;
 };
 
 const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
+const leakReasonSet = new Set<string>(LEAK_REASONS);
 
 function validateTransactionForm(
   amountText: string,
   selectedCategory: TransactionCategory | null,
+  isLeak: boolean,
+  selectedLeakReason: LeakReason | null,
 ) {
   const errors: ValidationErrors = {
     amount: null,
     category: null,
+    leakReason: null,
   };
 
   const trimmedAmount = amountText.trim();
-  
+
   let parsedAmount: number | null = null;
 
   if (!trimmedAmount) {
@@ -53,6 +60,13 @@ function validateTransactionForm(
 
   if (!selectedCategory || !transactionCategorySet.has(selectedCategory)) {
     errors.category = 'Select a category.';
+  }
+
+  if (
+    isLeak &&
+    (!selectedLeakReason || !leakReasonSet.has(selectedLeakReason))
+  ) {
+    errors.leakReason = 'Select a leak reason.';
   }
 
   return { errors, parsedAmount };
@@ -76,8 +90,13 @@ export function AddTransactionScreen() {
   const [amountText, setAmountText] = useState('');
   const [selectedCategory, setSelectedCategory] =
     useState<TransactionCategory | null>(null);
+  const [isLeak, setIsLeak] = useState(false);
+  const [selectedLeakReason, setSelectedLeakReason] =
+    useState<LeakReason | null>(null);
+  const [noteText, setNoteText] = useState('');
   const [amountError, setAmountError] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [leakReasonError, setLeakReasonError] = useState<string | null>(null);
 
   useEffect(() => {
     clearError();
@@ -99,6 +118,24 @@ export function AddTransactionScreen() {
     }
   }
 
+  function handleLeakTypePress(nextIsLeak: boolean) {
+    setIsLeak(nextIsLeak);
+
+    if (!nextIsLeak) {
+      setSelectedLeakReason(null);
+      setNoteText('');
+      setLeakReasonError(null);
+    }
+  }
+
+  function handleLeakReasonPress(reason: LeakReason) {
+    setSelectedLeakReason(reason);
+
+    if (leakReasonError) {
+      setLeakReasonError(null);
+    }
+  }
+
   async function handleSubmit() {
     if (isLoading) return;
 
@@ -107,24 +144,36 @@ export function AddTransactionScreen() {
     const { errors, parsedAmount } = validateTransactionForm(
       amountText,
       selectedCategory,
+      isLeak,
+      selectedLeakReason,
     );
 
     setAmountError(errors.amount);
     setCategoryError(errors.category);
+    setLeakReasonError(errors.leakReason);
 
-    if (errors.amount || errors.category || parsedAmount === null) return;
+    if (
+      errors.amount ||
+      errors.category ||
+      errors.leakReason ||
+      parsedAmount === null
+    ) {
+      return;
+    }
 
     const category = selectedCategory;
 
     if (!category || !transactionCategorySet.has(category)) return;
 
+    const trimmedNote = noteText.trim();
+
     const transaction: Transaction = {
       id: generateTransactionId(),
       amount: parsedAmount,
       category,
-      isLeak: false,
-      leakReason: null,
-      note: null,
+      isLeak,
+      leakReason: isLeak ? selectedLeakReason : null,
+      note: isLeak ? trimmedNote || null : null,
       createdAt: Date.now(),
     };
 
@@ -143,16 +192,16 @@ export function AddTransactionScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Add Transaction</Text>
-          
+
           <Text style={styles.subtitle}>
-            Save a normal expense with an amount and category.
+            Save a normal expense or mark it as a leak.
           </Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.field}>
             <Text style={styles.label}>Amount</Text>
-            
+
             <TextInput
               value={amountText}
               onChangeText={handleAmountChange}
@@ -162,7 +211,7 @@ export function AddTransactionScreen() {
               autoCorrect={false}
               style={[styles.input, amountError ? styles.inputError : null]}
             />
-            
+
             {amountError ? (
               <Text style={styles.fieldError}>{amountError}</Text>
             ) : null}
@@ -170,7 +219,7 @@ export function AddTransactionScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Category</Text>
-            
+
             <View style={styles.categoryList}>
               {TRANSACTION_CATEGORIES.map((category) => {
                 const isSelected = selectedCategory === category;
@@ -196,11 +245,102 @@ export function AddTransactionScreen() {
                 );
               })}
             </View>
-            
+
             {categoryError ? (
               <Text style={styles.fieldError}>{categoryError}</Text>
             ) : null}
           </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Type</Text>
+
+            <View style={styles.categoryList}>
+              <Pressable
+                onPress={() => handleLeakTypePress(false)}
+                style={[
+                  styles.categoryChip,
+                  !isLeak ? styles.categoryChipSelected : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    !isLeak ? styles.categoryChipTextSelected : null,
+                  ]}
+                >
+                  Normal
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleLeakTypePress(true)}
+                style={[
+                  styles.categoryChip,
+                  isLeak ? styles.categoryChipSelected : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    isLeak ? styles.categoryChipTextSelected : null,
+                  ]}
+                >
+                  Leak
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {isLeak ? (
+            <>
+              <View style={styles.field}>
+                <Text style={styles.label}>Leak Reason</Text>
+
+                <View style={styles.categoryList}>
+                  {LEAK_REASONS.map((reason) => {
+                    const isSelected = selectedLeakReason === reason;
+
+                    return (
+                      <Pressable
+                        key={reason}
+                        onPress={() => handleLeakReasonPress(reason)}
+                        style={[
+                          styles.categoryChip,
+                          isSelected ? styles.categoryChipSelected : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            isSelected ? styles.categoryChipTextSelected : null,
+                          ]}
+                        >
+                          {reason}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {leakReasonError ? (
+                  <Text style={styles.fieldError}>{leakReasonError}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Note (Optional)</Text>
+
+                <TextInput
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  placeholder="What triggered it?"
+                  multiline
+                  textAlignVertical="top"
+                  style={[styles.input, styles.noteInput]}
+                />
+              </View>
+            </>
+          ) : null}
 
           {storeError ? (
             <View style={styles.storeErrorBox}>
@@ -271,6 +411,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 18,
     color: '#111827',
+  },
+  noteInput: {
+    minHeight: 112,
   },
   inputError: {
     borderColor: '#dc2626',
