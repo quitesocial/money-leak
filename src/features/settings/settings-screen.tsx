@@ -55,11 +55,11 @@ function formatImportResult({ importedCount, skippedCount }: ImportResult) {
 
 export function SettingsScreen() {
   const transactions = useTransactionsStore((state) => state.transactions);
-  
+
   const isTransactionsLoading = useTransactionsStore(
     (state) => state.isLoading,
   );
-  
+
   const transactionsError = useTransactionsStore((state) => state.error);
 
   const isTransactionsInitialized = useTransactionsStore(
@@ -98,16 +98,26 @@ export function SettingsScreen() {
     isReminderLoading || isReminderBusy || isReminderUnsupported;
 
   const isDataActionBusy = isExporting || isImporting;
-  
+
   const isDataPreparing =
     !isTransactionsInitialized || isTransactionsLoading || isDataActionBusy;
-  
+
   const isExportDisabled = isDataPreparing || transactionsError !== null;
 
   const isImportDisabled = isDataPreparing || isImportUnsupported;
-  
+
   const shouldShowTransactionsError =
     transactionsError !== null && transactionsError !== importError;
+
+  const dataStatusMessage = !isTransactionsInitialized
+    ? 'Preparing your local transaction history for import and export…'
+    : isTransactionsLoading
+      ? 'Refreshing your local transaction history for import and export…'
+      : transactionsError
+        ? isImportUnsupported
+          ? 'Your local transaction history could not be fully prepared on this platform.'
+          : 'Your local transaction history could not be fully prepared. Import can still restore a Money Leak CSV backup.'
+        : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.';
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -366,15 +376,7 @@ export function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.metaText}>
-            {!isTransactionsInitialized
-              ? 'Preparing your local transaction history for import and export…'
-              : isTransactionsLoading
-                ? 'Refreshing your local transaction history for import and export…'
-                : transactionsError
-                  ? 'Your local transaction history could not be fully prepared. Import can still restore a Money Leak CSV backup.'
-                  : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.'}
-          </Text>
+          <Text style={styles.metaText}>{dataStatusMessage}</Text>
 
           {isImportUnsupported ? (
             <Text style={styles.metaText}>

@@ -1,0 +1,7 @@
+id,amount,category,isLeak,leakReason,note,createdAt
+txn-valid-1,12.5,food,false,,,2025-01-01T12:00:00.000Z
+txn-bad-amount,0,food,false,,,2025-01-01T12:00:00.000Z
+txn-bad-category,5,invalid,false,,,2025-01-01T12:00:00.000Z
+txn-bad-reason,9,shopping,true,not-a-reason,,2025-01-01T12:00:00.000Z
+txn-bad-date,10,shopping,true,impulse,,not-a-date
+txn-bad-columns,7,other,false,,
