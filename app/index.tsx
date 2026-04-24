@@ -44,7 +44,7 @@ export default function IndexRoute() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.centeredState}>
         <Text style={styles.stateTitle}>Opening Money Leak</Text>
-        
+
         <Text style={styles.stateMessage}>
           Checking whether to show first-run guidance.
         </Text>

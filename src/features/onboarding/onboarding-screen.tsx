@@ -1,9 +1,24 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { setHasCompletedOnboarding } from '@/lib/onboarding-storage';
+import {
+  cancelDailyCheckInReminder,
+  getReminderPermissionStatus,
+  requestReminderPermissions,
+  scheduleDailyCheckInReminder,
+  type ReminderPermissionStatus,
+} from '@/lib/reminder-notifications';
+import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 
 type OnboardingStep = {
   title: string;
@@ -34,12 +49,53 @@ export function OnboardingScreen() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isReminderEnabled, setIsReminderEnabled] = useState(false);
+  const [isReminderBusy, setIsReminderBusy] = useState(false);
+  const [isReminderLoading, setIsReminderLoading] = useState(true);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+
+  const [reminderPermissionStatus, setReminderPermissionStatus] =
+    useState<ReminderPermissionStatus>('undetermined');
 
   const currentStep = ONBOARDING_STEPS[currentStepIndex];
   const isFinalStep = currentStepIndex === ONBOARDING_STEPS.length - 1;
+  const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
+  const isActionBusy = isSaving || isReminderBusy;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const [storedReminderEnabled, permissionStatus] = await Promise.all([
+          getReminderEnabled(),
+          getReminderPermissionStatus(),
+        ]);
+
+        if (!isMounted) return;
+
+        setIsReminderEnabled(storedReminderEnabled);
+        setReminderPermissionStatus(permissionStatus);
+      } catch (error) {
+        console.error('Failed to load reminder settings', error);
+
+        if (!isMounted) return;
+
+        setReminderError("Couldn't load reminder settings. Try again.");
+      } finally {
+        if (isMounted) {
+          setIsReminderLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function completeOnboarding() {
-    if (isSaving) return;
+    if (isActionBusy) return;
 
     setIsSaving(true);
     setSaveError(null);
@@ -55,9 +111,62 @@ export function OnboardingScreen() {
   }
 
   function handleNextStep() {
-    if (isSaving || isFinalStep) return;
+    if (isActionBusy || isFinalStep) return;
 
     setCurrentStepIndex((previousStepIndex) => previousStepIndex + 1);
+  }
+
+  async function handleReminderToggle(nextEnabled: boolean) {
+    if (isReminderBusy || isReminderLoading || isReminderUnsupported) return;
+
+    const previousEnabled = isReminderEnabled;
+
+    setIsReminderBusy(true);
+    setReminderError(null);
+    setIsReminderEnabled(nextEnabled);
+
+    try {
+      if (nextEnabled) {
+        const permissionStatus = await requestReminderPermissions();
+
+        setReminderPermissionStatus(permissionStatus);
+
+        if (permissionStatus !== 'granted') {
+          await cancelDailyCheckInReminder();
+          await setReminderEnabled(false);
+          setIsReminderEnabled(false);
+          setReminderError(
+            permissionStatus === 'denied'
+              ? 'Notifications are off for Money Leak. Turn them on in system settings to get the daily check-in.'
+              : permissionStatus === 'unsupported'
+                ? "Daily reminders aren't available on this platform."
+                : 'Allow notifications to get the daily check-in.',
+          );
+
+          return;
+        }
+
+        await scheduleDailyCheckInReminder();
+        await setReminderEnabled(true);
+        setIsReminderEnabled(true);
+
+        return;
+      }
+
+      await cancelDailyCheckInReminder();
+      await setReminderEnabled(false);
+      setIsReminderEnabled(false);
+    } catch (error) {
+      console.error('Failed to update reminder preference', error);
+      setIsReminderEnabled(previousEnabled);
+      setReminderError(
+        nextEnabled
+          ? "Couldn't turn on the daily reminder. Try again."
+          : "Couldn't turn off the daily reminder. Try again.",
+      );
+    } finally {
+      setIsReminderBusy(false);
+    }
   }
 
   return (
@@ -68,14 +177,14 @@ export function OnboardingScreen() {
 
           <Pressable
             accessibilityRole="button"
-            disabled={isSaving}
+            disabled={isActionBusy}
             onPress={() => {
               void completeOnboarding();
             }}
             style={({ pressed }) => [
               styles.skipButton,
-              pressed && !isSaving ? styles.skipButtonPressed : null,
-              isSaving ? styles.disabledButton : null,
+              pressed && !isActionBusy ? styles.skipButtonPressed : null,
+              isActionBusy ? styles.disabledButton : null,
             ]}
           >
             <Text style={styles.skipButtonText}>Skip</Text>
@@ -117,18 +226,68 @@ export function OnboardingScreen() {
 
         <View style={styles.notesCard}>
           <Text style={styles.notesTitle}>What to do next</Text>
-          
+
           <Text style={styles.notesBody}>
             Start with one expense you actually made. Mark it honestly if it
             felt pointless after the fact.
           </Text>
         </View>
 
+        {isFinalStep ? (
+          <View
+            style={[
+              styles.reminderCard,
+              isReminderUnsupported ? styles.reminderCardDisabled : null,
+            ]}
+          >
+            <View style={styles.reminderRow}>
+              <View style={styles.reminderCopy}>
+                <Text style={styles.reminderTitle}>
+                  Daily check-in reminder
+                </Text>
+
+                <Text style={styles.reminderBody}>
+                  Get a local reminder at 21:00 daily before the day blurs.
+                </Text>
+              </View>
+
+              <Switch
+                accessibilityLabel="Enable the daily check-in reminder"
+                disabled={
+                  isReminderLoading || isReminderBusy || isReminderUnsupported
+                }
+                onValueChange={(nextEnabled) => {
+                  void handleReminderToggle(nextEnabled);
+                }}
+                value={isReminderUnsupported ? false : isReminderEnabled}
+              />
+            </View>
+
+            {isReminderLoading ? (
+              <Text style={styles.reminderMeta}>
+                Checking reminder support…
+              </Text>
+            ) : isReminderUnsupported ? (
+              <Text style={styles.reminderInfoText}>
+                Daily reminders are not available on this platform.
+              </Text>
+            ) : (
+              <Text style={styles.reminderMeta}>
+                21:00 daily, on this device.
+              </Text>
+            )}
+
+            {reminderError ? (
+              <Text style={styles.errorText}>{reminderError}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
 
         <Pressable
           accessibilityRole="button"
-          disabled={isSaving}
+          disabled={isActionBusy}
           onPress={() => {
             if (isFinalStep) {
               void completeOnboarding();
@@ -140,8 +299,8 @@ export function OnboardingScreen() {
           }}
           style={({ pressed }) => [
             styles.primaryButton,
-            pressed && !isSaving ? styles.primaryButtonPressed : null,
-            isSaving ? styles.disabledButton : null,
+            pressed && !isActionBusy ? styles.primaryButtonPressed : null,
+            isActionBusy ? styles.disabledButton : null,
           ]}
         >
           <Text style={styles.primaryButtonText}>
@@ -258,6 +417,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#78350f',
+  },
+  reminderCard: {
+    gap: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    padding: 20,
+  },
+  reminderCardDisabled: {
+    backgroundColor: '#f9fafb',
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  reminderCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  reminderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  reminderBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#4b5563',
+  },
+  reminderMeta: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6b7280',
+  },
+  reminderInfoText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#4b5563',
   },
   errorText: {
     fontSize: 14,
