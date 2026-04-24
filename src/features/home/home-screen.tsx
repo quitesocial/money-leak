@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -12,6 +13,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 
 function formatLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatCurrency(value: number) {
+  return `${value.toFixed(2)}€`;
+}
+
+function formatPercentage(value: number) {
+  return `${Math.round(value)}%`;
 }
 
 function AddTransactionAction() {
@@ -29,11 +38,13 @@ export function HomeScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
-  
+  const summary = calculateTransactionsSummary(transactions);
+  const hasTransactions = transactions.length > 0;
+
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
-  
+
   const skipNextFocusRefreshRef = useRef(true);
 
   useEffect(() => {
@@ -46,7 +57,7 @@ export function HomeScreen() {
 
       if (skipNextFocusRefreshRef.current) {
         skipNextFocusRefreshRef.current = false;
-        
+
         return;
       }
 
@@ -72,26 +83,8 @@ export function HomeScreen() {
             <Text style={styles.stateTitle}>
               Couldn&apos;t load transactions
             </Text>
-            
-            <Text style={styles.stateMessage}>{error}</Text>
-            <AddTransactionAction />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
 
-  if (transactions.length === 0) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.stateContent}>
-          <View style={styles.centeredState}>
-            <Text style={styles.stateTitle}>No transactions yet</Text>
-            
-            <Text style={styles.stateMessage}>
-              Add your first expense to start spotting leaks.
-            </Text>
-            
+            <Text style={styles.stateMessage}>{error}</Text>
             <AddTransactionAction />
           </View>
         </ScrollView>
@@ -105,13 +98,39 @@ export function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Home</Text>
-            
+
             <Text style={styles.subtitle}>
               Your latest transactions, including the leaks worth noticing.
             </Text>
           </View>
 
           <AddTransactionAction />
+        </View>
+
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total spent</Text>
+            
+            <Text style={styles.summaryValue}>
+              {formatCurrency(summary.totalSpent)}
+            </Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total leaked</Text>
+            
+            <Text style={styles.summaryValue}>
+              {formatCurrency(summary.totalLeaks)}
+            </Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Leak percentage</Text>
+            
+            <Text style={styles.summaryValue}>
+              {formatPercentage(summary.leakPercentage)}
+            </Text>
+          </View>
         </View>
 
         {isLoading ? (
@@ -124,69 +143,81 @@ export function HomeScreen() {
           </View>
         ) : null}
 
-        <View style={styles.transactionList}>
-          {transactions.map((transaction) => {
-            const isLeak = transaction.isLeak;
+        {hasTransactions ? (
+          <View style={styles.transactionList}>
+            {transactions.map((transaction) => {
+              const isLeak = transaction.isLeak;
 
-            return (
-              <View
-                key={transaction.id}
-                style={[
-                  styles.transactionCard,
-                  isLeak
-                    ? styles.transactionCardLeak
-                    : styles.transactionCardNormal,
-                ]}
-              >
-                <View style={styles.transactionHeader}>
-                  <View style={styles.transactionSummary}>
-                    <Text style={styles.amountText}>
-                      {transaction.amount.toFixed(2)}
-                    </Text>
-                    
-                    <Text style={styles.categoryText}>
-                      {formatLabel(transaction.category)}
-                    </Text>
-                  </View>
+              return (
+                <View
+                  key={transaction.id}
+                  style={[
+                    styles.transactionCard,
+                    isLeak
+                      ? styles.transactionCardLeak
+                      : styles.transactionCardNormal,
+                  ]}
+                >
+                  <View style={styles.transactionHeader}>
+                    <View style={styles.transactionSummary}>
+                      <Text style={styles.amountText}>
+                        {transaction.amount.toFixed(2)}
+                      </Text>
 
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
-                    ]}
-                  >
-                    <Text
+                      <Text style={styles.categoryText}>
+                        {formatLabel(transaction.category)}
+                      </Text>
+                    </View>
+
+                    <View
                       style={[
-                        styles.typeBadgeText,
-                        isLeak
-                          ? styles.typeBadgeTextLeak
-                          : styles.typeBadgeTextNormal,
+                        styles.typeBadge,
+                        isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
                       ]}
                     >
-                      {isLeak ? 'Leak' : 'Normal'}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.typeBadgeText,
+                          isLeak
+                            ? styles.typeBadgeTextLeak
+                            : styles.typeBadgeTextNormal,
+                        ]}
+                      >
+                        {isLeak ? 'Leak' : 'Normal'}
+                      </Text>
+                    </View>
                   </View>
+
+                  <Text style={styles.timestampText}>
+                    {dateTimeFormatter.format(transaction.createdAt)}
+                  </Text>
+
+                  {isLeak && transaction.leakReason ? (
+                    <Text style={styles.detailText}>
+                      Leak reason: {formatLabel(transaction.leakReason)}
+                    </Text>
+                  ) : null}
+
+                  {transaction.note ? (
+                    <Text style={styles.detailText}>
+                      Note: {transaction.note}
+                    </Text>
+                  ) : null}
                 </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.stateTitle}>No transactions yet</Text>
 
-                <Text style={styles.timestampText}>
-                  {dateTimeFormatter.format(transaction.createdAt)}
-                </Text>
+            <Text style={styles.stateMessage}>
+              Add your first expense to start spotting leaks.
+            </Text>
 
-                {isLeak && transaction.leakReason ? (
-                  <Text style={styles.detailText}>
-                    Leak reason: {formatLabel(transaction.leakReason)}
-                  </Text>
-                ) : null}
-
-                {transaction.note ? (
-                  <Text style={styles.detailText}>
-                    Note: {transaction.note}
-                  </Text>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
+            <AddTransactionAction />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -259,6 +290,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
+  summaryCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    padding: 16,
+    gap: 14,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  summaryLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: '#4b5563',
+  },
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
   errorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
@@ -273,6 +328,12 @@ const styles = StyleSheet.create({
   },
   transactionList: {
     gap: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 24,
   },
   transactionCard: {
     borderWidth: 1,
