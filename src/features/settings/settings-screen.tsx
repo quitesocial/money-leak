@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
+  IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
+  pickTransactionsCsvImport,
+} from '@/features/export/import-transactions-csv';
+import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
   requestReminderPermissions,
@@ -20,6 +25,11 @@ import {
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
+
+type ImportResult = {
+  importedCount: number;
+  skippedCount: number;
+};
 
 function getReminderPermissionError(
   permissionStatus: ReminderPermissionStatus,
@@ -35,32 +45,57 @@ function getReminderPermissionError(
   return 'Allow notifications to get the daily check-in.';
 }
 
+function formatCountLabel(count: number, singularLabel: string) {
+  return `${count} ${singularLabel}${count === 1 ? '' : 's'}`;
+}
+
+function formatImportResult({ importedCount, skippedCount }: ImportResult) {
+  return `Imported ${formatCountLabel(importedCount, 'transaction')}. Skipped ${formatCountLabel(skippedCount, 'row')}.`;
+}
+
 export function SettingsScreen() {
   const transactions = useTransactionsStore((state) => state.transactions);
-  
+
   const isTransactionsInitialized = useTransactionsStore(
     (state) => state.isInitialized,
   );
-  
+
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
+  );
+  
+  const importTransactions = useTransactionsStore(
+    (state) => state.importTransactions,
+  );
+  
+  const clearTransactionsError = useTransactionsStore(
+    (state) => state.clearError,
   );
 
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  
   const [reminderPermissionStatus, setReminderPermissionStatus] =
     useState<ReminderPermissionStatus>('undetermined');
 
   const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
+  const isImportUnsupported = Platform.OS === 'web';
   
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
   
-  const isExportDisabled = !isTransactionsInitialized || isExporting;
+  const isDataActionBusy = isExporting || isImporting;
+  const isExportDisabled = !isTransactionsInitialized || isDataActionBusy;
+  
+  const isImportDisabled =
+    !isTransactionsInitialized || isDataActionBusy || isImportUnsupported;
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -169,6 +204,56 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleImportPress() {
+    if (isImportDisabled) return;
+
+    setIsImporting(true);
+
+    try {
+      const selection = await pickTransactionsCsvImport();
+
+      if (selection.status === 'cancelled') return;
+
+      const { transactions: importedTransactions, skippedCount } = selection;
+      
+      let importedCount = 0;
+
+      clearTransactionsError();
+
+      if (importedTransactions.length > 0) {
+        importedCount = await importTransactions(importedTransactions);
+
+        const storeError = useTransactionsStore.getState().error;
+
+        if (storeError) {
+          setImportResult(null);
+          setImportError(storeError);
+
+          return;
+        }
+      }
+
+      setImportResult({
+        importedCount,
+        skippedCount:
+          skippedCount + (importedTransactions.length - importedCount),
+      });
+      
+      setImportError(null);
+    } catch (error) {
+      console.error('Failed to import transactions CSV', error);
+      setImportResult(null);
+      
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't import CSV. Try again.",
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -226,31 +311,73 @@ export function SettingsScreen() {
             <Text style={styles.sectionTitle}>Data</Text>
 
             <Text style={styles.sectionBody}>
-              Export every transaction saved on this device as a CSV backup.
+              Import a Money Leak CSV backup or export every transaction saved
+              on this device.
             </Text>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={isExportDisabled}
-            onPress={() => {
-              void handleExportPress();
-            }}
-            style={[
-              styles.exportButton,
-              isExportDisabled ? styles.exportButtonDisabled : null,
-            ]}
-          >
-            <Text style={styles.exportButtonText}>
-              {isExporting ? 'Exporting...' : 'Export CSV'}
-            </Text>
-          </Pressable>
+          <View style={styles.dataActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isImportDisabled}
+              onPress={() => {
+                void handleImportPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.importButton,
+                isImportDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.importButtonText]}>
+                {isImporting ? 'Importing...' : 'Import CSV'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isExportDisabled}
+              onPress={() => {
+                void handleExportPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.exportButton,
+                isExportDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
+                {isExporting ? 'Exporting...' : 'Export CSV'}
+              </Text>
+            </Pressable>
+          </View>
 
           <Text style={styles.metaText}>
             {!isTransactionsInitialized
-              ? 'Preparing your local transaction history for export…'
-              : 'This stays on-device and opens the native share sheet with a CSV copy.'}
+              ? 'Preparing your local transaction history for import and export…'
+              : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.'}
           </Text>
+
+          {isImportUnsupported ? (
+            <Text style={styles.metaText}>
+              {IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE}
+            </Text>
+          ) : (
+            <Text style={styles.metaText}>
+              This stays on-device and opens the native share sheet with a CSV
+              copy.
+            </Text>
+          )}
+
+          {importResult ? (
+            <Text style={styles.infoText}>
+              {formatImportResult(importResult)}
+            </Text>
+          ) : null}
+
+          {importError ? (
+            <Text style={styles.errorText}>{importError}</Text>
+          ) : null}
 
           {exportError ? (
             <Text style={styles.errorText}>{exportError}</Text>
@@ -326,19 +453,36 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#4b5563',
   },
-  exportButton: {
+  dataActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dataButton: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#111827',
     paddingVertical: 14,
   },
-  exportButtonDisabled: {
+  dataButtonDisabled: {
     opacity: 0.6,
   },
-  exportButtonText: {
+  importButton: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+  },
+  exportButton: {
+    backgroundColor: '#111827',
+  },
+  dataButtonText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  importButtonText: {
+    color: '#111827',
+  },
+  exportButtonText: {
     color: '#ffffff',
   },
   errorText: {

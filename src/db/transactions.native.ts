@@ -103,6 +103,45 @@ export async function createTransaction(transaction: Transaction) {
   );
 }
 
+export async function importTransactions(transactions: Transaction[]) {
+  if (!transactions.length) return 0;
+
+  await initDatabase();
+
+  const database = await getDatabase();
+  
+  let importedCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const transaction of transactions) {
+      const result = await transactionDatabase.runAsync(
+        `
+          INSERT OR IGNORE INTO transactions (
+            id,
+            amount,
+            category,
+            is_leak,
+            leak_reason,
+            note,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+        transaction.id,
+        transaction.amount,
+        transaction.category,
+        transaction.isLeak ? 1 : 0,
+        transaction.leakReason,
+        transaction.note,
+        transaction.createdAt,
+      );
+
+      importedCount += result.changes;
+    }
+  });
+
+  return importedCount;
+}
+
 export async function updateTransaction(transaction: Transaction) {
   await initDatabase();
 
