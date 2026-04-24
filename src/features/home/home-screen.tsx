@@ -51,7 +51,7 @@ export function HomeScreen() {
   const error = useTransactionsStore((state) => state.error);
   const summary = calculateTransactionsSummary(transactions);
   const hasTransactions = transactions.length > 0;
-  
+
   const [deletingTransactionId, setDeletingTransactionId] = useState<
     string | null
   >(null);
@@ -184,10 +184,10 @@ export function HomeScreen() {
           <View style={styles.transactionList}>
             {transactions.map((transaction) => {
               const isLeak = transaction.isLeak;
-              
+
               const isDeletingThisTransaction =
                 deletingTransactionId === transaction.id;
-              
+
               const isDeleteDisabled =
                 isLoading || deletingTransactionId !== null;
 
