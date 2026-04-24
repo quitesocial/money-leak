@@ -53,6 +53,7 @@ nvm use 20.19.4
 - Keep `src/db`, `src/store`, and `src/types` empty until a task actually requires them.
 - Prefer the `@/*` path alias for imports from `src`.
 - Keep placeholder UI minimal and explicit. Do not invent fake product logic.
+- When a local function or hook needs more than two inputs (3+), prefer one object parameter with named fields.
 
 ## Current App Structure
 
