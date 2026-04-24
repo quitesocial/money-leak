@@ -80,9 +80,11 @@ function sortAlternativeRealityItems(
   firstItem: AlternativeRealityItemWithOrder,
   secondItem: AlternativeRealityItemWithOrder,
 ) {
-  if (secondItem.count !== firstItem.count) return secondItem.count - firstItem.count;
+  if (secondItem.count !== firstItem.count)
+    return secondItem.count - firstItem.count;
 
-  if (secondItem.totalValue !== firstItem.totalValue) return secondItem.totalValue - firstItem.totalValue;
+  if (secondItem.totalValue !== firstItem.totalValue)
+    return secondItem.totalValue - firstItem.totalValue;
 
   return firstItem.catalogOrder - secondItem.catalogOrder;
 }
