@@ -670,3 +670,162 @@
 - App does not crash.
 - The button returns from `Exporting...` to `Export CSV` after the failure.
 - Existing reminder controls still work after the error.
+
+## Settings / Data Import
+
+### 34. Import a valid Money Leak CSV backup
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- Prepare a CSV previously exported by Money Leak with at least one normal transaction and one leak transaction.
+
+**Steps**
+
+1. Open `Settings`.
+2. In the `Data` section, tap `Import CSV`.
+3. Pick the exported CSV file in the native document picker.
+4. Wait for the import to finish.
+5. Open `Home`.
+6. Open `Analytics`.
+7. Open `Shame Card`.
+
+**Expected result**
+
+- Native document picker opens.
+- `Import CSV` changes to `Importing...` while the import is in flight.
+- Settings shows an inline result with the imported count and skipped count.
+- Valid transactions from the CSV appear in `Home` without needing an app restart.
+- Imported leak transactions show their saved leak reason and optional note.
+- `Analytics` and `Shame Card` reflect the imported data immediately.
+- App stays responsive after the import completes.
+
+### 35. Import preserves quoted commas, quotes, and newlines
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- Prepare a Money Leak-exported CSV containing a transaction note with commas, double quotes, and a line break.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Import CSV`.
+3. Pick the CSV file.
+4. Open the imported transaction in `Home`.
+
+**Expected result**
+
+- Import succeeds without crashing.
+- Settings shows the transaction as imported with no unexpected skipped rows.
+- The imported note keeps the original commas, embedded quotes, and line breaks.
+- The quoted note content does not shift later columns or create extra transactions.
+
+### 36. Header-only CSV import
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- Prepare a CSV file containing only the header row: `id,amount,category,isLeak,leakReason,note,createdAt`.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Import CSV`.
+3. Pick the header-only CSV file.
+
+**Expected result**
+
+- Import completes without crashing.
+- Settings shows `Imported 0 transactions. Skipped 0 rows.`
+- Existing transaction data remains unchanged.
+
+### 37. Duplicate re-import skips existing transaction IDs
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- A valid Money Leak CSV backup has already been imported once.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Import CSV`.
+3. Pick the same CSV file again.
+
+**Expected result**
+
+- Import completes without crashing.
+- Settings shows `Imported 0 transactions` and a skipped count matching the duplicate rows in the file.
+- No duplicate transaction cards appear in `Home`.
+- Existing analytics totals stay unchanged after the duplicate re-import.
+
+### 38. Mixed valid and invalid rows skip bad rows only
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- Prepare a CSV with the correct Money Leak header, one valid row, and invalid rows such as unsupported category, invalid amount, wrong leak reason, invalid ISO date, or wrong column count.
+
+**Steps**
+
+1. Open `Settings`.
+2. Tap `Import CSV`.
+3. Pick the mixed-validity CSV file.
+4. Open `Home`.
+
+**Expected result**
+
+- Import completes without crashing.
+- Settings shows the valid row as imported and the invalid rows as skipped.
+- Only the valid transaction appears in `Home`.
+- The app does not partially render broken transaction data from invalid rows.
+
+### 39. Empty file, wrong header, and malformed CSV show fatal inline errors
+
+**Preconditions**
+
+- Test on a native device or simulator.
+- Prepare three files:
+- An empty file with no content.
+- A CSV with the wrong header order or names.
+- A malformed CSV with unmatched quotes.
+
+**Steps**
+
+1. Open `Settings`.
+2. Import the empty file.
+3. Import the wrong-header file.
+4. Import the malformed CSV file.
+
+**Expected result**
+
+- Empty file shows `This CSV file is empty.`
+- Wrong header shows `This CSV file doesn't match the Money Leak export format.`
+- Malformed CSV shows `This CSV file is malformed.`
+- The button returns to `Import CSV` after each failure.
+- App does not crash and existing transaction data remains unchanged.
+
+### 40. Import success and failure do not break export or reminders
+
+**Preconditions**
+
+- Test on a native device or simulator where sharing and notifications are available.
+- Prepare one valid Money Leak CSV file and one invalid CSV file.
+
+**Steps**
+
+1. Open `Settings`.
+2. Import the valid CSV file.
+3. Tap `Export CSV`.
+4. Toggle the daily reminder.
+5. Import the invalid CSV file.
+6. Tap `Export CSV` again.
+7. Toggle the daily reminder again.
+
+**Expected result**
+
+- Export still opens the native share flow after both successful and failed imports.
+- Reminder controls still work after both successful and failed imports.
+- Import errors appear separately from export errors and reminder errors.
+- The app remains responsive throughout the sequence.

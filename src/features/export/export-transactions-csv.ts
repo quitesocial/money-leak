@@ -2,18 +2,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import type { Transaction } from '@/types/transaction';
-
-const CSV_COLUMNS = [
-  'id',
-  'amount',
-  'category',
-  'isLeak',
-  'leakReason',
-  'note',
-  'createdAt',
-] as const;
-
-const CSV_HEADER = CSV_COLUMNS.join(',');
+import {
+  formatTransactionCreatedAt,
+  TRANSACTIONS_CSV_HEADER,
+} from '@/features/export/transactions-csv-format';
 
 const SHARING_UNAVAILABLE_ERROR_MESSAGE =
   'Sharing is not available on this device.';
@@ -29,10 +21,6 @@ function escapeCsvValue(value: string | number | boolean | null) {
   if (!/[",\n\r]/.test(stringValue)) return stringValue;
 
   return `"${stringValue.replace(/"/g, '""')}"`;
-}
-
-function formatCreatedAt(createdAt: number) {
-  return new Date(createdAt).toISOString();
 }
 
 function getExportFileName() {
@@ -56,7 +44,7 @@ function getExportErrorMessage(error: unknown) {
 }
 
 export function transactionsToCsv(transactions: Transaction[]) {
-  if (!transactions.length) return CSV_HEADER;
+  if (!transactions.length) return TRANSACTIONS_CSV_HEADER;
 
   const rows = transactions.map((transaction) =>
     [
@@ -66,13 +54,13 @@ export function transactionsToCsv(transactions: Transaction[]) {
       transaction.isLeak,
       transaction.leakReason,
       transaction.note,
-      formatCreatedAt(transaction.createdAt),
+      formatTransactionCreatedAt(transaction.createdAt),
     ]
       .map(escapeCsvValue)
       .join(','),
   );
 
-  return [CSV_HEADER, ...rows].join('\n');
+  return [TRANSACTIONS_CSV_HEADER, ...rows].join('\n');
 }
 
 export async function exportTransactionsCsv(transactions: Transaction[]) {
