@@ -4,6 +4,7 @@ import {
   createTransaction,
   deleteTransaction,
   getTransactions,
+  updateTransaction as persistTransactionUpdate,
 } from '@/db/transactions';
 import type { Transaction } from '@/types/transaction';
 
@@ -14,6 +15,7 @@ type TransactionsStore = {
   error: string | null;
   loadTransactions: () => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
+  updateTransaction: (transaction: Transaction) => Promise<void>;
   removeTransaction: (id: string) => Promise<void>;
   clearError: () => void;
 };
@@ -69,6 +71,28 @@ export const useTransactionsStore = create<TransactionsStore>((set) => ({
       set({
         isLoading: false,
         error: getErrorMessage(error, 'Failed to add transaction.'),
+      });
+    }
+  },
+
+  updateTransaction: async (transaction) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      await persistTransactionUpdate(transaction);
+
+      const transactions = await getTransactions();
+
+      set({
+        transactions,
+        isLoading: false,
+        isInitialized: true,
+        error: null,
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: getErrorMessage(error, 'Failed to update transaction.'),
       });
     }
   },

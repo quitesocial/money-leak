@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   Alert,
@@ -45,6 +45,7 @@ function AddTransactionAction() {
 }
 
 export function HomeScreen() {
+  const router = useRouter();
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
@@ -191,6 +192,8 @@ export function HomeScreen() {
               const isDeleteDisabled =
                 isLoading || deletingTransactionId !== null;
 
+              const isEditDisabled = deletingTransactionId !== null;
+
               return (
                 <View
                   key={transaction.id}
@@ -248,6 +251,22 @@ export function HomeScreen() {
                   ) : null}
 
                   <View style={styles.actionRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isEditDisabled}
+                      onPress={() =>
+                        router.push(
+                          `/transaction/${transaction.id}/edit` as Href,
+                        )
+                      }
+                      style={[
+                        styles.editButton,
+                        isEditDisabled ? styles.editButtonDisabled : null,
+                      ]}
+                    >
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+
                     <Pressable
                       accessibilityRole="button"
                       disabled={isDeleteDisabled}
@@ -460,6 +479,23 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 10,
+  },
+  editButton: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  editButtonDisabled: {
+    opacity: 0.5,
+  },
+  editButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
   },
   deleteButton: {
     borderWidth: 1,

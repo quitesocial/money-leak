@@ -8,6 +8,7 @@ import * as webTransactions from './transactions.web';
 type TransactionsModule = {
   initDatabase: () => Promise<void>;
   createTransaction: (transaction: Transaction) => Promise<void>;
+  updateTransaction: (transaction: Transaction) => Promise<void>;
   getTransactions: () => Promise<Transaction[]>;
   deleteTransaction: (id: string) => Promise<void>;
 };
@@ -18,6 +19,7 @@ const transactionsModule: TransactionsModule =
 export const {
   initDatabase,
   createTransaction,
+  updateTransaction,
   getTransactions,
   deleteTransaction,
 } = transactionsModule;
