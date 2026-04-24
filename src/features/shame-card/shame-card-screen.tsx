@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import * as Sharing from 'expo-sharing';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ViewShot from 'react-native-view-shot';
 
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
 import {
@@ -21,6 +23,12 @@ const toneOptions: ToneOption[] = [
   { label: 'Unfiltered', value: 'unfiltered' },
 ];
 
+function normalizeFileUri(uri: string) {
+  if (uri.startsWith('file://')) return uri;
+
+  return `file://${uri}`;
+}
+
 export function ShameCardScreen() {
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
@@ -32,13 +40,60 @@ export function ShameCardScreen() {
   );
 
   const [tone, setTone] = useState<ShameCardTone>('harsh');
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const shameCardRef = useRef<ViewShot>(null);
+  const shareInFlightRef = useRef(false);
 
   useTransactionsRefresh({ isInitialized, loadTransactions });
 
   const analytics = calculateAnalytics(transactions);
   const hasTransactions = transactions.length > 0;
   const hasLeaks = analytics.totalLeaks > 0;
+
+  const canShareShameCard =
+    isInitialized && !isLoading && !error && hasTransactions && hasLeaks;
+
   const shameCardContent = generateShameCardContent(analytics, tone);
+
+  async function handleSharePress() {
+    if (shareInFlightRef.current || !canShareShameCard) return;
+
+    const cardRef = shameCardRef.current;
+
+    if (!cardRef?.capture) {
+      setShareError('Could not share the shame card. Try again.');
+
+      return;
+    }
+
+    shareInFlightRef.current = true;
+    setIsSharing(true);
+    setShareError(null);
+
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+
+      if (!isAvailable) {
+        setShareError('Could not share the shame card. Try again.');
+        
+        return;
+      }
+
+      const imageUri = await cardRef.capture();
+
+      await Sharing.shareAsync(normalizeFileUri(imageUri), {
+        mimeType: 'image/png',
+        UTI: 'public.png',
+        dialogTitle: 'Share Shame Card',
+      });
+    } catch {
+      setShareError('Could not share the shame card. Try again.');
+    } finally {
+      shareInFlightRef.current = false;
+      setIsSharing(false);
+    }
+  }
 
   if (!isInitialized) {
     return (
@@ -139,30 +194,64 @@ export function ShameCardScreen() {
               </View>
             </View>
 
-            <View style={styles.previewCard}>
-              <Text style={styles.previewEyebrow}>Preview</Text>
-              <Text style={styles.previewTitle}>{shameCardContent.title}</Text>
-
-              <View style={styles.previewLines}>
-                <Text style={styles.previewLine}>
-                  {shameCardContent.totalLeaksLine}
+            <ViewShot
+              ref={shameCardRef}
+              options={{
+                format: 'png',
+                quality: 1,
+                result: 'tmpfile',
+              }}
+            >
+              <View style={styles.previewCard}>
+                <Text style={styles.previewEyebrow}>Preview</Text>
+                
+                <Text style={styles.previewTitle}>
+                  {shameCardContent.title}
                 </Text>
 
-                {shameCardContent.topCategoryLine ? (
+                <View style={styles.previewLines}>
                   <Text style={styles.previewLine}>
-                    {shameCardContent.topCategoryLine}
+                    {shameCardContent.totalLeaksLine}
                   </Text>
-                ) : null}
 
-                {shameCardContent.peakTimeLine ? (
-                  <Text style={styles.previewLine}>
-                    {shameCardContent.peakTimeLine}
+                  {shameCardContent.topCategoryLine ? (
+                    <Text style={styles.previewLine}>
+                      {shameCardContent.topCategoryLine}
+                    </Text>
+                  ) : null}
+
+                  {shameCardContent.peakTimeLine ? (
+                    <Text style={styles.previewLine}>
+                      {shameCardContent.peakTimeLine}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <Text style={styles.verdict}>{shameCardContent.verdict}</Text>
+              </View>
+            </ViewShot>
+
+            {canShareShameCard ? (
+              <View style={styles.shareSection}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isSharing}
+                  onPress={handleSharePress}
+                  style={[
+                    styles.shareButton,
+                    isSharing ? styles.shareButtonDisabled : null,
+                  ]}
+                >
+                  <Text style={styles.shareButtonText}>
+                    {isSharing ? 'Sharing...' : 'Share'}
                   </Text>
+                </Pressable>
+
+                {shareError ? (
+                  <Text style={styles.shareErrorText}>{shareError}</Text>
                 ) : null}
               </View>
-
-              <Text style={styles.verdict}>{shameCardContent.verdict}</Text>
-            </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -307,5 +396,27 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: '700',
     color: '#111827',
+  },
+  shareSection: {
+    gap: 8,
+  },
+  shareButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    paddingVertical: 14,
+  },
+  shareButtonDisabled: {
+    opacity: 0.6,
+  },
+  shareButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  shareErrorText: {
+    fontSize: 13,
+    color: '#dc2626',
   },
 });
