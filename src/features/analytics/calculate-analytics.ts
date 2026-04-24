@@ -184,7 +184,7 @@ export function groupLeakTransactionsByWeekday(
     if (!date) continue;
 
     const weekdayIndex = date.getDay();
-    
+
     const currentGroup = groups.get(weekdayIndex) ?? {
       weekday: WEEKDAYS[weekdayIndex],
       weekdayIndex,
@@ -221,7 +221,7 @@ export function groupLeakTransactionsByHour(
     if (!date) continue;
 
     const hour = date.getHours();
-    
+
     const currentGroup = groups.get(hour) ?? {
       hour,
       totalLeaks: 0,
@@ -248,16 +248,16 @@ export function calculateAnalytics(
   transactions: Transaction[],
 ): AnalyticsResult {
   const summary = calculateTransactionsSummary(transactions);
-  
+
   const topLeakCategory =
     groupLeakTransactionsByCategory(transactions)[0] ?? null;
-  
+
   const topLeakReason =
     groupLeakTransactionsByLeakReason(transactions)[0] ?? null;
-  
+
   const peakLeakWeekday =
     groupLeakTransactionsByWeekday(transactions)[0] ?? null;
-  
+
   const peakLeakHour = groupLeakTransactionsByHour(transactions)[0] ?? null;
   const insights: string[] = [];
 
