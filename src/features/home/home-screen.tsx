@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -11,6 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import {
+  formatEuro,
+  formatLabel,
+  formatPercentage,
+} from '@/lib/display-formatters';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
 
@@ -19,16 +24,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: 'short',
 });
 
-function formatLabel(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
+function formatTransactionDate(value: number) {
+  if (!Number.isFinite(value)) return 'Unknown date';
 
-function formatCurrency(value: number) {
-  return `${value.toFixed(2)}€`;
-}
+  const date = new Date(value);
 
-function formatPercentage(value: number) {
-  return `${Math.round(value)}%`;
+  if (!Number.isFinite(date.getTime())) return 'Unknown date';
+
+  return dateTimeFormatter.format(date);
 }
 
 function AddTransactionAction() {
@@ -48,6 +51,10 @@ export function HomeScreen() {
   const error = useTransactionsStore((state) => state.error);
   const summary = calculateTransactionsSummary(transactions);
   const hasTransactions = transactions.length > 0;
+  
+  const [deletingTransactionId, setDeletingTransactionId] = useState<
+    string | null
+  >(null);
 
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
@@ -64,11 +71,11 @@ export function HomeScreen() {
 
   const handleDeleteTransaction = useCallback(
     (id: string) => {
-      if (isLoading) return;
+      if (isLoading || deletingTransactionId) return;
 
       Alert.alert(
         'Delete transaction?',
-        'This will permanently remove this transaction from Home.',
+        'This will permanently remove this expense from your leak history.',
         [
           {
             text: 'Cancel',
@@ -78,20 +85,28 @@ export function HomeScreen() {
             text: 'Delete',
             style: 'destructive',
             onPress: () => {
-              void removeTransaction(id);
+              setDeletingTransactionId(id);
+
+              void removeTransaction(id).finally(() => {
+                setDeletingTransactionId(null);
+              });
             },
           },
         ],
       );
     },
-    [isLoading, removeTransaction],
+    [deletingTransactionId, isLoading, removeTransaction],
   );
 
   if (!isInitialized) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading transactions...</Text>
+          <Text style={styles.stateTitle}>Loading transactions</Text>
+
+          <Text style={styles.stateMessage}>
+            Getting your latest expenses ready.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -122,7 +137,7 @@ export function HomeScreen() {
             <Text style={styles.title}>Home</Text>
 
             <Text style={styles.subtitle}>
-              Your latest transactions, including the leaks worth noticing.
+              Your latest expenses, including the leaks worth noticing.
             </Text>
           </View>
 
@@ -134,15 +149,15 @@ export function HomeScreen() {
             <Text style={styles.summaryLabel}>Total spent</Text>
 
             <Text style={styles.summaryValue}>
-              {formatCurrency(summary.totalSpent)}
+              {formatEuro(summary.totalSpent)}
             </Text>
           </View>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total leaked</Text>
+            <Text style={styles.summaryLabel}>Total leaks</Text>
 
             <Text style={styles.summaryValue}>
-              {formatCurrency(summary.totalLeaks)}
+              {formatEuro(summary.totalLeaks)}
             </Text>
           </View>
 
@@ -169,6 +184,12 @@ export function HomeScreen() {
           <View style={styles.transactionList}>
             {transactions.map((transaction) => {
               const isLeak = transaction.isLeak;
+              
+              const isDeletingThisTransaction =
+                deletingTransactionId === transaction.id;
+              
+              const isDeleteDisabled =
+                isLoading || deletingTransactionId !== null;
 
               return (
                 <View
@@ -183,7 +204,7 @@ export function HomeScreen() {
                   <View style={styles.transactionHeader}>
                     <View style={styles.transactionSummary}>
                       <Text style={styles.amountText}>
-                        {transaction.amount.toFixed(2)}
+                        {formatEuro(transaction.amount)}
                       </Text>
 
                       <Text style={styles.categoryText}>
@@ -211,7 +232,7 @@ export function HomeScreen() {
                   </View>
 
                   <Text style={styles.timestampText}>
-                    {dateTimeFormatter.format(transaction.createdAt)}
+                    {formatTransactionDate(transaction.createdAt)}
                   </Text>
 
                   {isLeak && transaction.leakReason ? (
@@ -229,14 +250,16 @@ export function HomeScreen() {
                   <View style={styles.actionRow}>
                     <Pressable
                       accessibilityRole="button"
-                      disabled={isLoading}
+                      disabled={isDeleteDisabled}
                       onPress={() => handleDeleteTransaction(transaction.id)}
                       style={[
                         styles.deleteButton,
-                        isLoading ? styles.deleteButtonDisabled : null,
+                        isDeleteDisabled ? styles.deleteButtonDisabled : null,
                       ]}
                     >
-                      <Text style={styles.deleteButtonText}>Delete</Text>
+                      <Text style={styles.deleteButtonText}>
+                        {isDeletingThisTransaction ? 'Deleting...' : 'Delete'}
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
@@ -248,7 +271,7 @@ export function HomeScreen() {
             <Text style={styles.stateTitle}>No transactions yet</Text>
 
             <Text style={styles.stateMessage}>
-              Add your first expense to start spotting leaks.
+              Add your first expense and mark the ones that felt avoidable.
             </Text>
 
             <AddTransactionAction />

@@ -1,4 +1,11 @@
 import type { AnalyticsResult } from '@/features/analytics/calculate-analytics';
+import {
+  formatEuro,
+  formatHour,
+  formatLabel,
+  formatPercentage,
+  sanitizeNumber,
+} from '@/lib/display-formatters';
 
 export type ShameCardTone = 'soft' | 'harsh' | 'unfiltered';
 
@@ -28,30 +35,6 @@ const toneCopy: Record<
   },
 };
 
-function sanitizeNumber(value: number) {
-  return Number.isFinite(value) ? value : 0;
-}
-
-function formatCurrency(value: number) {
-  return `${sanitizeNumber(value).toFixed(2)}€`;
-}
-
-function formatPercentage(value: number) {
-  return `${Math.round(sanitizeNumber(value))}%`;
-}
-
-function formatHour(hour: number) {
-  const safeHour = sanitizeNumber(hour);
-
-  if (safeHour < 0 || safeHour > 23) return null;
-
-  return `${Math.trunc(safeHour).toString().padStart(2, '0')}:00`;
-}
-
-function formatLabel(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function formatLeakCount(value: number) {
   const count = Math.max(0, Math.trunc(sanitizeNumber(value)));
 
@@ -63,7 +46,7 @@ function generateTopCategoryLine(analytics: AnalyticsResult) {
 
   return `Top leak category: ${formatLabel(
     analytics.topLeakCategory.category,
-  )} (${formatCurrency(
+  )} (${formatEuro(
     analytics.topLeakCategory.totalLeaks,
   )} across ${formatLeakCount(analytics.topLeakCategory.count)})`;
 }
@@ -88,7 +71,7 @@ export function generateShameCardContent(
 
   return {
     title: copy.title,
-    totalLeaksLine: `Total leaks: ${formatCurrency(
+    totalLeaksLine: `Total leaks: ${formatEuro(
       analytics.totalLeaks,
     )} (${formatPercentage(analytics.leakPercentage)} of spending)`,
     topCategoryLine: generateTopCategoryLine(analytics),

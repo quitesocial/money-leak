@@ -2,38 +2,24 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import {
+  formatEuro,
+  formatHour,
+  formatLabel,
+  formatPercentage,
+} from '@/lib/display-formatters';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
-
-function sanitizeNumber(value: number) {
-  return Number.isFinite(value) ? value : 0;
-}
-
-function formatCurrency(value: number) {
-  return `${sanitizeNumber(value).toFixed(2)}€`;
-}
-
-function formatPercentage(value: number) {
-  return `${Math.round(sanitizeNumber(value))}%`;
-}
-
-function formatHour(hour: number) {
-  const safeHour = sanitizeNumber(hour);
-
-  if (safeHour < 0 || safeHour > 23) return 'Not enough leak data yet';
-
-  return `${Math.trunc(safeHour).toString().padStart(2, '0')}:00`;
-}
-
-function formatLabel(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
 
 type MetricCardProps = {
   label: string;
   value: string;
   detail?: string;
 };
+
+function formatPeakHour(hour: number) {
+  return formatHour(hour) ?? 'Not enough leak data yet';
+}
 
 function MetricCard({ label, value, detail }: MetricCardProps) {
   return (
@@ -65,7 +51,11 @@ export function AnalyticsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading analytics...</Text>
+          <Text style={styles.stateTitle}>Loading analytics</Text>
+
+          <Text style={styles.stateMessage}>
+            Checking your current leak patterns.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -100,7 +90,7 @@ export function AnalyticsScreen() {
             <Text style={styles.summaryLabel}>Total spent</Text>
 
             <Text style={styles.summaryValue}>
-              {formatCurrency(analytics.totalSpent)}
+              {formatEuro(analytics.totalSpent)}
             </Text>
           </View>
 
@@ -108,7 +98,7 @@ export function AnalyticsScreen() {
             <Text style={styles.summaryLabel}>Total leaks</Text>
 
             <Text style={styles.summaryValue}>
-              {formatCurrency(analytics.totalLeaks)}
+              {formatEuro(analytics.totalLeaks)}
             </Text>
           </View>
 
@@ -136,7 +126,8 @@ export function AnalyticsScreen() {
             <Text style={styles.stateTitle}>No transactions yet</Text>
 
             <Text style={styles.stateMessage}>
-              Add your first expense to start seeing leak patterns here.
+              Add an expense first. Leak patterns will show up once there is
+              something real to compare.
             </Text>
           </View>
         ) : null}
@@ -146,8 +137,8 @@ export function AnalyticsScreen() {
             <Text style={styles.sectionTitle}>No leaks yet</Text>
 
             <Text style={styles.sectionMessage}>
-              You have transactions, but none are marked as leaks. Once a leak
-              is added, this screen will show your strongest patterns.
+              You have expenses, but none are marked as leaks yet. Once you add
+              one, this screen will show the strongest patterns.
             </Text>
           </View>
         ) : null}
@@ -164,7 +155,7 @@ export function AnalyticsScreen() {
                 }
                 detail={
                   analytics.topLeakCategory
-                    ? `${formatCurrency(
+                    ? `${formatEuro(
                         analytics.topLeakCategory.totalLeaks,
                       )} across ${analytics.topLeakCategory.count} leak${
                         analytics.topLeakCategory.count === 1 ? '' : 's'
@@ -209,7 +200,7 @@ export function AnalyticsScreen() {
                 label="Peak leak hour"
                 value={
                   analytics.peakLeakHour
-                    ? formatHour(analytics.peakLeakHour.hour)
+                    ? formatPeakHour(analytics.peakLeakHour.hour)
                     : 'Not enough leak data yet'
                 }
                 detail={
