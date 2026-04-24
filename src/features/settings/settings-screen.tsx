@@ -63,11 +63,11 @@ export function SettingsScreen() {
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
-  
+
   const importTransactions = useTransactionsStore(
     (state) => state.importTransactions,
   );
-  
+
   const clearTransactionsError = useTransactionsStore(
     (state) => state.clearError,
   );
@@ -81,19 +81,19 @@ export function SettingsScreen() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  
+
   const [reminderPermissionStatus, setReminderPermissionStatus] =
     useState<ReminderPermissionStatus>('undetermined');
 
   const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
   const isImportUnsupported = Platform.OS === 'web';
-  
+
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
-  
+
   const isDataActionBusy = isExporting || isImporting;
   const isExportDisabled = !isTransactionsInitialized || isDataActionBusy;
-  
+
   const isImportDisabled =
     !isTransactionsInitialized || isDataActionBusy || isImportUnsupported;
 
@@ -215,7 +215,7 @@ export function SettingsScreen() {
       if (selection.status === 'cancelled') return;
 
       const { transactions: importedTransactions, skippedCount } = selection;
-      
+
       let importedCount = 0;
 
       clearTransactionsError();
@@ -238,12 +238,12 @@ export function SettingsScreen() {
         skippedCount:
           skippedCount + (importedTransactions.length - importedCount),
       });
-      
+
       setImportError(null);
     } catch (error) {
       console.error('Failed to import transactions CSV', error);
       setImportResult(null);
-      
+
       setImportError(
         error instanceof Error
           ? error.message

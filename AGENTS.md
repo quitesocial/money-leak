@@ -97,6 +97,12 @@ Format check:
 npm run format:check
 ```
 
+Test:
+
+```sh
+npm test
+```
+
 Format:
 
 ```sh
@@ -113,6 +119,7 @@ npx tsc --noEmit
 
 After code changes, prefer to run the smallest relevant checks:
 
+- `npm test`
 - `npx tsc --noEmit`
 - `npm run lint`
 - `npm run format:check`

@@ -95,7 +95,7 @@ function getImportErrorMessage(error: unknown) {
   return IMPORT_TRANSACTIONS_ERROR_MESSAGE;
 }
 
-function parseTransactionsCsv(csvContents: string) {
+export function parseTransactionsCsv(csvContents: string) {
   const rows = parseCsv(stripUtf8Bom(csvContents));
   const headerIndex = rows.findIndex((row) => !isIgnorableBlankRow(row));
 
@@ -219,7 +219,7 @@ function parseCsv(value: string) {
 
       if (nextRowBreakIndex !== null) {
         index = nextRowBreakIndex;
-        
+
         continue;
       }
 
@@ -242,7 +242,7 @@ function parseCsv(value: string) {
 
     if (nextRowBreakIndex !== null) {
       index = nextRowBreakIndex;
-      
+
       continue;
     }
 

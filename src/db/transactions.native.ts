@@ -109,7 +109,7 @@ export async function importTransactions(transactions: Transaction[]) {
   await initDatabase();
 
   const database = await getDatabase();
-  
+
   let importedCount = 0;
 
   await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
