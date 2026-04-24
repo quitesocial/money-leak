@@ -25,7 +25,9 @@ export default function TabLayout() {
         name="add-transaction"
         options={{ title: 'Add Transaction' }}
       />
+
       <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
+      <Tabs.Screen name="shame-card" options={{ title: 'Shame Card' }} />
     </Tabs>
   );
 }

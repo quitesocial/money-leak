@@ -121,9 +121,11 @@ export function groupLeakTransactionsByCategory(
   }
 
   return [...groups.values()].sort((firstGroup, secondGroup) => {
-    if (secondGroup.totalLeaks !== firstGroup.totalLeaks) return secondGroup.totalLeaks - firstGroup.totalLeaks;
+    if (secondGroup.totalLeaks !== firstGroup.totalLeaks)
+      return secondGroup.totalLeaks - firstGroup.totalLeaks;
 
-    if (secondGroup.count !== firstGroup.count) return secondGroup.count - firstGroup.count;
+    if (secondGroup.count !== firstGroup.count)
+      return secondGroup.count - firstGroup.count;
 
     return (
       getCategoryOrder(firstGroup.category) -
@@ -160,9 +162,11 @@ export function groupLeakTransactionsByLeakReason(
   }
 
   return [...groups.values()].sort((firstGroup, secondGroup) => {
-    if (secondGroup.count !== firstGroup.count) return secondGroup.count - firstGroup.count;
+    if (secondGroup.count !== firstGroup.count)
+      return secondGroup.count - firstGroup.count;
 
-    if (secondGroup.totalLeaks !== firstGroup.totalLeaks) return secondGroup.totalLeaks - firstGroup.totalLeaks;
+    if (secondGroup.totalLeaks !== firstGroup.totalLeaks)
+      return secondGroup.totalLeaks - firstGroup.totalLeaks;
 
     return (
       getReasonOrder(firstGroup.leakReason) -
@@ -200,9 +204,11 @@ export function groupLeakTransactionsByWeekday(
   }
 
   return [...groups.values()].sort((firstGroup, secondGroup) => {
-    if (secondGroup.count !== firstGroup.count) return secondGroup.count - firstGroup.count;
+    if (secondGroup.count !== firstGroup.count)
+      return secondGroup.count - firstGroup.count;
 
-    if (secondGroup.totalLeaks !== firstGroup.totalLeaks) return secondGroup.totalLeaks - firstGroup.totalLeaks;
+    if (secondGroup.totalLeaks !== firstGroup.totalLeaks)
+      return secondGroup.totalLeaks - firstGroup.totalLeaks;
 
     return firstGroup.weekdayIndex - secondGroup.weekdayIndex;
   });
@@ -236,9 +242,11 @@ export function groupLeakTransactionsByHour(
   }
 
   return [...groups.values()].sort((firstGroup, secondGroup) => {
-    if (secondGroup.count !== firstGroup.count) return secondGroup.count - firstGroup.count;
+    if (secondGroup.count !== firstGroup.count)
+      return secondGroup.count - firstGroup.count;
 
-    if (secondGroup.totalLeaks !== firstGroup.totalLeaks) return secondGroup.totalLeaks - firstGroup.totalLeaks;
+    if (secondGroup.totalLeaks !== firstGroup.totalLeaks)
+      return secondGroup.totalLeaks - firstGroup.totalLeaks;
 
     return firstGroup.hour - secondGroup.hour;
   });

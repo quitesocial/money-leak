@@ -1,5 +1,5 @@
-import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
+import { Link } from 'expo-router';
+import { useCallback } from 'react';
 import {
   Alert,
   Pressable,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -55,25 +56,11 @@ export function HomeScreen() {
     (state) => state.removeTransaction,
   );
 
-  const skipNextFocusRefreshRef = useRef(true);
-
-  useEffect(() => {
-    void loadTransactions();
-  }, [loadTransactions]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!isInitialized) return;
-
-      if (skipNextFocusRefreshRef.current) {
-        skipNextFocusRefreshRef.current = false;
-
-        return;
-      }
-
-      void loadTransactions();
-    }, [isInitialized, loadTransactions]),
-  );
+  useTransactionsRefresh({
+    isInitialized,
+    loadTransactions,
+    loadOnMount: 'always',
+  });
 
   const handleDeleteTransaction = useCallback(
     (id: string) => {

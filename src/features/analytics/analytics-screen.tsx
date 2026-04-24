@@ -1,9 +1,8 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 function sanitizeNumber(value: number) {
@@ -51,32 +50,12 @@ export function AnalyticsScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
-  
+
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
 
-  const skipNextFocusRefreshRef = useRef(true);
-
-  useEffect(() => {
-    if (isInitialized) return;
-
-    void loadTransactions();
-  }, [isInitialized, loadTransactions]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!isInitialized) return;
-
-      if (skipNextFocusRefreshRef.current) {
-        skipNextFocusRefreshRef.current = false;
-
-        return;
-      }
-
-      void loadTransactions();
-    }, [isInitialized, loadTransactions]),
-  );
+  useTransactionsRefresh({ isInitialized, loadTransactions });
 
   const analytics = calculateAnalytics(transactions);
   const hasTransactions = transactions.length > 0;
