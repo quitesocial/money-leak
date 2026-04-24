@@ -103,6 +103,31 @@ export async function createTransaction(transaction: Transaction) {
   );
 }
 
+export async function updateTransaction(transaction: Transaction) {
+  await initDatabase();
+
+  const database = await getDatabase();
+
+  await database.runAsync(
+    `
+      UPDATE transactions
+      SET
+        amount = ?,
+        category = ?,
+        is_leak = ?,
+        leak_reason = ?,
+        note = ?
+      WHERE id = ?
+    `,
+    transaction.amount,
+    transaction.category,
+    transaction.isLeak ? 1 : 0,
+    transaction.leakReason,
+    transaction.note,
+    transaction.id,
+  );
+}
+
 export async function getTransactions() {
   await initDatabase();
 

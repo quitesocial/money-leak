@@ -9,6 +9,10 @@ export async function createTransaction(_transaction: Transaction) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function updateTransaction(_transaction: Transaction) {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
