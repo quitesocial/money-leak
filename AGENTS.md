@@ -135,4 +135,3 @@ Generated/local artifacts that should stay out of commits:
 - `dist/`
 - `expo-env.d.ts`
 - IDE files
-

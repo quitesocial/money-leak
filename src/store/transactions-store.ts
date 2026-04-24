@@ -29,7 +29,7 @@ export const useTransactionsStore = create<TransactionsStore>((set) => ({
   isLoading: false,
   isInitialized: false,
   error: null,
-  
+
   loadTransactions: async () => {
     set({ isLoading: true, error: null });
 
@@ -50,7 +50,7 @@ export const useTransactionsStore = create<TransactionsStore>((set) => ({
       });
     }
   },
-  
+
   addTransaction: async (transaction) => {
     set({ isLoading: true, error: null });
 
@@ -72,7 +72,7 @@ export const useTransactionsStore = create<TransactionsStore>((set) => ({
       });
     }
   },
-  
+
   removeTransaction: async (id) => {
     set({ isLoading: true, error: null });
 
@@ -94,7 +94,7 @@ export const useTransactionsStore = create<TransactionsStore>((set) => ({
       });
     }
   },
-  
+
   clearError: () => {
     set({ error: null });
   },
