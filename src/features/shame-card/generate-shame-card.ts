@@ -1,3 +1,4 @@
+import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import type { AnalyticsResult } from '@/features/analytics/calculate-analytics';
 import {
   formatEuro,
@@ -14,6 +15,7 @@ export type ShameCardContent = {
   totalLeaksLine: string;
   topCategoryLine: string | null;
   peakTimeLine: string | null;
+  alternativeRealityLine: string | null;
   verdict: string;
 };
 
@@ -68,6 +70,8 @@ export function generateShameCardContent(
   tone: ShameCardTone,
 ): ShameCardContent {
   const copy = toneCopy[tone];
+  const alternativeReality = calculateAlternativeReality(analytics.totalLeaks);
+  const primaryAlternative = alternativeReality.primaryItem;
 
   return {
     title: copy.title,
@@ -76,6 +80,9 @@ export function generateShameCardContent(
     )} (${formatPercentage(analytics.leakPercentage)} of spending)`,
     topCategoryLine: generateTopCategoryLine(analytics),
     peakTimeLine: generatePeakTimeLine(analytics),
+    alternativeRealityLine: primaryAlternative
+      ? `Alternative reality: that was ${primaryAlternative.count} ${primaryAlternative.label}.`
+      : null,
     verdict: copy.verdict,
   };
 }

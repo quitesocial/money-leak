@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
 import { PeriodSelector } from '@/components/period-selector';
 import {
@@ -59,6 +60,7 @@ export function AnalyticsScreen() {
   useTransactionsRefresh({ isInitialized, loadTransactions });
 
   const analytics = calculateAnalytics(filteredTransactions);
+  const alternativeReality = calculateAlternativeReality(analytics.totalLeaks);
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
   const hasLeaks = analytics.totalLeaks > 0;
@@ -241,6 +243,22 @@ export function AnalyticsScreen() {
               />
             </View>
 
+            {alternativeReality.items.length > 0 ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Alternative reality</Text>
+
+                <View style={styles.alternativeRealityList}>
+                  {alternativeReality.items.map((item) => (
+                    <View key={item.id} style={styles.alternativeRealityItem}>
+                      <Text style={styles.alternativeRealityText}>
+                        {`${item.count} ${item.label}`}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>Insights</Text>
 
@@ -400,6 +418,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#4b5563',
+  },
+  alternativeRealityList: {
+    gap: 10,
+  },
+  alternativeRealityItem: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  alternativeRealityText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
   },
   insightsList: {
     gap: 8,
