@@ -21,6 +21,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -30,6 +31,6 @@
     "experiments": {
       "typedRoutes": true
     },
-    "plugins": ["expo-router"]
+    "plugins": ["expo-router", "expo-notifications"]
   }
 }
