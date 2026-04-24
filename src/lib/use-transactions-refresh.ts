@@ -19,7 +19,7 @@ export function useTransactionsRefresh({
 
   useEffect(() => {
     if (didRunMountLoadRef.current) return;
-    
+
     if (loadOnMount === 'when-uninitialized' && isInitialized) return;
 
     didRunMountLoadRef.current = true;
