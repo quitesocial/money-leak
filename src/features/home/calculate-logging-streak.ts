@@ -1,3 +1,4 @@
+import { getReferenceDate, getValidDate } from '@/lib/date-utils';
 import type { Transaction } from '@/types/transaction';
 
 export type LoggingStreakSummary = {
@@ -5,24 +6,6 @@ export type LoggingStreakSummary = {
   hasLoggedToday: boolean;
   lastLoggedAt: number | null;
 };
-
-function getValidDate(value: number) {
-  if (!Number.isFinite(value)) return null;
-
-  const date = new Date(value);
-
-  if (!Number.isFinite(date.getTime())) return null;
-
-  return date;
-}
-
-function getReferenceDate(now?: Date) {
-  if (now && Number.isFinite(now.getTime())) {
-    return new Date(now.getTime());
-  }
-
-  return new Date();
-}
 
 function getStartOfDay(referenceDate: Date) {
   const startOfDay = new Date(referenceDate);
@@ -46,7 +29,7 @@ export function calculateLoggingStreak(
   now?: Date,
 ): LoggingStreakSummary {
   let lastLoggedAt: number | null = null;
-  
+
   const loggedDays = new Set<number>();
 
   for (const transaction of transactions) {

@@ -1249,3 +1249,148 @@
 - The CTA routes to the existing add transaction flow.
 - The CTA is visible before today's first transaction is logged.
 - The CTA is hidden immediately after today's transaction is saved and Home refreshes.
+
+## Leak Risk Insight
+
+### 61. Leak Risk empty app
+
+**Preconditions**
+
+- Local transaction data is empty.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- The card is shown below the streak card and above the shared period selector.
+- The state line is `Not enough leak history yet.`
+- The supporting copy is `Log a few more leaks to see your risky patterns.`
+- No CTA is shown.
+- No top category, top reason, or risk window details are shown.
+
+### 62. Leak Risk with no leaks
+
+**Preconditions**
+
+- At least one local transaction exists, and all of them are `Normal`.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- Normal transactions do not count toward leak risk.
+- The state line is `Not enough leak history yet.`
+- The supporting copy is `Log a few more leaks to see your risky patterns.`
+- No CTA is shown.
+
+### 63. Leak Risk with fewer than three leaks
+
+**Preconditions**
+
+- Local history includes one or two valid leak transactions total.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- The state line is `Not enough leak history yet.`
+- The supporting copy is `Log a few more leaks to see your risky patterns.`
+- The card remains stable even if the existing leaks happened on today's weekday.
+
+### 64. Leak Risk low for a non-matching weekday
+
+**Preconditions**
+
+- Local history includes at least three valid leak transactions total.
+- None of those leaks were created on today's local weekday.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- The state line is `Low risk`.
+- The supporting copy is `No strong leak pattern for today yet.`
+- No CTA is shown.
+
+### 65. Leak Risk medium for one or two matching weekday leaks
+
+**Preconditions**
+
+- Local history includes at least three valid leak transactions total.
+- One or two of those leaks were created on today's local weekday.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- The state line is `Medium risk`.
+- The card shows `You've leaked on this weekday before.`
+- When a peak hour exists, the card shows `Most risky window: HH:00-HH:00`.
+- No CTA is shown.
+
+### 66. Leak Risk high for three or more matching weekday leaks
+
+**Preconditions**
+
+- Local history includes at least three valid leak transactions on today's local weekday.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card.
+
+**Expected result**
+
+- The state line is `High risk`.
+- The card shows `This weekday is a repeat leak pattern.`
+- The card shows `Top category`, `Top reason`, and `Risk window` when those values exist.
+- No CTA is shown.
+
+### 67. Leak Risk suggested window wraps safely near midnight
+
+**Preconditions**
+
+- Local history includes a peak leak hour late enough that the risk window crosses midnight, such as `23:00`.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Leak risk today` card details.
+
+**Expected result**
+
+- The suggested window renders as a wrapped 24-hour range such as `23:00-01:00`.
+- The app does not crash or show invalid hour text near midnight.
+
+### 68. Home still works with Daily Review, Streak, Leak Risk, and PeriodSelector
+
+**Preconditions**
+
+- `Home` has enough local data to render all Home cards.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the card order and surrounding Home content.
+3. Change the selected period and review the Home summary and transaction list.
+
+**Expected result**
+
+- Home renders `Today check-in`, then the streak card, then `Leak risk today`, then the shared period selector.
+- Daily Review and Logging Streak still behave as before.
+- Leak Risk still uses the full transaction history while the summary card and transaction list continue to follow the selected period.

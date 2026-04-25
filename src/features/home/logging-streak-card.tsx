@@ -31,7 +31,7 @@ function getCardCopy(hasLoggedToday: boolean, currentStreakDays: number) {
 
 export function LoggingStreakCard({ transactions }: LoggingStreakCardProps) {
   const summary = calculateLoggingStreak(transactions);
-  
+
   const { title, body } = getCardCopy(
     summary.hasLoggedToday,
     summary.currentStreakDays,

@@ -1,4 +1,5 @@
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import { getReferenceDate, getValidDate } from '@/lib/date-utils';
 import { sanitizeNumber } from '@/lib/display-formatters';
 import {
   TRANSACTION_CATEGORIES,
@@ -24,20 +25,6 @@ type CalculateDailyReviewSummaryParams = {
   transactions: Transaction[];
   now?: number;
 };
-
-function getValidDate(value: number) {
-  if (!Number.isFinite(value)) return null;
-
-  const date = new Date(value);
-
-  if (!Number.isFinite(date.getTime())) return null;
-
-  return date;
-}
-
-function getReferenceDate(now?: number) {
-  return getValidDate(now ?? Date.now()) ?? new Date();
-}
 
 function getStartOfDay(referenceDate: Date) {
   const startOfDay = new Date(referenceDate);
