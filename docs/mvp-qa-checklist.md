@@ -1138,3 +1138,114 @@
 - The daily card refreshes after each add, edit, delete, and import action without restarting the app.
 - The card always reflects the current store data for today's local date.
 - The top leak category row appears or disappears correctly as today's leak data changes.
+
+## Logging Streak
+
+### 55. Logging Streak empty app
+
+**Preconditions**
+
+- Local transaction data is empty.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the streak card below `Today check-in`.
+
+**Expected result**
+
+- The streak card is shown above the shared period selector.
+- The card title is `Start your streak`.
+- The card body is `Log your first expense today.`
+- The `Log expense` CTA is visible.
+
+### 56. Logging Streak with a transaction today
+
+**Preconditions**
+
+- No local transactions exist for yesterday.
+
+**Steps**
+
+1. Add one transaction dated today in device local time.
+2. Return to `Home`.
+3. Review the streak card.
+
+**Expected result**
+
+- The card title is `1-day streak`.
+- The card body is `You logged expenses today. Keep the chain alive.`
+- The `Log expense` CTA is hidden.
+
+### 57. Logging Streak at risk when only yesterday was logged
+
+**Preconditions**
+
+- At least one transaction exists for yesterday in device local time.
+- No transactions exist for today in device local time.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the streak card.
+
+**Expected result**
+
+- The card title is `1-day streak at risk`.
+- The card body is `Log one expense today to keep it alive.`
+- The `Log expense` CTA is visible.
+
+### 58. Logging Streak counts consecutive local days
+
+**Preconditions**
+
+- At least one transaction exists for each of today, yesterday, and the day before yesterday in device local time.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the streak card.
+
+**Expected result**
+
+- The card title is `3-day streak`.
+- The streak includes each consecutive local calendar day only once even if a day has multiple transactions.
+- The period selector and Daily Review card continue to behave as before.
+
+### 59. Logging Streak resets after a gap
+
+**Preconditions**
+
+- At least one transaction exists for today in device local time.
+- No transactions exist for yesterday in device local time.
+- Older historical transactions still exist before yesterday.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the streak card.
+
+**Expected result**
+
+- The card title is `1-day streak`.
+- Older historical transactions do not extend the streak across the missing day.
+- The card still reflects the full transactions store, not the selected Home period filter.
+
+### 60. Logging Streak CTA only appears before today is logged
+
+**Preconditions**
+
+- `Home` is visible.
+
+**Steps**
+
+1. Start from a state where today has no transactions and confirm the CTA is visible.
+2. Tap `Log expense` and create a transaction dated today.
+3. Return to `Home`.
+4. Review the streak card again.
+
+**Expected result**
+
+- The CTA routes to the existing add transaction flow.
+- The CTA is visible before today's first transaction is logged.
+- The CTA is hidden immediately after today's transaction is saved and Home refreshes.
