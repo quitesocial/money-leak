@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
 import { DailyReviewCard } from '@/features/home/daily-review-card';
+import { LeakRiskCard } from '@/features/home/leak-risk-card';
 import { LoggingStreakCard } from '@/features/home/logging-streak-card';
 import {
   formatEuro,
@@ -165,6 +166,7 @@ export function HomeScreen() {
 
         <DailyReviewCard transactions={transactions} />
         <LoggingStreakCard transactions={transactions} />
+        <LeakRiskCard transactions={transactions} />
 
         <PeriodSelector
           label="Period"
