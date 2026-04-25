@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import { DailyReviewCard } from '@/features/home/daily-review-card';
 import {
   formatEuro,
   formatLabel,
@@ -160,6 +161,8 @@ export function HomeScreen() {
 
           <AddTransactionAction />
         </View>
+
+        <DailyReviewCard transactions={transactions} />
 
         <PeriodSelector
           label="Period"

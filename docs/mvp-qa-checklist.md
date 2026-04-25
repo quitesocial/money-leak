@@ -1020,3 +1020,121 @@
 - `Import CSV` stays disabled on web.
 - `Export CSV` stays disabled when local transaction history could not be prepared on web.
 - Reminder UI safely shows the unsupported platform state without affecting the rest of the screen.
+
+## Daily Review
+
+### 49. Daily Review empty DB
+
+**Preconditions**
+
+- Local transaction data is empty.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Today check-in` card.
+
+**Expected result**
+
+- The card is shown above the shared period selector.
+- The card shows `0.00€` for `Total today` and `Leaks today`.
+- The card shows `0%` for `Leak %`.
+- The card shows `No expenses logged today yet.`
+- The card shows the `Add today's first expense` action.
+- No top leak category row is shown.
+
+### 50. Daily Review with no transactions today
+
+**Preconditions**
+
+- At least one local transaction exists, but all of them were created before today in device local time.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the `Today check-in` card.
+
+**Expected result**
+
+- The card still shows zero values for today's totals.
+- The card shows `No expenses logged today yet.`
+- Yesterday or older transactions do not appear in the daily totals.
+- The existing period selector and main Home summary still behave as before.
+
+### 51. Daily Review with a normal transaction today
+
+**Preconditions**
+
+- No leak transactions exist for today in device local time.
+
+**Steps**
+
+1. Add one normal transaction dated today.
+2. Return to `Home`.
+3. Review the `Today check-in` card.
+
+**Expected result**
+
+- `Total today` matches the new transaction amount.
+- `Leaks today` remains `0.00€`.
+- `Leak %` remains `0%`.
+- The card shows `No leaks today. Clean day so far.`
+- No top leak category row is shown.
+
+### 52. Daily Review with a leak transaction today
+
+**Preconditions**
+
+- At least one leak transaction can be created today.
+
+**Steps**
+
+1. Add one leak transaction dated today.
+2. Return to `Home`.
+3. Review the `Today check-in` card.
+
+**Expected result**
+
+- `Total today`, `Leaks today`, and `Leak %` all update to include today's leak transaction.
+- The card shows a `Top leak category` row when a leak exists today.
+- The card shows `Review today's leaks`.
+
+### 53. Daily Review excludes yesterday after midnight
+
+**Preconditions**
+
+- There is at least one transaction from yesterday and at least one transaction from today in device local time.
+
+**Steps**
+
+1. Open `Home`.
+2. Review the main transaction list timestamps if needed.
+3. Review the `Today check-in` card values.
+
+**Expected result**
+
+- Only today's transactions count toward the daily totals.
+- Yesterday's transactions are excluded even if they were close to midnight.
+- The main Home period summary and list remain unchanged outside the new daily card.
+
+### 54. Daily Review refreshes after add, edit, delete, and import
+
+**Preconditions**
+
+- `Home` is visible.
+- Have a way to import a CSV that includes at least one transaction dated today in local time. If needed, create one by exporting a transaction you just added today.
+
+**Steps**
+
+1. Add a transaction dated today and confirm the `Today check-in` card updates.
+2. Edit that transaction's amount, category, or type and save.
+3. Return to `Home` and confirm the card updates again.
+4. Delete the same transaction and confirm the card updates again.
+5. Import a CSV file that contains at least one today-dated transaction.
+6. Return to `Home` and review the card one more time.
+
+**Expected result**
+
+- The daily card refreshes after each add, edit, delete, and import action without restarting the app.
+- The card always reflects the current store data for today's local date.
+- The top leak category row appears or disappears correctly as today's leak data changes.
