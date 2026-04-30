@@ -2,7 +2,6 @@
   "expo": {
     "name": "Money Leak",
     "slug": "money-leak",
-    "version": "1.0.0",
     "scheme": "moneyleak",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,9 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": [
-        "android.permission.SCHEDULE_EXACT_ALARM"
-      ],
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.quitesocialorg.moneyleak"
@@ -38,10 +35,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "plugins": [
-      "expo-router",
-      "expo-notifications"
-    ],
+    "plugins": ["expo-router", "expo-notifications"],
     "extra": {
       "router": {},
       "eas": {

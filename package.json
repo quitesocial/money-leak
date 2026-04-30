@@ -8,9 +8,15 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format": "node ./node_modules/prettier/bin/prettier.cjs . --write",
+    "format:check": "node ./node_modules/prettier/bin/prettier.cjs . --check",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
+    "release:ios:build": "eas build --platform ios --profile production",
+    "release:ios:submit": "eas submit --platform ios --profile production"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
