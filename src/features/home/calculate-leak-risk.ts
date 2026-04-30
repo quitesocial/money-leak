@@ -176,9 +176,9 @@ function getRiskLevel(
   matchingWeekdayLeakCount: number,
 ): LeakRiskLevel {
   if (totalLeakCount < 3) return 'unknown';
-  
+
   if (matchingWeekdayLeakCount >= 3) return 'high';
-  
+
   if (matchingWeekdayLeakCount >= 1) return 'medium';
 
   return 'low';
@@ -191,16 +191,16 @@ export function calculateLeakRisk(
   const referenceDate = getReferenceDate(now);
   const referenceWeekday = referenceDate.getDay();
   const leakTransactions = getValidLeakTransactions(transactions);
-  
+
   const matchingWeekdayTransactions = leakTransactions.filter(
     (transaction) => transaction.weekday === referenceWeekday,
   );
-  
+
   const referenceTransactions =
     matchingWeekdayTransactions.length > 0
       ? matchingWeekdayTransactions
       : leakTransactions;
-  
+
   const totalLeakCount = leakTransactions.length;
   const matchingWeekdayLeakCount = matchingWeekdayTransactions.length;
   const riskLevel = getRiskLevel(totalLeakCount, matchingWeekdayLeakCount);

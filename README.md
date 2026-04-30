@@ -63,6 +63,12 @@ npm run lint
 npm run format:check
 ```
 
+For CI-level bundle validation, you can also run:
+
+```sh
+npx expo export --platform web --output-dir /private/tmp/money-leak-web-export-check
+```
+
 ## Versioning Policy
 
 The app uses Semantic Versioning for the user-facing store version:
@@ -113,8 +119,66 @@ npm run release:ios:submit
 Notes:
 
 - `release:ios:build` uses the `production` EAS profile from `eas.json`.
-- `release:ios:submit` also uses the `production` profile and will prompt you to choose the build to submit.
+- `release:ios:submit` uses the `manual` submit profile and will prompt you to choose the build to submit.
+- GitHub Actions auto-submit uses `submit.production.ios` from `eas.json` after replacing its placeholder values at runtime.
 - `eas.json` already uses `appVersionSource: "remote"` and `build.production.autoIncrement: true`, so each new production iOS build gets a new developer-facing build number automatically.
+
+## GitHub Release Automation
+
+The repository includes [`release-ios.yml`](.github/workflows/release-ios.yml), a GitHub Actions workflow that runs on every push to `main`.
+
+Release rules:
+
+- The workflow only builds and submits iOS when `package.json.version` changed between `github.event.before` and `github.sha`.
+- Version bumps stay manual. Raise the version in your PR before merging to `main`.
+- CI runs `eas build --platform ios --profile production --auto-submit --non-interactive`.
+- The CI submit uploads the build to App Store Connect and TestFlight processing. It does not submit the app to App Review automatically.
+
+### Required GitHub Secrets
+
+Add these repository secrets in `Settings -> Secrets and variables -> Actions -> New repository secret`:
+
+- `EXPO_TOKEN`
+- `EXPO_ASC_APP_ID`
+- `EXPO_ASC_API_KEY_ID`
+- `EXPO_ASC_API_KEY_ISSUER_ID`
+- `EXPO_ASC_API_KEY_P8_BASE64`
+
+Where to get each value:
+
+- `EXPO_TOKEN`: create a personal access token in [Expo Access Tokens](https://expo.dev/settings/access-tokens).
+- `EXPO_ASC_APP_ID`: in App Store Connect, open your app and go to `App Store -> App Information`, then copy the `Apple ID`.
+- `EXPO_ASC_API_KEY_ID`: in App Store Connect, go to `Users and Access -> Integrations -> App Store Connect API`, then copy the key's `Key ID`.
+- `EXPO_ASC_API_KEY_ISSUER_ID`: in the same App Store Connect API screen, copy the `Issuer ID`.
+- `EXPO_ASC_API_KEY_P8_BASE64`: download the `.p8` key file from `Users and Access -> Integrations -> App Store Connect API`, then base64-encode it and paste the encoded value into GitHub.
+
+Apple only lets you download the `.p8` file once. Save it securely before closing the download flow.
+
+Encode the `.p8` file like this on macOS:
+
+```sh
+base64 -i AuthKey_XXXXXX.p8
+```
+
+Paste the command output into the `EXPO_ASC_API_KEY_P8_BASE64` GitHub secret. Do not add extra quotes.
+
+## Pull Request Checks
+
+The repository also includes [`pr-checks.yml`](.github/workflows/pr-checks.yml), a GitHub Actions workflow for pull requests targeting `main`.
+
+It runs these checks on every PR update:
+
+- `npm run format:check`
+- `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- `npx expo export --platform web --output-dir <temp-dir>`
+
+To make failed checks block merges, enable a GitHub branch protection rule or ruleset:
+
+- Go to `Settings -> Rules -> Rulesets` or `Settings -> Branches`.
+- Require status checks before merging.
+- Add the `Validate` check from the `PR Checks` workflow as a required status check.
 
 ## After Submit
 

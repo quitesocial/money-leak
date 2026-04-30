@@ -16,7 +16,7 @@
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version",
     "release:ios:build": "eas build --platform ios --profile production",
-    "release:ios:submit": "eas submit --platform ios --profile production"
+    "release:ios:submit": "eas submit --platform ios --profile manual"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
