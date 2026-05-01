@@ -112,6 +112,10 @@ jobs:
         if: steps.version-check.outputs.should_release == 'true'
         run: npm ci
 
+      - name: Run release preflight
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm run release:preflight
+
       - name: Run tests
         if: steps.version-check.outputs.should_release == 'true'
         run: npm test

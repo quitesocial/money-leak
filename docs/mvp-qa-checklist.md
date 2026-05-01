@@ -12,9 +12,16 @@
 - `npm run release:preflight` passes against the checked-in local release configuration.
 - The pull request `Validate` workflow passes before merge.
 - `package.json.version` changes only when the merge is intended to trigger a release candidate.
-- The `Release iOS` workflow skips on `main` pushes where the version is unchanged.
-- The `Release iOS` workflow starts on `main` pushes where the version changed.
-- The resulting TestFlight build appears in App Store Connect after processing.
+
+## Epic 34: First Live CI Release Verification
+
+- PR CI runs `npm run release:preflight`.
+- The release workflow runs `npm run release:preflight`.
+- A `main` merge with a version change continues into the release path.
+- A `main` merge without a version change exits through `Skip release when version is unchanged`.
+- The EAS production iOS build appears.
+- The processed build appears in App Store Connect.
+- The processed build is available in TestFlight.
 
 ## App Boot And Empty State
 
