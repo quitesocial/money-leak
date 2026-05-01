@@ -7,6 +7,15 @@
 - Do not mark native manual QA complete unless the flow was actually verified on a device or simulator.
 - Before starting, clear app data or reinstall the app if you need a true first-launch / empty-DB run.
 
+## Release Candidate
+
+- `npm run release:preflight` passes against the checked-in local release configuration.
+- The pull request `Validate` workflow passes before merge.
+- `package.json.version` changes only when the merge is intended to trigger a release candidate.
+- The `Release iOS` workflow skips on `main` pushes where the version is unchanged.
+- The `Release iOS` workflow starts on `main` pushes where the version changed.
+- The resulting TestFlight build appears in App Store Connect after processing.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

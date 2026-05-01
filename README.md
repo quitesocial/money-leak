@@ -69,6 +69,19 @@ For CI-level bundle validation, you can also run:
 npx expo export --platform web --output-dir /private/tmp/money-leak-web-export-check
 ```
 
+## Release Preflight
+
+Before merging a TestFlight candidate, run the local release-readiness checks plus the existing validation set:
+
+```sh
+npm run release:preflight
+npm test
+npm run typecheck
+npm run lint
+npm run format:check
+npx expo export --platform web --output-dir /tmp/money-leak-web-export
+```
+
 ## Versioning Policy
 
 The app uses Semantic Versioning for the user-facing store version:
@@ -83,8 +96,9 @@ Release rules:
 - `package.json` is the single source of truth for the store version.
 - Expo reads the app version from `package.json.version` through `app.config.js`.
 - iOS build numbers are managed separately by EAS remote versioning.
-- Because Apple already has `1.0.0`, the next feature epic should ship as `1.1.0`.
-- Use `1.0.1` only for a hotfix branch off the current `1.0.0` release line.
+- The repository is currently on the `1.1.x` release line.
+- Use `patch` bumps for release-readiness or hotfix work on the current line.
+- Do not change the iOS build number manually. EAS remote auto-increment handles it.
 
 Version bump commands:
 
@@ -111,7 +125,7 @@ npm run release:ios:submit
 Recommended release sequence:
 
 ```sh
-npm run version:minor
+npm run version:patch # or version:minor / version:major when appropriate
 npm run release:ios:build
 npm run release:ios:submit
 ```
@@ -179,6 +193,17 @@ To make failed checks block merges, enable a GitHub branch protection rule or ru
 - Go to `Settings -> Rules -> Rulesets` or `Settings -> Branches`.
 - Require status checks before merging.
 - Add the `Validate` check from the `PR Checks` workflow as a required status check.
+
+## First TestFlight Release Checklist
+
+- GitHub Secrets must be added as repository secrets, not repository variables.
+- Branch protection or a ruleset must require the `Validate` status check before merge.
+- Check the EAS remote iOS build number and sync it with App Store Connect if needed.
+- Merge to `main` only after the intended version bump is in the PR.
+- Confirm the GitHub Actions `Release iOS` workflow starts after the merge.
+- Confirm the EAS production iOS build completes successfully.
+- Confirm the build finishes App Store Connect processing.
+- Add the processed build to TestFlight internal or external testing.
 
 ## After Submit
 
