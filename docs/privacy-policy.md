@@ -1,35 +1,43 @@
-Privacy Policy for Money Leak
+# Privacy Policy for Money Leak
 
-Money Leak is a minimal expense tracking application focused on helping users understand their spending behavior.
+Money Leak is a local-first expense tracking app focused on helping you spot
+behavioral spending leaks.
 
-## 1. Data Collection
+## 1. Local data storage
 
-Money Leak does not collect or store personal data on external servers.
+On supported native builds, Money Leak stores transaction data locally in a
+SQLite database on your device. This can include amounts, categories, leak
+flags, leak reasons, notes, and timestamps that you enter in the app.
 
-All data entered into the app (such as expenses, categories, notes, and leak markings) is stored locally on your device.
+## 2. No accounts, backend, or cloud sync
 
-## 2. Data Storage
+Money Leak does not have an account system. The app does not provide sign-in,
+backend services, or cloud sync, and it does not upload your transaction data
+to Money Leak servers.
 
-Your data remains entirely on your device. The app does not transmit your data to any backend servers.
+## 3. No bank integrations
 
-## 3. Data Sharing
+Money Leak does not connect to bank accounts, payment cards, or financial
+institutions.
 
-Money Leak does not share your data with third parties.
+## 4. CSV import and export
 
-Any data export (such as CSV export) is initiated manually by the user and shared using the device's native sharing features.
-
-## 4. Third-Party Services
-
-Money Leak does not use third-party analytics, tracking, or advertising services.
+CSV export and import happen only when you choose to start them. Exported files
+are shared through your device's native share sheet. Imported files are read
+from a file you select on your device.
 
 ## 5. Notifications
 
-The app may send local notifications (if enabled by the user) as reminders to log expenses. These notifications are scheduled and managed entirely on your device.
+If you enable daily reminders, Money Leak schedules local notifications on your
+device. These reminders are local only and are not sent or managed by a remote
+server.
 
-## 6. Data Control
+## 6. Analytics, ads, and tracking
 
-You have full control over your data:
+Money Leak does not use third-party analytics, advertising, or tracking SDKs.
 
-- You can edit or delete any transaction
-- You can export your data
-- You can remove the app to delete all stored data
+## 7. Your control
+
+You can edit or delete transactions in the app, import or export CSV backups
+when you choose, and remove the app from your device to remove locally stored
+app data.

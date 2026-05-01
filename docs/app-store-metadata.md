@@ -1,61 +1,48 @@
-Stop wondering where your money goes.
-See where you actually leak it.
+# App Store Metadata
 
-Money Leak is a minimal expense tracker focused on behavioral spending.
+## App name
 
-Instead of complex budgets and categories, it helps you understand one thing:
-where you're wasting money.
+Money Leak
 
-Track expenses in seconds.
-Mark leaks.
-See the patterns.
+## Subtitle
 
-## Features
+Spot spending leaks fast
 
-- Quick expense logging (under 5 seconds)
-- Mark "leaks" — money you didn't really need to spend
-- See total spent, total leaks, and leak percentage
-- Behavioral insights:
-  - top leak categories
-  - common triggers
-  - peak leak times
-- Daily check-in
-- Logging streak tracking
-- Leak risk prediction based on your history
-- "Alternative reality" — what your leaks could have been
-- Shame Card — share your spending reality
+## Category
 
-No accounts.
-No sync.
-No complexity.
+Finance
 
-Your data stays on your device.
+## Support contact
 
-You're not poor.
-You're just leaking money.
+asrazdorskiy@gmail.com
 
-## TestFlight — What to Test
+## Privacy policy URL
 
-Please test the core experience:
+https://quitesocial.notion.site/35357a24e62c804dab18c28d24a6c75a?source=copy_link
 
-1. Add expenses
-2. Mark leaks
-3. Review Home summary
-4. Open Analytics
-5. Generate and share the Shame Card
+## Description
 
-Also test:
+Money Leak is a minimal expense tracker for noticing the spending that keeps
+slipping through.
 
-- Editing transactions
-- Deleting transactions
-- CSV export and import
-- Daily check-in card
-- Logging streak
-- Leak risk insights
-- Reminder notifications
+- Log expenses quickly
+- Mark purchases as leaks
+- Review simple leak totals and patterns
+- Turn on an optional daily local reminder
+- Keep data on your device
+- Import or export CSV backups when you choose
 
-Please report:
+No accounts. No cloud sync. No bank integrations.
 
-- crashes
-- incorrect calculations
-- confusing UI or flows
+## TestFlight notes
+
+Please test native iPhone and iPad flows:
+
+1. Add, edit, and delete expenses.
+2. Mark leaks and review Home and Analytics summaries.
+3. Export a CSV backup and import it back into the app.
+4. Turn the daily reminder on and off.
+5. Open `Settings -> Support & Legal` and confirm both links open correctly.
+
+Please report crashes, broken calculations, CSV issues, or links that fail to
+open.
