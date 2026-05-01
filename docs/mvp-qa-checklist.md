@@ -31,6 +31,13 @@
 - Existing reminder / import / export features still work
 - No crashes in Settings
 
+## Epic 36: Production Links & Metadata Finalization
+
+- Privacy Policy opens the real URL
+- Contact Support opens the mail client
+- Settings screen remains stable if `Linking.openURL` fails
+- No placeholder text remains in docs
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
