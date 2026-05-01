@@ -53,7 +53,7 @@ export function LeakRiskCard({ transactions }: LeakRiskCardProps) {
   const summary = calculateLeakRisk(transactions);
   const copy = getCardCopy(summary.riskLevel);
   const showHighRiskDetails = summary.riskLevel === 'high';
-  
+
   const mediumRiskWindowCopy =
     summary.riskLevel === 'medium' && summary.suggestedWindow
       ? `Most risky window: ${summary.suggestedWindow}`

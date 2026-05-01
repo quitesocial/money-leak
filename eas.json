@@ -16,6 +16,14 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "__EXPO_ASC_APP_ID__",
+        "ascApiKeyPath": "__EXPO_ASC_API_KEY_PATH__",
+        "ascApiKeyIssuerId": "__EXPO_ASC_API_KEY_ISSUER_ID__",
+        "ascApiKeyId": "__EXPO_ASC_API_KEY_ID__"
+      }
+    },
+    "manual": {}
   }
 }

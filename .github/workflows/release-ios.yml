@@ -1,0 +1,183 @@
+name: Release iOS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-ios-main
+  cancel-in-progress: false
+
+jobs:
+  release-ios:
+    name: Build and Submit iOS
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.4
+          cache: npm
+
+      - name: Detect version change
+        id: version-check
+        run: |
+          set -euo pipefail
+
+          current_version="$(node -p "require('./package.json').version")"
+
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "previous_version=" >> "$GITHUB_OUTPUT"
+            echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Push event does not have a previous commit to compare." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous_package_json="$(git show "${{ github.event.before }}:package.json" 2>/dev/null || true)"
+
+          if [ -z "$previous_package_json" ]; then
+            echo "previous_version=" >> "$GITHUB_OUTPUT"
+            echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=package.json was not found in the previous commit." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous_version="$(printf '%s' "$previous_package_json" | node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(pkg.version);")"
+
+          echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
+          echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
+
+          if [ "$previous_version" = "$current_version" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "reason=package.json version did not change." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "reason=package.json version changed." >> "$GITHUB_OUTPUT"
+
+      - name: Skip release when version is unchanged
+        if: steps.version-check.outputs.should_release != 'true'
+        run: |
+          echo "Skipping iOS release."
+          echo "Reason: ${{ steps.version-check.outputs.reason }}"
+          echo "Previous version: ${{ steps.version-check.outputs.previous_version }}"
+          echo "Current version: ${{ steps.version-check.outputs.current_version }}"
+
+      - name: Validate release secrets
+        if: steps.version-check.outputs.should_release == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_ASC_APP_ID: ${{ secrets.EXPO_ASC_APP_ID }}
+          EXPO_ASC_API_KEY_ID: ${{ secrets.EXPO_ASC_API_KEY_ID }}
+          EXPO_ASC_API_KEY_ISSUER_ID: ${{ secrets.EXPO_ASC_API_KEY_ISSUER_ID }}
+          EXPO_ASC_API_KEY_P8_BASE64: ${{ secrets.EXPO_ASC_API_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+
+          for name in EXPO_TOKEN EXPO_ASC_APP_ID EXPO_ASC_API_KEY_ID EXPO_ASC_API_KEY_ISSUER_ID EXPO_ASC_API_KEY_P8_BASE64; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required GitHub Actions secret: $name"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Setup Expo and EAS
+        if: steps.version-check.outputs.should_release == 'true'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm ci
+
+      - name: Run tests
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm test
+
+      - name: Run typecheck
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm run typecheck
+
+      - name: Run lint
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm run lint
+
+      - name: Run format check
+        if: steps.version-check.outputs.should_release == 'true'
+        run: npm run format:check
+
+      - name: Write App Store Connect API key
+        id: write-api-key
+        if: steps.version-check.outputs.should_release == 'true'
+        env:
+          EXPO_ASC_API_KEY_P8_BASE64: ${{ secrets.EXPO_ASC_API_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          api_key_path="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$EXPO_ASC_API_KEY_P8_BASE64" | base64 --decode > "$api_key_path"
+          chmod 600 "$api_key_path"
+
+          echo "api_key_path=$api_key_path" >> "$GITHUB_OUTPUT"
+
+      - name: Inject App Store Connect placeholders
+        if: steps.version-check.outputs.should_release == 'true'
+        env:
+          EXPO_ASC_APP_ID: ${{ secrets.EXPO_ASC_APP_ID }}
+          EXPO_ASC_API_KEY_ID: ${{ secrets.EXPO_ASC_API_KEY_ID }}
+          EXPO_ASC_API_KEY_ISSUER_ID: ${{ secrets.EXPO_ASC_API_KEY_ISSUER_ID }}
+          EXPO_ASC_API_KEY_PATH: ${{ steps.write-api-key.outputs.api_key_path }}
+        run: |
+          set -euo pipefail
+
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const filePath = 'eas.json';
+          let content = fs.readFileSync(filePath, 'utf8');
+
+          const replacements = {
+            '__EXPO_ASC_APP_ID__': process.env.EXPO_ASC_APP_ID,
+            '__EXPO_ASC_API_KEY_PATH__': process.env.EXPO_ASC_API_KEY_PATH,
+            '__EXPO_ASC_API_KEY_ISSUER_ID__': process.env.EXPO_ASC_API_KEY_ISSUER_ID,
+            '__EXPO_ASC_API_KEY_ID__': process.env.EXPO_ASC_API_KEY_ID,
+          };
+
+          for (const [placeholder, value] of Object.entries(replacements)) {
+            if (!content.includes(placeholder)) {
+              throw new Error(`Missing placeholder ${placeholder} in ${filePath}`);
+            }
+
+            content = content.split(placeholder).join(value);
+          }
+
+          fs.writeFileSync(filePath, content);
+          NODE
+
+      - name: Build and auto-submit iOS
+        if: steps.version-check.outputs.should_release == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform ios --profile production --auto-submit --non-interactive
