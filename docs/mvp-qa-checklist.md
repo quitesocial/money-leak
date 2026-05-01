@@ -23,6 +23,14 @@
 - The processed build appears in App Store Connect.
 - The processed build is available in TestFlight.
 
+## Epic 35: App Store / TestFlight Readiness
+
+- Settings shows "Support & Legal"
+- Privacy Policy button works or shows fallback alert
+- Contact Support button works or shows fallback alert
+- Existing reminder / import / export features still work
+- No crashes in Settings
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
