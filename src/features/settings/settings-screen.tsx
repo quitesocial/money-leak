@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
+  Alert,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -22,6 +24,7 @@ import {
   scheduleDailyCheckInReminder,
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
+import { APP_LINKS } from '@/lib/app-links';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useTransactionsStore } from '@/store/transactions-store';
@@ -278,6 +281,29 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleOpenExternalLink({
+    url,
+    emptyMessage,
+  }: {
+    url: string;
+    emptyMessage: string;
+  }) {
+    const trimmedUrl = url.trim();
+
+    if (trimmedUrl.length === 0) {
+      Alert.alert(emptyMessage);
+
+      return;
+    }
+
+    try {
+      await Linking.openURL(trimmedUrl);
+    } catch (error) {
+      console.error('Failed to open external link', error);
+      Alert.alert("Couldn't open this link right now.");
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -349,6 +375,7 @@ export function SettingsScreen() {
               }}
               style={[
                 styles.dataButton,
+                styles.dataActionButton,
                 styles.importButton,
                 isImportDisabled ? styles.dataButtonDisabled : null,
               ]}
@@ -366,6 +393,7 @@ export function SettingsScreen() {
               }}
               style={[
                 styles.dataButton,
+                styles.dataActionButton,
                 styles.exportButton,
                 isExportDisabled ? styles.dataButtonDisabled : null,
               ]}
@@ -406,6 +434,49 @@ export function SettingsScreen() {
           {exportError ? (
             <Text style={styles.errorText}>{exportError}</Text>
           ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Support & Legal</Text>
+
+            <Text style={styles.sectionBody}>
+              Review the privacy policy or get in touch if the app behaves
+              unexpectedly.
+            </Text>
+          </View>
+
+          <View style={styles.supportActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void handleOpenExternalLink({
+                  url: APP_LINKS.PRIVACY_POLICY,
+                  emptyMessage: 'Privacy policy is not available yet.',
+                });
+              }}
+              style={[styles.dataButton, styles.supportButton]}
+            >
+              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
+                Privacy Policy
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void handleOpenExternalLink({
+                  url: APP_LINKS.SUPPORT_EMAIL,
+                  emptyMessage: 'Support contact is not configured.',
+                });
+              }}
+              style={[styles.dataButton, styles.supportButton]}
+            >
+              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
+                Contact Support
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -481,12 +552,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  supportActions: {
+    gap: 12,
+  },
   dataButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
     paddingVertical: 14,
+  },
+  dataActionButton: {
+    flex: 1,
   },
   dataButtonDisabled: {
     opacity: 0.6,
@@ -504,6 +580,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   importButtonText: {
+    color: '#111827',
+  },
+  supportButton: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+  },
+  supportButtonText: {
     color: '#111827',
   },
   exportButtonText: {
