@@ -52,7 +52,6 @@ export type AnalyticsResult = {
   topLeakReason: LeakReasonGroup | null;
   peakLeakWeekday: LeakWeekdayGroup | null;
   peakLeakHour: LeakHourGroup | null;
-  insights: string[];
 };
 
 const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
@@ -80,10 +79,6 @@ function getValidLeakDate(transaction: Transaction) {
   if (!Number.isFinite(date.getTime())) return null;
 
   return date;
-}
-
-function formatHour(hour: number) {
-  return `${hour.toString().padStart(2, '0')}:00`;
 }
 
 function getCategoryOrder(category: TransactionCategory) {
@@ -267,25 +262,6 @@ export function calculateAnalytics(
     groupLeakTransactionsByWeekday(transactions)[0] ?? null;
 
   const peakLeakHour = groupLeakTransactionsByHour(transactions)[0] ?? null;
-  const insights: string[] = [];
-
-  if (topLeakCategory && topLeakCategory.totalLeaks > 0) {
-    insights.push(`Your biggest leak category is ${topLeakCategory.category}.`);
-  }
-
-  if (topLeakReason) {
-    insights.push(
-      `Your most common leak trigger is ${topLeakReason.leakReason}.`,
-    );
-  }
-
-  if (peakLeakWeekday) {
-    insights.push(`Most leaks happen on ${peakLeakWeekday.weekday}.`);
-  }
-
-  if (peakLeakHour) {
-    insights.push(`Most leaks happen around ${formatHour(peakLeakHour.hour)}.`);
-  }
 
   return {
     totalSpent: sanitizeNumber(summary.totalSpent),
@@ -295,6 +271,5 @@ export function calculateAnalytics(
     topLeakReason,
     peakLeakWeekday,
     peakLeakHour,
-    insights,
   };
 }
