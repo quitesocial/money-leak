@@ -38,6 +38,19 @@
 - Settings screen remains stable if `Linking.openURL` fails
 - No placeholder text remains in docs
 
+## Epic 37: Screenshot Support + Demo Data v1
+
+- `docs/app-store-screenshots.md` exists and documents the five canonical screenshot scenarios.
+- `src/features/dev/demo-transactions.ts` exists and exports `createDemoTransactions(): Transaction[]`.
+- Demo data is not seeded automatically at runtime from app startup, navigation, or Settings.
+- No demo-data button, toggle, or other active runtime control was added.
+- Regression check: `Home` still shows the expected daily review, streak, leak risk, period selector, and transaction list behavior.
+- Regression check: `Analytics` still shows the expected empty, no-leaks, and non-empty states.
+- Regression check: `Shame Card` still shows the expected empty, no-leaks, populated preview, tone, and share states.
+- Regression check: `Settings` still shows the reminder, `Data`, and `Support & Legal` sections without regressions.
+- Regression check: Import and export flows still work with the existing CSV fixtures and native-only platform boundaries.
+- Regression check: Reminder enable, disable, denied, and unsupported flows still work.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
