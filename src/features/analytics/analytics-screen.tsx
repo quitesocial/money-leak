@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import { generateAiInsight } from '@/features/analytics/generate-ai-insight';
 import { PeriodSelector } from '@/components/period-selector';
 import {
   formatEuro,
@@ -60,6 +61,7 @@ export function AnalyticsScreen() {
   useTransactionsRefresh({ isInitialized, loadTransactions });
 
   const analytics = calculateAnalytics(filteredTransactions);
+  const brutalInsight = generateAiInsight(filteredTransactions);
   const alternativeReality = calculateAlternativeReality(analytics.totalLeaks);
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
@@ -175,6 +177,13 @@ export function AnalyticsScreen() {
 
         {hasLeaks ? (
           <>
+            {brutalInsight ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Brutal insight</Text>
+                <Text style={styles.sectionMessage}>{brutalInsight}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.metricsGrid}>
               <MetricCard
                 label="Top leak category"
@@ -258,24 +267,6 @@ export function AnalyticsScreen() {
                 </View>
               </View>
             ) : null}
-
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Insights</Text>
-
-              {analytics.insights.length > 0 ? (
-                <View style={styles.insightsList}>
-                  {analytics.insights.map((insight) => (
-                    <Text key={insight} style={styles.insightText}>
-                      {insight}
-                    </Text>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.sectionMessage}>
-                  Add a few more leaks to make the patterns clearer.
-                </Text>
-              )}
-            </View>
           </>
         ) : null}
       </ScrollView>
@@ -434,13 +425,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
-  },
-  insightsList: {
-    gap: 8,
-  },
-  insightText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#374151',
   },
 });
