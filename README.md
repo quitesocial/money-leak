@@ -82,6 +82,8 @@ npm run format:check
 npx expo export --platform web --output-dir /tmp/money-leak-web-export
 ```
 
+For the compact repo-side final submission check, see the [App Store submission checklist](docs/app-store-submission-checklist.md).
+
 ## Versioning Policy
 
 The app uses Semantic Versioning for the user-facing store version:
@@ -96,8 +98,7 @@ Release rules:
 - `package.json` is the single source of truth for the store version.
 - Expo reads the app version from `package.json.version` through `app.config.js`.
 - iOS build numbers are managed separately by EAS remote versioning.
-- The repository is currently on the `1.1.x` release line.
-- Use `patch` bumps for release-readiness or hotfix work on the current line.
+- Use `patch` bumps for release-readiness or hotfix work on the current `1.2.x` line.
 - Do not change the iOS build number manually. EAS remote auto-increment handles it.
 
 Version bump commands:

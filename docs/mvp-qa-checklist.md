@@ -51,6 +51,16 @@
 - Regression check: Import and export flows still work with the existing CSV fixtures and native-only platform boundaries.
 - Regression check: Reminder enable, disable, denied, and unsupported flows still work.
 
+## Epic 38: App Store Release Submission Finalization v1
+
+- `docs/app-store-submission-checklist.md` exists and stays focused on repo-side release verification.
+- `docs/release-notes/1.2.3.md` exists and matches the shipped feature set.
+- `npm run release:preflight` passes.
+- The pull request `Validate` workflow passes before merge.
+- `package.json.version` is bumped to `1.2.3` intentionally for the release.
+- A `main` merge with a version change continues into the `Release iOS` workflow release path.
+- A `main` merge without a version change exits through `Skip release when version is unchanged`.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
