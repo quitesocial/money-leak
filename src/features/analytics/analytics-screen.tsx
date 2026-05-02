@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
+import { generateActionSuggestion } from '@/features/analytics/generate-action-suggestion';
 import { generateAiInsight } from '@/features/analytics/generate-ai-insight';
 import { PeriodSelector } from '@/components/period-selector';
 import {
@@ -62,6 +63,7 @@ export function AnalyticsScreen() {
 
   const analytics = calculateAnalytics(filteredTransactions);
   const brutalInsight = generateAiInsight(filteredTransactions);
+  const nextMove = generateActionSuggestion(filteredTransactions);
   const alternativeReality = calculateAlternativeReality(analytics.totalLeaks);
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
@@ -181,6 +183,13 @@ export function AnalyticsScreen() {
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Brutal insight</Text>
                 <Text style={styles.sectionMessage}>{brutalInsight}</Text>
+              </View>
+            ) : null}
+
+            {nextMove ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Next move</Text>
+                <Text style={styles.sectionMessage}>{nextMove}</Text>
               </View>
             ) : null}
 

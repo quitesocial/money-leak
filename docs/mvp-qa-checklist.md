@@ -451,6 +451,7 @@
 
 - Empty-state copy is shown.
 - No `Brutal insight` card is shown.
+- No `Next move` card is shown.
 - Screen does not crash.
 - Summary values remain zero.
 
@@ -470,7 +471,7 @@
 - Summary reflects total spending and `0.00€` total leaks.
 - `Leak percentage` shows `0%`.
 - `No leaks yet` state is shown.
-- Top leak cards and `Brutal insight` card are not shown.
+- Top leak cards, `Brutal insight` card, and `Next move` card are not shown.
 
 ### 21. Analytics with leak transactions
 
@@ -484,17 +485,21 @@
 1. Open `Analytics`.
 2. Review the summary card.
 3. Review the `Brutal insight` card.
-4. Review the metric cards.
-5. Change the underlying leak data so the dominant pattern changes.
-6. Re-open or refresh `Analytics`.
+4. Review the `Next move` card.
+5. Review the metric cards.
+6. Change the underlying leak data so the dominant pattern changes.
+7. Re-open or refresh `Analytics`.
 
 **Expected result**
 
 - Summary values match current transaction data.
 - `Brutal insight` appears when leak transactions exist.
+- `Next move` appears when leak transactions exist.
 - `Brutal insight` changes when the leak pattern changes.
+- `Next move` changes when the leak pattern changes.
+- `Brutal insight` stays above `Next move`.
 - Metric cards show top leak category, top leak reason, peak leak weekday, and peak leak hour when data exists.
-- Analytics renders without crashing while showing the insight card.
+- Analytics renders without crashing while showing the insight cards.
 
 ## Shame Card
 
