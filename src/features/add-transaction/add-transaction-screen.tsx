@@ -38,7 +38,11 @@ export function AddTransactionScreen() {
     await addTransaction(transaction);
 
     if (!useTransactionsStore.getState().error) {
-      router.replace('/(tabs)');
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
     }
   }
 
