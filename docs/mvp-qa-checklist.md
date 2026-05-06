@@ -61,6 +61,18 @@
 - A `main` merge with a version change continues into the `Release iOS` workflow release path.
 - A `main` merge without a version change exits through `Skip release when version is unchanged`.
 
+## Epic 41: Add Transaction Navigation Cleanup v1
+
+- Add Transaction is no longer visible in the bottom tab bar.
+- Home, Analytics, Shame Card, and Settings remain visible and selectable as the persistent bottom tabs.
+- The Home Add Transaction CTA opens the Add Transaction screen as a pushed screen.
+- The Add Transaction screen shows the normal header/back affordance, and back returns to the previous screen.
+- Saving a transaction returns to Home or the previous screen.
+- Home summary values and transaction list refresh after a successful save.
+- Daily Review empty-state CTA still opens Add Transaction.
+- Logging Streak CTA still opens Add Transaction when today has not been logged.
+- Analytics, Shame Card, and Settings tabs still open and behave as before.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

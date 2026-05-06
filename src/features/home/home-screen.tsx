@@ -42,7 +42,7 @@ function formatTransactionDate(value: number) {
 
 function AddTransactionAction() {
   return (
-    <Link href="/(tabs)/add-transaction" asChild>
+    <Link href="/add-transaction" asChild>
       <Pressable style={styles.primaryAction}>
         <Text style={styles.primaryActionText}>Add Transaction</Text>
       </Pressable>

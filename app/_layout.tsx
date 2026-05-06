@@ -22,6 +22,15 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
         <Stack.Screen
+          name="add-transaction"
+          options={{
+            title: 'Add Transaction',
+            headerBackButtonDisplayMode: 'generic',
+            headerBackTitle: 'Back',
+          }}
+        />
+
+        <Stack.Screen
           name="transaction/[id]/edit"
           options={{ title: 'Edit Transaction' }}
         />

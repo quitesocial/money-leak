@@ -43,7 +43,7 @@ export function LoggingStreakCard({ transactions }: LoggingStreakCardProps) {
       <Text style={styles.body}>{body}</Text>
 
       {!summary.hasLoggedToday ? (
-        <Link href="/(tabs)/add-transaction" asChild>
+        <Link href="/add-transaction" asChild>
           <Pressable style={styles.actionButton}>
             <Text style={styles.actionButtonText}>Log expense</Text>
           </Pressable>

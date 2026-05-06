@@ -64,7 +64,7 @@ export function DailyReviewCard({ transactions }: DailyReviewCardProps) {
         <View style={styles.footer}>
           <Text style={styles.message}>No expenses logged today yet.</Text>
 
-          <Link href="/(tabs)/add-transaction" asChild>
+          <Link href="/add-transaction" asChild>
             <Pressable style={styles.actionButton}>
               <Text style={styles.actionButtonText}>
                 Add today&apos;s first expense
