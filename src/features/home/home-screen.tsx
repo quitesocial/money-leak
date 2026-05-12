@@ -79,7 +79,7 @@ export function HomeScreen() {
   const summary = calculateTransactionsSummary(filteredTransactions);
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
-  
+
   const selectedPeriodLabel = getPeriodLabel(
     selectedPeriod,
     selectedCustomDateStart,
