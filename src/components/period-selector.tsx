@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LocalDatePicker } from '@/components/local-date-picker';
 import {
   PERIOD_SCOPE_OPTIONS,
   getPeriodLabel,
@@ -8,15 +10,47 @@ import {
 
 type PeriodSelectorProps = {
   selectedPeriod: PeriodScope;
+  selectedCustomDateStart: number | null;
   onSelectPeriod: (period: PeriodScope) => void;
+  onSelectCustomDate: (dateStart: number) => void;
   label?: string;
 };
 
+function getDatePickerValue(selectedCustomDateStart: number | null) {
+  if (selectedCustomDateStart !== null) {
+    const selectedDate = new Date(selectedCustomDateStart);
+
+    if (Number.isFinite(selectedDate.getTime())) return selectedDate;
+  }
+
+  return new Date();
+}
+
 export function PeriodSelector({
   selectedPeriod,
+  selectedCustomDateStart,
   onSelectPeriod,
+  onSelectCustomDate,
   label,
 }: PeriodSelectorProps) {
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const datePickerValue = getDatePickerValue(selectedCustomDateStart);
+
+  function handlePeriodPress(period: PeriodScope) {
+    if (period === 'custom_date') {
+      setIsDatePickerVisible(true);
+
+      return;
+    }
+
+    onSelectPeriod(period);
+  }
+
+  function handleDateConfirm(date: Date) {
+    setIsDatePickerVisible(false);
+    onSelectCustomDate(date.getTime());
+  }
+
   return (
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -30,7 +64,7 @@ export function PeriodSelector({
               key={period}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              onPress={() => onSelectPeriod(period)}
+              onPress={() => handlePeriodPress(period)}
               style={[styles.chip, isSelected ? styles.chipSelected : null]}
             >
               <Text
@@ -39,12 +73,19 @@ export function PeriodSelector({
                   isSelected ? styles.chipTextSelected : null,
                 ]}
               >
-                {getPeriodLabel(period)}
+                {getPeriodLabel(period, selectedCustomDateStart)}
               </Text>
             </Pressable>
           );
         })}
       </View>
+
+      <LocalDatePicker
+        visible={isDatePickerVisible}
+        value={datePickerValue}
+        onCancel={() => setIsDatePickerVisible(false)}
+        onConfirm={handleDateConfirm}
+      />
     </View>
   );
 }

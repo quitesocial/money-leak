@@ -58,19 +58,32 @@ export function HomeScreen() {
   const error = useTransactionsStore((state) => state.error);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
 
+  const selectedCustomDateStart = usePeriodScopeStore(
+    (state) => state.selectedCustomDateStart,
+  );
+
   const setSelectedPeriod = usePeriodScopeStore(
     (state) => state.setSelectedPeriod,
+  );
+
+  const setSelectedCustomDate = usePeriodScopeStore(
+    (state) => state.setSelectedCustomDate,
   );
 
   const filteredTransactions = filterTransactionsByPeriod({
     transactions,
     period: selectedPeriod,
+    selectedCustomDateStart,
   });
 
   const summary = calculateTransactionsSummary(filteredTransactions);
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
-  const selectedPeriodLabel = getPeriodLabel(selectedPeriod);
+  
+  const selectedPeriodLabel = getPeriodLabel(
+    selectedPeriod,
+    selectedCustomDateStart,
+  );
 
   const [deletingTransactionId, setDeletingTransactionId] = useState<
     string | null
@@ -171,7 +184,9 @@ export function HomeScreen() {
         <PeriodSelector
           label="Period"
           selectedPeriod={selectedPeriod}
+          selectedCustomDateStart={selectedCustomDateStart}
           onSelectPeriod={setSelectedPeriod}
+          onSelectCustomDate={setSelectedCustomDate}
         />
 
         <View style={styles.summaryCard}>

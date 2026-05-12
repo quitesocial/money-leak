@@ -35,7 +35,11 @@
     "experiments": {
       "typedRoutes": true
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "@react-native-community/datetimepicker"
+    ],
     "extra": {
       "router": {},
       "eas": {

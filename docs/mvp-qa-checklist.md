@@ -73,6 +73,19 @@
 - Logging Streak CTA still opens Add Transaction when today has not been logged.
 - Analytics, Shame Card, and Settings tabs still open and behave as before.
 
+## Epic 42: Period Selector v2
+
+- The shared period selector defaults to `Today`.
+- The selector shows `Yesterday`, `Today`, `This week`, and `Choose date`.
+- The selector no longer shows `This month` or `All time`.
+- `Home` summary and transaction list update correctly for `Today`, `Yesterday`, `This week`, and a selected `Choose date` day.
+- `Analytics` updates when switching between each period option.
+- `Shame Card` updates when switching between each period option.
+- Canceling `Choose date` closes the picker without changing the previous period or custom date.
+- Empty states and no-leaks states render without crashing for every period option.
+- Add Transaction is still not visible in the bottom tab bar.
+- Add Transaction remains available from the Home CTA at `/add-transaction`.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
@@ -753,7 +766,7 @@
 **Verification note**
 
 - The shared CSV fixtures live in `docs/qa-fixtures/`.
-- The shared period selector defaults to `This month` and persists across `Home`, `Analytics`, and `Shame Card`. Before verifying imported fixture data, switch the selector to `All time` once and then revisit each screen.
+- The shared period selector defaults to `Today` and persists across `Home`, `Analytics`, and `Shame Card`. Before verifying imported fixture data, use `Choose date` and select the fixture date, such as `Jan 1, 2025` or `Jan 2, 2025`.
 - The fixture dates are fixed historical ISO timestamps. Clear app data before re-importing the same fixture if you need deterministic imported/skipped counts.
 
 ### 34. Import a valid Money Leak CSV backup
@@ -770,16 +783,16 @@
 2. In the `Data` section, tap `Import CSV`.
 3. Pick `docs/qa-fixtures/valid-money-leak.csv` in the native document picker.
 4. Wait for the import to finish.
-5. Open `Home`, confirm the shared period selector is `All time`, and review the list and summary.
-6. Open `Analytics` and review the summary and any visible metric cards.
-7. Open `Shame Card` and review the preview state.
+5. Open `Home`, use `Choose date` to select `Jan 1, 2025`, then `Jan 2, 2025`, and review the list and summary for each fixture day.
+6. Open `Analytics` with `Choose date` set to `Jan 2, 2025` and review the summary and any visible metric cards.
+7. Open `Shame Card` with `Choose date` set to `Jan 2, 2025` and review the preview state.
 
 **Expected result**
 
 - Native document picker opens.
 - `Import CSV` changes to `Importing...` while the import is in flight.
 - Settings shows `Imported 2 transactions. Skipped 0 rows.`
-- Valid transactions from the CSV appear in `Home` without needing an app restart.
+- Valid transactions from the CSV appear in `Home` on their selected fixture dates without needing an app restart.
 - Imported leak transactions show their saved leak reason and optional note.
 - `Analytics` and `Shame Card` reflect the imported data immediately.
 - App stays responsive after the import completes.
@@ -798,7 +811,7 @@
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/valid-with-bom.csv`.
 4. Wait for the import to finish.
-5. Open `Home` with the shared period selector set to `All time`.
+5. Open `Home` and use `Choose date` to select `Jan 1, 2025`, then `Jan 2, 2025`.
 
 **Expected result**
 
@@ -840,7 +853,7 @@
 **Steps**
 
 1. Open `Home`.
-2. Confirm the shared period selector is still `All time`.
+2. Confirm the shared period selector is still set to `Choose date: Jan 2`.
 3. Open the imported leak transaction from `docs/qa-fixtures/valid-money-leak.csv`.
 
 **Expected result**
@@ -881,7 +894,7 @@
 1. Open `Settings`.
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/duplicate-ids.csv`.
-4. Open `Home` with the shared period selector set to `All time`.
+4. Open `Home` with the shared period selector set to `Choose date: Jan 1`.
 
 **Expected result**
 
@@ -903,7 +916,7 @@
 1. Open `Settings`.
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/mixed-valid-invalid.csv`.
-4. Open `Home`.
+4. Open `Home` with the shared period selector set to `Choose date: Jan 1`.
 
 **Expected result**
 

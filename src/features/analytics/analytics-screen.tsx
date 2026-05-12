@@ -44,16 +44,28 @@ export function AnalyticsScreen() {
   const error = useTransactionsStore((state) => state.error);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
 
+  const selectedCustomDateStart = usePeriodScopeStore(
+    (state) => state.selectedCustomDateStart,
+  );
+
   const setSelectedPeriod = usePeriodScopeStore(
     (state) => state.setSelectedPeriod,
+  );
+
+  const setSelectedCustomDate = usePeriodScopeStore(
+    (state) => state.setSelectedCustomDate,
   );
 
   const filteredTransactions = filterTransactionsByPeriod({
     transactions,
     period: selectedPeriod,
+    selectedCustomDateStart,
   });
 
-  const selectedPeriodLabel = getPeriodLabel(selectedPeriod);
+  const selectedPeriodLabel = getPeriodLabel(
+    selectedPeriod,
+    selectedCustomDateStart,
+  );
 
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
@@ -110,7 +122,9 @@ export function AnalyticsScreen() {
         <PeriodSelector
           label="Period"
           selectedPeriod={selectedPeriod}
+          selectedCustomDateStart={selectedCustomDateStart}
           onSelectPeriod={setSelectedPeriod}
+          onSelectCustomDate={setSelectedCustomDate}
         />
 
         <View style={styles.summaryCard}>
@@ -170,9 +184,7 @@ export function AnalyticsScreen() {
             <Text style={styles.sectionTitle}>No leaks yet</Text>
 
             <Text style={styles.sectionMessage}>
-              {selectedPeriod === 'all_time'
-                ? 'You have expenses, but none are marked as leaks yet. Once you add one, this screen will show the strongest patterns.'
-                : `You have expenses in ${selectedPeriodLabel.toLowerCase()}, but none are marked as leaks yet. Once you add one, this screen will show the strongest patterns.`}
+              {`You have expenses in ${selectedPeriodLabel.toLowerCase()}, but none are marked as leaks yet. Once you add one, this screen will show the strongest patterns.`}
             </Text>
           </View>
         ) : null}

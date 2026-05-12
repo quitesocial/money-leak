@@ -116,7 +116,7 @@ function createTransaction({
 export function createDemoTransactions(): Transaction[] {
   const today = getStartOfDay(getReferenceDate());
 
-  // Keep the default This month views populated while the all-data cards
+  // Keep the default Today views populated while the full-history cards
   // still have enough history to render a streak and a meaningful leak risk.
   const configs: DemoTransactionConfig[] = [
     {
