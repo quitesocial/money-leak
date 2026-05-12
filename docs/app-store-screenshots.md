@@ -11,14 +11,14 @@ reach that state.
 **Expected UI state**
 
 - `Home` is the active tab.
-- The shared period selector remains on the default `This month` state.
+- The shared period selector remains on the default `Today` state.
 - `Today check-in` shows non-zero `Total today`, non-zero `Leaks today`, a
   non-zero `Leak %`, and a visible `Top leak category` row.
 - The streak card shows an active streak instead of the empty `Start your
 streak` state.
 - `Leak risk today` shows a populated risk state instead of `Not enough leak
 history yet.`
-- The `This month` transaction list is non-empty.
+- The `Today` transaction list is non-empty.
 
 **Required data**
 
@@ -29,14 +29,14 @@ history yet.`
 - At least three leak transactions exist overall.
 - At least three leak transactions exist on the current weekday across separate
   weeks so the risk card can render a visible risk state with detail rows.
-- At least one transaction exists in the current month so the default `This
-month` list is populated.
+- At least one transaction exists today so the default `Today` list is
+  populated.
 
 ### 2. Add Transaction
 
 **Expected UI state**
 
-- `Add Transaction` is the active tab.
+- `Add Transaction` is open as a pushed screen from the Home CTA.
 - `Leak` is selected in the type picker.
 - The leak-only fields are visible: leak reason chips and the optional note
   field.
@@ -55,7 +55,7 @@ month` list is populated.
 **Expected UI state**
 
 - `Analytics` is the active tab.
-- The shared period selector remains on the default `This month` state.
+- The shared period selector remains on the default `Today` state.
 - The summary card shows non-zero `Total spent`, non-zero `Total leaks`, and a
   non-zero `Leak percentage`.
 - The non-empty analytics state is visible, with the metric cards rendered for
@@ -65,9 +65,9 @@ hour`.
 
 **Required data**
 
-- At least one normal transaction exists in the current month.
-- At least one leak transaction exists in the current month.
-- The current-month leak data is enough to keep Analytics out of the empty and
+- At least one normal transaction exists today.
+- At least one leak transaction exists today.
+- Today's leak data is enough to keep Analytics out of the empty and
   no-leaks states.
 - Under the current implementation, the screen does not render a separate
   insights list, so the canonical screenshot is the populated metrics state.
@@ -77,7 +77,7 @@ hour`.
 **Expected UI state**
 
 - `Shame Card` is the active tab.
-- The shared period selector remains on the default `This month` state.
+- The shared period selector remains on the default `Today` state.
 - The default `Harsh` tone is selected.
 - The preview card is visible with a title, total leaks line, top category
   line, peak time line, alternative reality line, and verdict.
@@ -85,8 +85,8 @@ hour`.
 
 **Required data**
 
-- At least one leak transaction exists in the current month.
-- The current-month data keeps the screen out of the empty and no-leaks states.
+- At least one leak transaction exists today.
+- Today's data keeps the screen out of the empty and no-leaks states.
 - The leak total is greater than zero so the alternative reality line can
   render.
 

@@ -1,6 +1,6 @@
 {
   "name": "money-leak",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -22,6 +22,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
     "expo-document-picker": "~14.0.8",

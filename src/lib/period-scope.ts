@@ -1,37 +1,56 @@
 import type { Transaction } from '@/types/transaction';
+import { getReferenceDate, getValidDate } from '@/lib/date-utils';
 
-export type PeriodScope = 'this_week' | 'this_month' | 'all_time';
+export type PeriodScope = 'yesterday' | 'today' | 'this_week' | 'custom_date';
 
 export const PERIOD_SCOPE_OPTIONS: PeriodScope[] = [
+  'yesterday',
+  'today',
   'this_week',
-  'this_month',
-  'all_time',
+  'custom_date',
 ];
 
 type FilterTransactionsByPeriodParams = {
   transactions: Transaction[];
   period: PeriodScope;
-  now?: number;
+  selectedCustomDateStart?: number | null;
+  now?: number | Date;
 };
 
-function getValidDate(value: number) {
-  if (!Number.isFinite(value)) return null;
+const customDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+});
 
-  const date = new Date(value);
+function getStartOfDay(referenceDate: Date) {
+  const startOfDay = new Date(referenceDate);
 
-  if (!Number.isFinite(date.getTime())) return null;
+  startOfDay.setHours(0, 0, 0, 0);
 
-  return date;
+  return startOfDay;
 }
 
-function getReferenceDate(now?: number) {
-  return getValidDate(now ?? Date.now()) ?? new Date();
+function addDays(referenceDate: Date, days: number) {
+  const nextDate = new Date(referenceDate);
+
+  nextDate.setDate(nextDate.getDate() + days);
+  nextDate.setHours(0, 0, 0, 0);
+
+  return nextDate;
+}
+
+export function getLocalDayStartTimestamp(
+  value: number | Date | null | undefined,
+) {
+  const date = getValidDate(value);
+
+  if (!date) return null;
+
+  return getStartOfDay(date).getTime();
 }
 
 function getStartOfMondayWeek(referenceDate: Date) {
-  const startOfWeek = new Date(referenceDate);
-
-  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeek = getStartOfDay(referenceDate);
 
   const weekday = startOfWeek.getDay();
   const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
@@ -41,45 +60,95 @@ function getStartOfMondayWeek(referenceDate: Date) {
   return startOfWeek;
 }
 
-function getStartOfMonth(referenceDate: Date) {
-  return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+function getPeriodRange({
+  period,
+  selectedCustomDateStart,
+  now,
+}: Omit<FilterTransactionsByPeriodParams, 'transactions'>) {
+  const referenceDate = getReferenceDate(now);
+
+  if (period === 'yesterday') {
+    const startOfToday = getStartOfDay(referenceDate);
+
+    return {
+      start: addDays(startOfToday, -1),
+      end: startOfToday,
+    };
+  }
+
+  if (period === 'today') {
+    const startOfToday = getStartOfDay(referenceDate);
+
+    return {
+      start: startOfToday,
+      end: addDays(startOfToday, 1),
+    };
+  }
+
+  if (period === 'this_week') {
+    const startOfWeek = getStartOfMondayWeek(referenceDate);
+
+    return {
+      start: startOfWeek,
+      end: addDays(startOfWeek, 7),
+    };
+  }
+
+  const customDateStartTime = getLocalDayStartTimestamp(
+    selectedCustomDateStart,
+  );
+
+  if (customDateStartTime === null) return null;
+
+  const customDateStart = new Date(customDateStartTime);
+
+  return {
+    start: customDateStart,
+    end: addDays(customDateStart, 1),
+  };
 }
 
-export function getPeriodLabel(period: PeriodScope) {
+export function getPeriodLabel(
+  period: PeriodScope,
+  selectedCustomDateStart?: number | null,
+) {
   switch (period) {
+    case 'yesterday':
+      return 'Yesterday';
+    case 'today':
+      return 'Today';
     case 'this_week':
       return 'This week';
-    case 'this_month':
-      return 'This month';
-    case 'all_time':
-      return 'All time';
+    case 'custom_date': {
+      const customDateStartTime = getLocalDayStartTimestamp(
+        selectedCustomDateStart,
+      );
+
+      if (customDateStartTime === null) return 'Choose date';
+
+      return `Choose date: ${customDateFormatter.format(
+        new Date(customDateStartTime),
+      )}`;
+    }
   }
 }
 
 export function filterTransactionsByPeriod({
   transactions,
   period,
+  selectedCustomDateStart,
   now,
 }: FilterTransactionsByPeriodParams) {
-  if (period === 'all_time') return transactions;
+  const periodRange = getPeriodRange({
+    period,
+    selectedCustomDateStart,
+    now,
+  });
 
-  const referenceDate = getReferenceDate(now);
+  if (!periodRange) return [];
 
-  const periodStart =
-    period === 'this_week'
-      ? getStartOfMondayWeek(referenceDate)
-      : getStartOfMonth(referenceDate);
-
-  const periodEnd = new Date(periodStart);
-
-  if (period === 'this_week') {
-    periodEnd.setDate(periodEnd.getDate() + 7);
-  } else {
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-  }
-
-  const periodStartTime = periodStart.getTime();
-  const periodEndTime = periodEnd.getTime();
+  const periodStartTime = periodRange.start.getTime();
+  const periodEndTime = periodRange.end.getTime();
 
   return transactions.filter((transaction) => {
     const transactionDate = getValidDate(transaction.createdAt);
