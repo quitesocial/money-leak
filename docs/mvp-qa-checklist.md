@@ -86,6 +86,15 @@
 - Add Transaction is still not visible in the bottom tab bar.
 - Add Transaction remains available from the Home CTA at `/add-transaction`.
 
+## ML-43 / Epic 43: App Icon v1
+
+- Expo config resolves the app icon path to `./assets/images/icon.png`.
+- Production/TestFlight build shows the Money Leak icon on the Home Screen.
+- TestFlight/App Store Connect build displays the new icon after processing.
+- Existing app navigation still works.
+- Settings / Support & Legal still works.
+- No product behavior changed.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

@@ -4,7 +4,7 @@
     "slug": "money-leak",
     "scheme": "moneyleak",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -13,6 +13,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.quitesocialorg.moneyleak",
       "infoPlist": {
@@ -21,7 +22,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
