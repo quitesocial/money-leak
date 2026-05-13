@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { glassButtonShadow, glassColors } from '@/components/glass-styles';
 import { formatLabel } from '@/lib/display-formatters';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -468,9 +469,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 18,
+    backgroundColor: glassColors.surfaceStrong,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 18,
@@ -481,6 +482,7 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#dc2626',
+    backgroundColor: '#fff8f8',
   },
   chipList: {
     flexDirection: 'row',
@@ -489,15 +491,15 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: glassColors.border,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: glassColors.surface,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
   },
   chipSelected: {
-    borderColor: '#111827',
-    backgroundColor: '#111827',
+    borderColor: 'rgba(17, 24, 39, 0.2)',
+    backgroundColor: 'rgba(17, 24, 39, 0.92)',
   },
   chipText: {
     fontSize: 14,
@@ -520,8 +522,8 @@ const styles = StyleSheet.create({
   storeErrorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 12,
-    backgroundColor: '#fef2f2',
+    borderRadius: 18,
+    backgroundColor: 'rgba(254, 242, 242, 0.86)',
     padding: 14,
   },
   storeErrorText: {
@@ -530,10 +532,11 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
   },
   submitButton: {
+    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: glassColors.primary,
     paddingVertical: 16,
   },
   submitButtonDisabled: {

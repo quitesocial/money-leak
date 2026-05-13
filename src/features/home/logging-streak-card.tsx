@@ -1,6 +1,11 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import {
+  glassButtonShadow,
+  glassColors,
+  glassShadow,
+} from '@/components/glass-styles';
 import { calculateLoggingStreak } from '@/features/home/calculate-logging-streak';
 import type { Transaction } from '@/types/transaction';
 
@@ -55,10 +60,11 @@ export function LoggingStreakCard({ transactions }: LoggingStreakCardProps) {
 
 const styles = StyleSheet.create({
   card: {
+    ...glassShadow,
     borderWidth: 1,
-    borderColor: '#dbeafe',
-    borderRadius: 16,
-    backgroundColor: '#f8fbff',
+    borderColor: 'rgba(219, 234, 254, 0.72)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(248, 251, 255, 0.8)',
     padding: 16,
     gap: 12,
   },
@@ -73,10 +79,11 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   actionButton: {
+    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: glassColors.primary,
     paddingHorizontal: 18,
     paddingVertical: 14,
   },

@@ -11,6 +11,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  glassButtonShadow,
+  glassColors,
+  glassShadow,
+} from '@/components/glass-styles';
+import {
   getArchiveCategoryError,
   validateCategoryName,
 } from '@/lib/category-utils';
@@ -311,7 +316,7 @@ export function CategoriesScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   content: {
     flexGrow: 1,
@@ -334,11 +339,12 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   sectionCard: {
+    ...glassShadow,
     gap: 14,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surface,
     padding: 20,
   },
   sectionTitle: {
@@ -348,9 +354,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 18,
+    backgroundColor: glassColors.surfaceStrong,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 17,
@@ -358,12 +364,14 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#dc2626',
+    backgroundColor: '#fff8f8',
   },
   primaryButton: {
+    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: glassColors.primary,
     paddingVertical: 14,
   },
   primaryButtonText: {
@@ -377,7 +385,7 @@ const styles = StyleSheet.create({
   categoryRow: {
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: glassColors.hairline,
     paddingTop: 14,
   },
   categoryCopy: {
@@ -393,11 +401,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   smallPrimaryButton: {
+    ...glassButtonShadow,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 16,
+    backgroundColor: glassColors.primary,
     paddingVertical: 12,
   },
   smallPrimaryButtonText: {
@@ -409,10 +418,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surfaceStrong,
     paddingVertical: 12,
   },
   smallSecondaryButtonText: {
@@ -424,10 +433,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#fecaca',
-    backgroundColor: '#fff7f7',
+    backgroundColor: 'rgba(255, 247, 247, 0.86)',
     paddingVertical: 12,
   },
   smallDangerButtonText: {

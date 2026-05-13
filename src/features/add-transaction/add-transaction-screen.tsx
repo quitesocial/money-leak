@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import { glassColors } from '@/components/glass-styles';
 import {
   TransactionForm,
   type TransactionFormSubmissionValues,
@@ -82,7 +83,7 @@ export function AddTransactionScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   content: {
     flexGrow: 1,
