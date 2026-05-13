@@ -95,6 +95,27 @@
 - Settings / Support & Legal still works.
 - No product behavior changed.
 
+## ML-44 / Epic 44: Editable Categories v1
+
+- Settings shows a `Categories` section with `Manage Categories`.
+- `Manage Categories` opens `/categories` as a pushed screen.
+- Adding a category with a valid unique name succeeds.
+- Adding a duplicate active category name shows validation and does not create a duplicate.
+- Editing a category name succeeds and keeps existing transactions attached to the same category ID.
+- The new category appears in Add Transaction and Edit Transaction category selectors.
+- A transaction saved with a custom category appears on Home with the custom category name.
+- Analytics and Shame Card do not crash with custom categories.
+- Deleting a category archives it after confirmation.
+- Archived categories disappear from Add Transaction and normal Edit Transaction selectors.
+- Existing transactions with archived categories still display a safe category name.
+- Editing a transaction whose current category is archived does not crash and keeps the archived current value visible.
+- `Other` cannot be deleted.
+- Deleting the last active category is blocked.
+- CSV export still uses the header `id,amount,category,isLeak,leakReason,note,createdAt`.
+- CSV export still writes the stored category ID, not the display name.
+- CSV import still accepts existing Money Leak CSV fixtures.
+- CSV import with an unknown category ID imports safely and old transactions display a readable fallback category name.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

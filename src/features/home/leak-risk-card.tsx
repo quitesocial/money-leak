@@ -1,11 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { calculateLeakRisk } from '@/features/home/calculate-leak-risk';
+import { getCategoryDisplayName } from '@/lib/category-display';
 import { formatLabel } from '@/lib/display-formatters';
+import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 type LeakRiskCardProps = {
   transactions: Transaction[];
+  categories: Category[];
 };
 
 type DetailRowProps = {
@@ -49,7 +52,7 @@ function getCardCopy(
   }
 }
 
-export function LeakRiskCard({ transactions }: LeakRiskCardProps) {
+export function LeakRiskCard({ transactions, categories }: LeakRiskCardProps) {
   const summary = calculateLeakRisk(transactions);
   const copy = getCardCopy(summary.riskLevel);
   const showHighRiskDetails = summary.riskLevel === 'high';
@@ -74,7 +77,7 @@ export function LeakRiskCard({ transactions }: LeakRiskCardProps) {
           {summary.topCategory ? (
             <DetailRow
               label="Top category"
-              value={formatLabel(summary.topCategory)}
+              value={getCategoryDisplayName(summary.topCategory, categories)}
             />
           ) : null}
 

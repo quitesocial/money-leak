@@ -1,8 +1,8 @@
+import { compareCategoryIds } from '@/lib/category-display';
 import { getReferenceDate, getValidDate } from '@/lib/date-utils';
 import { sanitizeNumber } from '@/lib/display-formatters';
 import {
   LEAK_REASONS,
-  TRANSACTION_CATEGORIES,
   type LeakReason,
   type Transaction,
   type TransactionCategory,
@@ -28,10 +28,6 @@ type LeakRiskTransaction = {
   weekday: number;
   hour: number;
 };
-
-function getCategoryOrder(category: TransactionCategory) {
-  return TRANSACTION_CATEGORIES.indexOf(category);
-}
 
 function getReasonOrder(reason: LeakReason) {
   return LEAK_REASONS.indexOf(reason);
@@ -107,10 +103,7 @@ function getTopCategory(
         return secondGroup.count - firstGroup.count;
       }
 
-      return (
-        getCategoryOrder(firstGroup.category) -
-        getCategoryOrder(secondGroup.category)
-      );
+      return compareCategoryIds(firstGroup.category, secondGroup.category);
     })[0]?.category ?? null
   );
 }

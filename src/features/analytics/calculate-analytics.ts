@@ -1,7 +1,7 @@
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import { compareCategoryIds } from '@/lib/category-display';
 import {
   LEAK_REASONS,
-  TRANSACTION_CATEGORIES,
   type LeakReason,
   type Transaction,
   type TransactionCategory,
@@ -54,7 +54,6 @@ export type AnalyticsResult = {
   peakLeakHour: LeakHourGroup | null;
 };
 
-const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
 const leakReasonSet = new Set<string>(LEAK_REASONS);
 
 function sanitizeNumber(value: number) {
@@ -81,10 +80,6 @@ function getValidLeakDate(transaction: Transaction) {
   return date;
 }
 
-function getCategoryOrder(category: TransactionCategory) {
-  return TRANSACTION_CATEGORIES.indexOf(category);
-}
-
 function getReasonOrder(leakReason: LeakReason) {
   return LEAK_REASONS.indexOf(leakReason);
 }
@@ -95,12 +90,7 @@ export function groupLeakTransactionsByCategory(
   const groups = new Map<TransactionCategory, LeakCategoryGroup>();
 
   for (const transaction of transactions) {
-    if (
-      !isLeakTransaction(transaction) ||
-      !transactionCategorySet.has(transaction.category)
-    ) {
-      continue;
-    }
+    if (!isLeakTransaction(transaction)) continue;
 
     const currentGroup = groups.get(transaction.category) ?? {
       category: transaction.category,
@@ -122,10 +112,7 @@ export function groupLeakTransactionsByCategory(
     if (secondGroup.count !== firstGroup.count)
       return secondGroup.count - firstGroup.count;
 
-    return (
-      getCategoryOrder(firstGroup.category) -
-      getCategoryOrder(secondGroup.category)
-    );
+    return compareCategoryIds(firstGroup.category, secondGroup.category);
   });
 }
 

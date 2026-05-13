@@ -5,7 +5,6 @@ import { Platform } from 'react-native';
 import { TRANSACTIONS_CSV_COLUMNS } from '@/features/export/transactions-csv-format';
 import {
   LEAK_REASONS,
-  TRANSACTION_CATEGORIES,
   type LeakReason,
   type Transaction,
   type TransactionCategory,
@@ -23,7 +22,6 @@ const INVALID_TRANSACTIONS_CSV_HEADER_ERROR_MESSAGE =
 
 const MALFORMED_TRANSACTIONS_CSV_ERROR_MESSAGE = 'This CSV file is malformed.';
 
-const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
 const leakReasonSet = new Set<string>(LEAK_REASONS);
 
 type TransactionsCsvImportResult =
@@ -313,9 +311,9 @@ function getTransactionsCsvRow(row: string[]): TransactionsCsvRow {
 function parseTransactionCategory(value: string): TransactionCategory | null {
   const normalizedValue = value.trim();
 
-  if (!transactionCategorySet.has(normalizedValue)) return null;
+  if (!normalizedValue) return null;
 
-  return normalizedValue as TransactionCategory;
+  return normalizedValue;
 }
 
 function parseIsLeak(value: string) {
