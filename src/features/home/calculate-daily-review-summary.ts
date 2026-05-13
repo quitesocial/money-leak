@@ -1,11 +1,8 @@
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
+import { compareCategoryIds } from '@/lib/category-display';
 import { getReferenceDate, getValidDate } from '@/lib/date-utils';
 import { sanitizeNumber } from '@/lib/display-formatters';
-import {
-  TRANSACTION_CATEGORIES,
-  type Transaction,
-  type TransactionCategory,
-} from '@/types/transaction';
+import type { Transaction, TransactionCategory } from '@/types/transaction';
 
 export type DailyReviewTopLeakCategory = {
   category: TransactionCategory;
@@ -32,10 +29,6 @@ function getStartOfDay(referenceDate: Date) {
   startOfDay.setHours(0, 0, 0, 0);
 
   return startOfDay;
-}
-
-function getCategoryOrder(category: TransactionCategory) {
-  return TRANSACTION_CATEGORIES.indexOf(category);
 }
 
 function getTopLeakCategory(
@@ -69,10 +62,7 @@ function getTopLeakCategory(
       if (secondGroup.count !== firstGroup.count)
         return secondGroup.count - firstGroup.count;
 
-      return (
-        getCategoryOrder(firstGroup.category) -
-        getCategoryOrder(secondGroup.category)
-      );
+      return compareCategoryIds(firstGroup.category, secondGroup.category);
     })[0] ?? null
   );
 }

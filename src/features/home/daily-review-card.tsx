@@ -2,15 +2,14 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
-import {
-  formatEuro,
-  formatLabel,
-  formatPercentage,
-} from '@/lib/display-formatters';
+import { getCategoryDisplayName } from '@/lib/category-display';
+import { formatEuro, formatPercentage } from '@/lib/display-formatters';
+import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 type DailyReviewCardProps = {
   transactions: Transaction[];
+  categories: Category[];
 };
 
 type SummaryRowProps = {
@@ -27,7 +26,10 @@ function SummaryRow({ label, value }: SummaryRowProps) {
   );
 }
 
-export function DailyReviewCard({ transactions }: DailyReviewCardProps) {
+export function DailyReviewCard({
+  transactions,
+  categories,
+}: DailyReviewCardProps) {
   const summary = calculateDailyReviewSummary({ transactions });
   const hasTransactionsToday = summary.transactionCount > 0;
   const hasLeaksToday = summary.topLeakCategory !== null;
@@ -55,7 +57,10 @@ export function DailyReviewCard({ transactions }: DailyReviewCardProps) {
         {summary.topLeakCategory ? (
           <SummaryRow
             label="Top leak category"
-            value={formatLabel(summary.topLeakCategory.category)}
+            value={getCategoryDisplayName(
+              summary.topLeakCategory.category,
+              categories,
+            )}
           />
         ) : null}
       </View>

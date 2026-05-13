@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, type Href } from 'expo-router';
 
 import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
@@ -354,6 +355,26 @@ export function SettingsScreen() {
           {reminderError ? (
             <Text style={styles.errorText}>{reminderError}</Text>
           ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Categories</Text>
+
+            <Text style={styles.sectionBody}>
+              Add or rename the spending buckets shown in transaction forms.
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/categories' as Href)}
+            style={[styles.dataButton, styles.supportButton]}
+          >
+            <Text style={[styles.dataButtonText, styles.supportButtonText]}>
+              Manage Categories
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.sectionCard}>

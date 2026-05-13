@@ -7,6 +7,9 @@ export const TRANSACTION_CATEGORIES = [
   'other',
 ] as const;
 
+export type DefaultTransactionCategory =
+  (typeof TRANSACTION_CATEGORIES)[number];
+
 export const LEAK_REASONS = [
   'stress',
   'boredom',
@@ -16,7 +19,7 @@ export const LEAK_REASONS = [
   'craving',
 ] as const;
 
-export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
+export type TransactionCategory = string;
 
 export type LeakReason = (typeof LEAK_REASONS)[number];
 

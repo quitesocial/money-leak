@@ -1,12 +1,13 @@
 import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import type { AnalyticsResult } from '@/features/analytics/calculate-analytics';
+import { getCategoryDisplayName } from '@/lib/category-display';
 import {
   formatEuro,
   formatHour,
-  formatLabel,
   formatPercentage,
   sanitizeNumber,
 } from '@/lib/display-formatters';
+import type { Category } from '@/types/category';
 
 export type ShameCardTone = 'soft' | 'harsh' | 'unfiltered';
 
@@ -43,11 +44,15 @@ function formatLeakCount(value: number) {
   return `${count} leak${count === 1 ? '' : 's'}`;
 }
 
-function generateTopCategoryLine(analytics: AnalyticsResult) {
+function generateTopCategoryLine(
+  analytics: AnalyticsResult,
+  categories: Category[],
+) {
   if (!analytics.topLeakCategory) return null;
 
-  return `Top leak category: ${formatLabel(
+  return `Top leak category: ${getCategoryDisplayName(
     analytics.topLeakCategory.category,
+    categories,
   )} (${formatEuro(
     analytics.topLeakCategory.totalLeaks,
   )} across ${formatLeakCount(analytics.topLeakCategory.count)})`;
@@ -68,6 +73,7 @@ function generatePeakTimeLine(analytics: AnalyticsResult) {
 export function generateShameCardContent(
   analytics: AnalyticsResult,
   tone: ShameCardTone,
+  categories: Category[] = [],
 ): ShameCardContent {
   const copy = toneCopy[tone];
   const alternativeReality = calculateAlternativeReality(analytics.totalLeaks);
@@ -78,7 +84,7 @@ export function generateShameCardContent(
     totalLeaksLine: `Total leaks: ${formatEuro(
       analytics.totalLeaks,
     )} (${formatPercentage(analytics.leakPercentage)} of spending)`,
-    topCategoryLine: generateTopCategoryLine(analytics),
+    topCategoryLine: generateTopCategoryLine(analytics, categories),
     peakTimeLine: generatePeakTimeLine(analytics),
     alternativeRealityLine: primaryAlternative
       ? `Alternative reality: that was ${primaryAlternative.count} ${primaryAlternative.label}.`

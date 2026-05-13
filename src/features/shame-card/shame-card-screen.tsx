@@ -10,8 +10,10 @@ import {
   generateShameCardContent,
   type ShameCardTone,
 } from '@/features/shame-card/generate-shame-card';
+import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { useCategoriesStore } from '@/store/categories-store';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
@@ -38,6 +40,11 @@ export function ShameCardScreen() {
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+  const categories = useCategoriesStore((state) => state.categories);
+
+  const areCategoriesInitialized = useCategoriesStore(
+    (state) => state.isInitialized,
+  );
 
   const selectedCustomDateStart = usePeriodScopeStore(
     (state) => state.selectedCustomDateStart,
@@ -66,6 +73,8 @@ export function ShameCardScreen() {
     (state) => state.loadTransactions,
   );
 
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+
   const [tone, setTone] = useState<ShameCardTone>('harsh');
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -73,6 +82,11 @@ export function ShameCardScreen() {
   const shareInFlightRef = useRef(false);
 
   useTransactionsRefresh({ isInitialized, loadTransactions });
+
+  useCategoriesRefresh({
+    isInitialized: areCategoriesInitialized,
+    loadCategories,
+  });
 
   const analytics = calculateAnalytics(filteredTransactions);
   const hasTransactions = filteredTransactions.length > 0;
@@ -82,7 +96,11 @@ export function ShameCardScreen() {
   const canShareShameCard =
     isInitialized && !isLoading && !error && hasTransactions && hasLeaks;
 
-  const shameCardContent = generateShameCardContent(analytics, tone);
+  const shameCardContent = generateShameCardContent(
+    analytics,
+    tone,
+    categories,
+  );
 
   async function handleSharePress() {
     if (shareInFlightRef.current || !canShareShameCard) return;

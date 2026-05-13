@@ -6,14 +6,17 @@ import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
 import { generateActionSuggestion } from '@/features/analytics/generate-action-suggestion';
 import { generateAiInsight } from '@/features/analytics/generate-ai-insight';
 import { PeriodSelector } from '@/components/period-selector';
+import { getCategoryDisplayName } from '@/lib/category-display';
 import {
   formatEuro,
   formatHour,
   formatLabel,
   formatPercentage,
 } from '@/lib/display-formatters';
+import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { useCategoriesStore } from '@/store/categories-store';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
@@ -43,6 +46,11 @@ export function AnalyticsScreen() {
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+  const categories = useCategoriesStore((state) => state.categories);
+
+  const areCategoriesInitialized = useCategoriesStore(
+    (state) => state.isInitialized,
+  );
 
   const selectedCustomDateStart = usePeriodScopeStore(
     (state) => state.selectedCustomDateStart,
@@ -71,7 +79,14 @@ export function AnalyticsScreen() {
     (state) => state.loadTransactions,
   );
 
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+
   useTransactionsRefresh({ isInitialized, loadTransactions });
+
+  useCategoriesRefresh({
+    isInitialized: areCategoriesInitialized,
+    loadCategories,
+  });
 
   const analytics = calculateAnalytics(filteredTransactions);
   const brutalInsight = generateAiInsight(filteredTransactions);
@@ -210,7 +225,10 @@ export function AnalyticsScreen() {
                 label="Top leak category"
                 value={
                   analytics.topLeakCategory
-                    ? formatLabel(analytics.topLeakCategory.category)
+                    ? getCategoryDisplayName(
+                        analytics.topLeakCategory.category,
+                        categories,
+                      )
                     : 'Not enough leak data yet'
                 }
                 detail={

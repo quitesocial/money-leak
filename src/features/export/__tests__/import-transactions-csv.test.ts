@@ -137,8 +137,41 @@ describe('parseTransactionsCsv', () => {
           note: null,
           createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
         },
+        {
+          id: 'txn-bad-category',
+          amount: 5,
+          category: 'invalid',
+          isLeak: false,
+          leakReason: null,
+          note: null,
+          createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
+        },
       ],
-      skippedCount: 5,
+      skippedCount: 4,
+    });
+  });
+
+  it('accepts non-empty custom category IDs for archived category recovery', () => {
+    expect(
+      parseTransactionsCsv(
+        [
+          'id,amount,category,isLeak,leakReason,note,createdAt',
+          'txn-custom-category,9.5,coffee-runs,false,,,2025-01-01T12:00:00.000Z',
+        ].join('\n'),
+      ),
+    ).toEqual({
+      transactions: [
+        {
+          id: 'txn-custom-category',
+          amount: 9.5,
+          category: 'coffee-runs',
+          isLeak: false,
+          leakReason: null,
+          note: null,
+          createdAt: Date.parse('2025-01-01T12:00:00.000Z'),
+        },
+      ],
+      skippedCount: 0,
     });
   });
 

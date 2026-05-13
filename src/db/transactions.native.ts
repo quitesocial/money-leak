@@ -1,37 +1,14 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
-
 import {
   LEAK_REASONS,
-  TRANSACTION_CATEGORIES,
   type LeakReason,
   type Transaction,
   type TransactionCategory,
 } from '@/types/transaction';
+import { ensureArchivedCategoriesForIds } from '@/db/categories.native';
 
-const DATABASE_NAME = 'money-leak.db';
+import { getDatabase, initDatabase } from './database.native';
 
-const CATEGORY_VALUES_SQL = TRANSACTION_CATEGORIES.map(
-  (category) => `'${category}'`,
-).join(', ');
-
-const LEAK_REASON_VALUES_SQL = LEAK_REASONS.map((reason) => `'${reason}'`).join(
-  ', ',
-);
-
-const CREATE_TRANSACTIONS_TABLE_SQL = `
-  PRAGMA journal_mode = WAL;
-  CREATE TABLE IF NOT EXISTS transactions (
-    id TEXT PRIMARY KEY NOT NULL,
-    amount REAL NOT NULL,
-    category TEXT NOT NULL CHECK (category IN (${CATEGORY_VALUES_SQL})),
-    is_leak INTEGER NOT NULL CHECK (is_leak IN (0, 1)),
-    leak_reason TEXT CHECK (
-      leak_reason IS NULL OR leak_reason IN (${LEAK_REASON_VALUES_SQL})
-    ),
-    note TEXT,
-    created_at INTEGER NOT NULL
-  );
-`;
+export { initDatabase };
 
 type TransactionRow = {
   id: unknown;
@@ -43,41 +20,11 @@ type TransactionRow = {
   created_at: unknown;
 };
 
-const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
 const leakReasonSet = new Set<string>(LEAK_REASONS);
-
-let databasePromise: Promise<SQLiteDatabase> | null = null;
-let initPromise: Promise<void> | null = null;
-
-function getDatabase() {
-  if (!databasePromise) {
-    databasePromise = openDatabaseAsync(DATABASE_NAME).catch((error) => {
-      databasePromise = null;
-      throw error;
-    });
-  }
-
-  return databasePromise;
-}
-
-export async function initDatabase() {
-  if (!initPromise) {
-    initPromise = (async () => {
-      const database = await getDatabase();
-
-      await database.execAsync(CREATE_TRANSACTIONS_TABLE_SQL);
-    })().catch((error) => {
-      initPromise = null;
-
-      throw error;
-    });
-  }
-
-  return initPromise;
-}
 
 export async function createTransaction(transaction: Transaction) {
   await initDatabase();
+  await ensureArchivedCategoriesForIds([transaction.category]);
 
   const database = await getDatabase();
 
@@ -107,6 +54,10 @@ export async function importTransactions(transactions: Transaction[]) {
   if (!transactions.length) return 0;
 
   await initDatabase();
+
+  await ensureArchivedCategoriesForIds(
+    transactions.map((transaction) => transaction.category),
+  );
 
   const database = await getDatabase();
 
@@ -144,6 +95,7 @@ export async function importTransactions(transactions: Transaction[]) {
 
 export async function updateTransaction(transaction: Transaction) {
   await initDatabase();
+  await ensureArchivedCategoriesForIds([transaction.category]);
 
   const database = await getDatabase();
 
@@ -257,11 +209,11 @@ function parseBooleanInteger(value: unknown) {
 }
 
 function parseTransactionCategory(value: unknown): TransactionCategory {
-  if (typeof value !== 'string' || !transactionCategorySet.has(value)) {
-    throw new Error('Invalid transaction row: category is not supported.');
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error('Invalid transaction row: category must be a string.');
   }
 
-  return value as TransactionCategory;
+  return value;
 }
 
 function parseLeakReason(value: unknown): LeakReason | null {

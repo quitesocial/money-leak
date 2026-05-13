@@ -170,6 +170,42 @@ describe('calculateDailyReviewSummary', () => {
     });
   });
 
+  it('includes custom categories in top leak category ties after defaults', () => {
+    const transactions = [
+      createTransaction({
+        id: 'txn-custom-z',
+        amount: 5,
+        category: 'z-custom',
+        isLeak: true,
+        leakReason: 'stress',
+        createdAt: createLocalTimestamp(2026, 3, 25, 9, 0),
+      }),
+      createTransaction({
+        id: 'txn-custom-a',
+        amount: 5,
+        category: 'a-custom',
+        isLeak: true,
+        leakReason: 'habit',
+        createdAt: createLocalTimestamp(2026, 3, 25, 10, 0),
+      }),
+      createTransaction({
+        id: 'txn-food',
+        amount: 5,
+        category: 'food',
+        isLeak: true,
+        leakReason: 'impulse',
+        createdAt: createLocalTimestamp(2026, 3, 25, 11, 0),
+      }),
+    ];
+
+    expect(
+      calculateDailyReviewSummary({
+        transactions,
+        now: REFERENCE_NOW,
+      }).topLeakCategory?.category,
+    ).toBe('food');
+  });
+
   it('includes only today transactions when today and yesterday straddle midnight', () => {
     const transactions = [
       createTransaction({

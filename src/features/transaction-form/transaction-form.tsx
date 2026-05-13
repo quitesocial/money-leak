@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatLabel } from '@/lib/display-formatters';
+import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { useCategoriesStore } from '@/store/categories-store';
+import { OTHER_CATEGORY_ID } from '@/types/category';
 import {
   LEAK_REASONS,
-  TRANSACTION_CATEGORIES,
   type LeakReason,
   type TransactionCategory,
 } from '@/types/transaction';
@@ -40,12 +42,13 @@ type TransactionFormProps = {
   onSubmit: (values: TransactionFormSubmissionValues) => Promise<void> | void;
 };
 
-const transactionCategorySet = new Set<string>(TRANSACTION_CATEGORIES);
 const leakReasonSet = new Set<string>(LEAK_REASONS);
 
 interface ValidateTransactionFormArgs {
   amountText: string;
   selectedCategory: TransactionCategory | null;
+  validCategoryIds: Set<string>;
+  areCategoriesReady: boolean;
   isLeak: boolean;
   selectedLeakReason: LeakReason | null;
 }
@@ -53,6 +56,8 @@ interface ValidateTransactionFormArgs {
 function validateTransactionForm({
   amountText,
   selectedCategory,
+  validCategoryIds,
+  areCategoriesReady,
   isLeak,
   selectedLeakReason,
 }: ValidateTransactionFormArgs) {
@@ -80,7 +85,9 @@ function validateTransactionForm({
     }
   }
 
-  if (!selectedCategory || !transactionCategorySet.has(selectedCategory)) {
+  if (!areCategoriesReady) {
+    errors.category = 'Categories are still loading.';
+  } else if (!selectedCategory || !validCategoryIds.has(selectedCategory)) {
     errors.category = 'Choose a category.';
   }
 
@@ -108,6 +115,22 @@ export function TransactionForm({
   clearError,
   onSubmit,
 }: TransactionFormProps) {
+  const categories = useCategoriesStore((state) => state.categories);
+
+  const activeCategories = useCategoriesStore(
+    (state) => state.activeCategories,
+  );
+
+  const isCategoriesLoading = useCategoriesStore((state) => state.isLoading);
+
+  const isCategoriesInitialized = useCategoriesStore(
+    (state) => state.isInitialized,
+  );
+
+  const categoriesError = useCategoriesStore((state) => state.error);
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+  const clearCategoriesError = useCategoriesStore((state) => state.clearError);
+
   const [amountText, setAmountText] = useState(
     getAmountText(initialValues.amount),
   );
@@ -125,9 +148,15 @@ export function TransactionForm({
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [leakReasonError, setLeakReasonError] = useState<string | null>(null);
 
+  useCategoriesRefresh({
+    isInitialized: isCategoriesInitialized,
+    loadCategories,
+  });
+
   useEffect(() => {
     clearError();
-  }, [clearError]);
+    clearCategoriesError();
+  }, [clearCategoriesError, clearError]);
 
   useEffect(() => {
     setAmountText(getAmountText(initialValues.amount));
@@ -145,6 +174,45 @@ export function TransactionForm({
     initialValues.leakReason,
     initialValues.note,
   ]);
+
+  useEffect(() => {
+    if (!isCategoriesInitialized || !selectedCategory) return;
+
+    const categoryExists = categories.some(
+      (category) => category.id === selectedCategory,
+    );
+
+    if (categoryExists) return;
+
+    const fallbackCategory = categories.find(
+      (category) => category.id === OTHER_CATEGORY_ID && !category.isArchived,
+    );
+
+    if (fallbackCategory) {
+      setSelectedCategory(fallbackCategory.id);
+    }
+  }, [categories, isCategoriesInitialized, selectedCategory]);
+
+  const selectedCategoryRecord = selectedCategory
+    ? categories.find((category) => category.id === selectedCategory)
+    : null;
+
+  const categoryOptions =
+    selectedCategoryRecord?.isArchived === true
+      ? [
+          selectedCategoryRecord,
+          ...activeCategories.filter(
+            (category) => category.id !== selectedCategoryRecord.id,
+          ),
+        ]
+      : activeCategories;
+
+  const validCategoryIds = new Set(
+    categoryOptions.map((category) => category.id),
+  );
+
+  const isSubmitDisabled =
+    isLoading || isCategoriesLoading || !isCategoriesInitialized;
 
   function handleAmountChange(value: string) {
     setAmountText(value);
@@ -181,13 +249,15 @@ export function TransactionForm({
   }
 
   async function handleSubmit() {
-    if (isLoading) return;
+    if (isSubmitDisabled) return;
 
     clearError();
 
     const { errors, parsedAmount } = validateTransactionForm({
       amountText,
       selectedCategory,
+      validCategoryIds,
+      areCategoriesReady: isCategoriesInitialized,
       isLeak,
       selectedLeakReason,
     });
@@ -207,7 +277,7 @@ export function TransactionForm({
 
     const category = selectedCategory;
 
-    if (!category || !transactionCategorySet.has(category)) return;
+    if (!category || !validCategoryIds.has(category)) return;
 
     const trimmedNote = noteText.trim();
 
@@ -244,13 +314,13 @@ export function TransactionForm({
         <Text style={styles.label}>Category</Text>
 
         <View style={styles.chipList}>
-          {TRANSACTION_CATEGORIES.map((category) => {
-            const isSelected = selectedCategory === category;
+          {categoryOptions.map((category) => {
+            const isSelected = selectedCategory === category.id;
 
             return (
               <Pressable
-                key={category}
-                onPress={() => handleCategoryPress(category)}
+                key={category.id}
+                onPress={() => handleCategoryPress(category.id)}
                 style={[styles.chip, isSelected ? styles.chipSelected : null]}
               >
                 <Text
@@ -259,15 +329,24 @@ export function TransactionForm({
                     isSelected ? styles.chipTextSelected : null,
                   ]}
                 >
-                  {formatLabel(category)}
+                  {category.name}
+                  {category.isArchived ? ' (archived)' : ''}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
+        {!isCategoriesInitialized ? (
+          <Text style={styles.metaText}>Loading categories...</Text>
+        ) : null}
+
         {categoryError ? (
           <Text style={styles.fieldError}>{categoryError}</Text>
+        ) : null}
+
+        {categoriesError ? (
+          <Text style={styles.fieldError}>{categoriesError}</Text>
         ) : null}
       </View>
 
@@ -361,10 +440,10 @@ export function TransactionForm({
 
       <Pressable
         onPress={handleSubmit}
-        disabled={isLoading}
+        disabled={isSubmitDisabled}
         style={[
           styles.submitButton,
-          isLoading ? styles.submitButtonDisabled : null,
+          isSubmitDisabled ? styles.submitButtonDisabled : null,
         ]}
       >
         <Text style={styles.submitButtonText}>
@@ -432,6 +511,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: '#dc2626',
+  },
+  metaText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6b7280',
   },
   storeErrorBox: {
     borderWidth: 1,

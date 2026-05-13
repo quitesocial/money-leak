@@ -14,14 +14,17 @@ import { calculateTransactionsSummary } from '@/features/home/calculate-transact
 import { DailyReviewCard } from '@/features/home/daily-review-card';
 import { LeakRiskCard } from '@/features/home/leak-risk-card';
 import { LoggingStreakCard } from '@/features/home/logging-streak-card';
+import { getCategoryDisplayName } from '@/lib/category-display';
 import {
   formatEuro,
   formatLabel,
   formatPercentage,
 } from '@/lib/display-formatters';
+import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
+import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import { PeriodSelector } from '@/components/period-selector';
 
@@ -57,6 +60,11 @@ export function HomeScreen() {
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
+  const categories = useCategoriesStore((state) => state.categories);
+
+  const areCategoriesInitialized = useCategoriesStore(
+    (state) => state.isInitialized,
+  );
 
   const selectedCustomDateStart = usePeriodScopeStore(
     (state) => state.selectedCustomDateStart,
@@ -92,6 +100,9 @@ export function HomeScreen() {
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
+
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+
   const removeTransaction = useTransactionsStore(
     (state) => state.removeTransaction,
   );
@@ -100,6 +111,11 @@ export function HomeScreen() {
     isInitialized,
     loadTransactions,
     loadOnMount: 'always',
+  });
+
+  useCategoriesRefresh({
+    isInitialized: areCategoriesInitialized,
+    loadCategories,
   });
 
   const handleDeleteTransaction = useCallback(
@@ -177,9 +193,9 @@ export function HomeScreen() {
           <AddTransactionAction />
         </View>
 
-        <DailyReviewCard transactions={transactions} />
+        <DailyReviewCard transactions={transactions} categories={categories} />
         <LoggingStreakCard transactions={transactions} />
-        <LeakRiskCard transactions={transactions} />
+        <LeakRiskCard transactions={transactions} categories={categories} />
 
         <PeriodSelector
           label="Period"
@@ -255,7 +271,10 @@ export function HomeScreen() {
                       </Text>
 
                       <Text style={styles.categoryText}>
-                        {formatLabel(transaction.category)}
+                        {getCategoryDisplayName(
+                          transaction.category,
+                          categories,
+                        )}
                       </Text>
                     </View>
 
