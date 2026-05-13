@@ -10,6 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  glassButtonShadow,
+  glassColors,
+  glassShadow,
+} from '@/components/glass-styles';
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
 import { DailyReviewCard } from '@/features/home/daily-review-card';
 import { LeakRiskCard } from '@/features/home/leak-risk-card';
@@ -373,7 +378,7 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   content: {
     paddingHorizontal: 24,
@@ -409,10 +414,11 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   primaryAction: {
+    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 18,
+    backgroundColor: glassColors.primary,
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
@@ -438,10 +444,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   summaryCard: {
+    ...glassShadow,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 24,
+    backgroundColor: glassColors.surface,
     padding: 16,
     gap: 14,
   },
@@ -464,8 +471,8 @@ const styles = StyleSheet.create({
   errorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 12,
-    backgroundColor: '#fef2f2',
+    borderRadius: 18,
+    backgroundColor: 'rgba(254, 242, 242, 0.86)',
     padding: 14,
   },
   errorText: {
@@ -483,18 +490,19 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   transactionCard: {
+    ...glassShadow,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 16,
     gap: 10,
   },
   transactionCardNormal: {
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surface,
   },
   transactionCardLeak: {
-    borderColor: '#fca5a5',
-    backgroundColor: '#fff1f2',
+    borderColor: 'rgba(252, 165, 165, 0.62)',
+    backgroundColor: 'rgba(255, 241, 242, 0.82)',
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -521,10 +529,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   typeBadgeNormal: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   typeBadgeLeak: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: 'rgba(254, 226, 226, 0.82)',
   },
   typeBadgeText: {
     fontSize: 13,
@@ -552,9 +560,9 @@ const styles = StyleSheet.create({
   },
   editButton: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: glassColors.border,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: glassColors.surfaceStrong,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
@@ -570,7 +578,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
     paddingHorizontal: 14,
     paddingVertical: 8,
   },

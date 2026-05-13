@@ -13,6 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 
+import {
+  glassButtonShadow,
+  glassColors,
+  glassShadow,
+} from '@/components/glass-styles';
 import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
   IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
@@ -507,7 +512,7 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   content: {
     flexGrow: 1,
@@ -530,15 +535,16 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   sectionCard: {
+    ...glassShadow,
     gap: 12,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surface,
     padding: 20,
   },
   sectionCardDisabled: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'rgba(249, 250, 251, 0.7)',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -579,7 +585,7 @@ const styles = StyleSheet.create({
   dataButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 18,
     paddingVertical: 14,
   },
   dataActionButton: {
@@ -590,11 +596,12 @@ const styles = StyleSheet.create({
   },
   importButton: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surfaceStrong,
   },
   exportButton: {
-    backgroundColor: '#111827',
+    ...glassButtonShadow,
+    backgroundColor: glassColors.primary,
   },
   dataButtonText: {
     fontSize: 15,
@@ -605,8 +612,8 @@ const styles = StyleSheet.create({
   },
   supportButton: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    backgroundColor: glassColors.surfaceStrong,
   },
   supportButtonText: {
     color: '#111827',

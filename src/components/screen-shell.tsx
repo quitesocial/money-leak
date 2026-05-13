@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { glassColors } from '@/components/glass-styles';
+
 type ScreenShellProps = {
   title: string;
 };
@@ -18,7 +20,7 @@ export function ScreenShell({ title }: ScreenShellProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   container: {
     flex: 1,

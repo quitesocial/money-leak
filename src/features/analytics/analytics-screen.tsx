@@ -1,11 +1,12 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { glassColors, glassShadow } from '@/components/glass-styles';
+import { PeriodSelector } from '@/components/period-selector';
 import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
 import { calculateAnalytics } from '@/features/analytics/calculate-analytics';
 import { generateActionSuggestion } from '@/features/analytics/generate-action-suggestion';
 import { generateAiInsight } from '@/features/analytics/generate-ai-insight';
-import { PeriodSelector } from '@/components/period-selector';
 import { getCategoryDisplayName } from '@/lib/category-display';
 import {
   formatEuro,
@@ -316,7 +317,7 @@ export function AnalyticsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f7f7f5',
+    backgroundColor: glassColors.background,
   },
   content: {
     paddingHorizontal: 24,
@@ -365,10 +366,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   summaryCard: {
+    ...glassShadow,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 24,
+    backgroundColor: glassColors.surface,
     padding: 16,
     gap: 14,
   },
@@ -391,8 +393,8 @@ const styles = StyleSheet.create({
   errorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 12,
-    backgroundColor: '#fef2f2',
+    borderRadius: 18,
+    backgroundColor: 'rgba(254, 242, 242, 0.86)',
     padding: 14,
   },
   errorText: {
@@ -407,10 +409,11 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   sectionCard: {
+    ...glassShadow,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 24,
+    backgroundColor: glassColors.surface,
     padding: 16,
     gap: 10,
   },
@@ -428,10 +431,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   metricCard: {
+    ...glassShadow,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 24,
+    backgroundColor: glassColors.surface,
     padding: 16,
     gap: 8,
   },
@@ -454,9 +458,9 @@ const styles = StyleSheet.create({
   },
   alternativeRealityItem: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    borderColor: glassColors.border,
+    borderRadius: 18,
+    backgroundColor: glassColors.surfaceStrong,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
