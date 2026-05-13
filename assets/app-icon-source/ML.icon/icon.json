@@ -1,0 +1,31 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:0.01175,0.02737,0.05129,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "􁹡.svg",
+          "name": "􁹡",
+          "position": {
+            "scale": 4,
+            "translation-in-points": [0, 0]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": ["watchOS"],
+    "squares": "shared"
+  }
+}
