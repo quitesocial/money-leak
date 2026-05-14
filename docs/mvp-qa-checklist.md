@@ -44,7 +44,7 @@
 - `src/features/dev/demo-transactions.ts` exists and exports `createDemoTransactions(): Transaction[]`.
 - Demo data is not seeded automatically at runtime from app startup, navigation, or Settings.
 - No demo-data button, toggle, or other active runtime control was added.
-- Regression check: `Home` still shows the expected daily review, streak, leak risk, period selector, and transaction list behavior.
+- Regression check: `Home` still shows Today summary, History segmented controls, and transaction list behavior.
 - Regression check: `Analytics` still shows the expected empty, no-leaks, and non-empty states.
 - Regression check: `Shame Card` still shows the expected empty, no-leaks, populated preview, tone, and share states.
 - Regression check: `Settings` still shows the reminder, `Data`, and `Support & Legal` sections without regressions.
@@ -68,9 +68,8 @@
 - The Home Add Transaction CTA opens the Add Transaction screen as a pushed screen.
 - The Add Transaction screen shows the normal header/back affordance, and back returns to the previous screen.
 - Saving a transaction returns to Home or the previous screen.
-- Home summary values and transaction list refresh after a successful save.
-- Daily Review empty-state CTA still opens Add Transaction.
-- Logging Streak CTA still opens Add Transaction when today has not been logged.
+- Today summary values and the History list refresh after a successful save.
+- The Home Add Transaction CTA still opens Add Transaction.
 - Analytics, Shame Card, and Settings tabs still open and behave as before.
 
 ## Epic 42: Period Selector v2
@@ -78,7 +77,7 @@
 - The shared period selector defaults to `Today`.
 - The selector shows `Yesterday`, `Today`, `This week`, and `Choose date`.
 - The selector no longer shows `This month` or `All time`.
-- `Home` summary and transaction list update correctly for `Today`, `Yesterday`, `This week`, and a selected `Choose date` day.
+- `Home` History updates correctly for `Today`, `Yesterday`, and `This week`.
 - `Analytics` updates when switching between each period option.
 - `Shame Card` updates when switching between each period option.
 - Canceling `Choose date` closes the picker without changing the previous period or custom date.
@@ -130,6 +129,31 @@
 - Add Transaction remains a pushed root screen and is not visible as a tab.
 - Home, Analytics, Settings, Add/Edit Transaction, Manage Categories, CSV Import/Export, reminders, and editable categories still work.
 
+## ML-48 / Epic 48: Home Page Redesign
+
+- Home shows only the page title plus `Today summary` and `History` as the main content sections.
+- Home and section titles use the bundled New York font on iOS.
+- Old separate `Today check-in`, `Logging Streak`, and `Leak Risk` Home cards are not visible.
+- Today summary empty state shows safe zero values and does not show `NaN`.
+- Today summary updates after adding a normal transaction today.
+- Today summary updates after adding a leak transaction today.
+- Today summary excludes yesterday or older transactions.
+- Home History segmented control shows only `Today`, `Yesterday`, and `This week`.
+- History segmented control animates the selected capsule between periods.
+- `More` beside `History` switches to the `Analytics & Leaks` tab.
+- History empty state renders safely for the selected period.
+- A normal History item shows amount, category display name, date/time, `Normal` state, and no leak-only details.
+- A leak History item shows amount, category display name, date/time, `Leak` state, leak reason, and note when present.
+- Swiping a History item left reveals the green edit action, opens the existing edit transaction screen, and updates Home after save.
+- Swiping a History item right reveals the red delete action, asks for confirmation, and updates Today summary plus History after deletion.
+- History items do not show persistent inline `Edit` or `Delete` buttons.
+- History items do not show the retired gray left border.
+- History items are gray at rest and the swiped foreground card becomes white while actions are revealed.
+- Add Transaction remains a pushed screen from the Home CTA and is not visible as a tab.
+- ML-47 footer still works and does not cover the last History item or create a gray/white spacer band.
+- `Analytics & Leaks` and `Settings` tabs still work.
+- Shame Card still opens from Analytics and remains a pushed root screen.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
@@ -150,7 +174,7 @@
 
 - App loads without crashing.
 - Home shows the empty state with no transactions.
-- Home summary shows `0.00€` total spent, `0.00€` total leaks, and `0%` leak percentage.
+- Today summary shows `0.00€` total spent, `0.00€` total leaks, and `0%` leak percentage.
 - Analytics shows the empty state for no transactions.
 - Shame Card shows the empty state for no transactions.
 
@@ -203,7 +227,7 @@
 - Transaction shows the `Leak` badge.
 - Leak reason is shown.
 - Note is shown when one was entered.
-- Home summary updates total spent, total leaks, and leak percentage.
+- Today summary updates total spent, total leaks, and leak percentage when the new transaction is from today.
 
 ### 4. Validation for missing amount
 
@@ -296,7 +320,7 @@
 
 1. Open `Home`.
 2. Pick a normal transaction and note its current amount, category, and timestamp.
-3. Tap `Edit`.
+3. Swipe the transaction left and tap the green edit action.
 4. Change the amount.
 5. Change the category.
 6. Tap `Save Changes`.
@@ -317,7 +341,7 @@
 **Steps**
 
 1. Open `Home`.
-2. Pick any transaction and tap `Edit`.
+2. Pick any transaction, swipe it left, and tap the green edit action.
 3. Change the amount.
 4. Change the category.
 5. Switch type to `Leak`.
@@ -343,7 +367,7 @@
 **Steps**
 
 1. Open `Home`.
-2. Pick a leak transaction and tap `Edit`.
+2. Pick a leak transaction, swipe it left, and tap the green edit action.
 3. Confirm a leak reason is selected.
 4. Enter or update the note field.
 5. Switch type to `Normal`.
@@ -356,17 +380,17 @@
 - Saved transaction is marked `Normal`.
 - Saved transaction does not display a leak reason or note from the previous leak-only fields.
 
-### 11. Home summary recalculates after edit
+### 11. Today summary recalculates after edit
 
 **Preconditions**
 
-- At least one transaction exists on `Home`.
+- At least one today-dated transaction exists on `Home`.
 
 **Steps**
 
 1. Open `Home`.
-2. Note the current summary values.
-3. Tap `Edit` on any transaction.
+2. Note the current Today summary values.
+3. Swipe any transaction left and tap the green edit action.
 4. Change the amount and, if useful for verification, change the type between `Normal` and `Leak`.
 5. Tap `Save Changes`.
 
@@ -374,7 +398,7 @@
 
 - App returns to `Home` after saving.
 - The edited transaction card shows the updated values.
-- `Total spent`, `Total leaks`, and `Leak percentage` recalculate immediately based on the edited transaction data.
+- Today summary `Total`, `Leak`, and `Leak %` recalculate immediately based on the edited today-dated transaction data.
 
 ### 12. Analytics reflects edited transaction data
 
@@ -413,7 +437,7 @@
 
 ## Home
 
-### 14. Home list rendering
+### 14. Home History item rendering
 
 **Preconditions**
 
@@ -422,16 +446,16 @@
 **Steps**
 
 1. Open `Home`.
-2. Review the full list.
+2. Review the `History` list.
 
 **Expected result**
 
-- Transactions render in descending `createdAt` order, newest first.
-- Each card shows formatted amount, category label, timestamp, and type badge.
-- Leak transactions use the leak styling and show leak reason when present.
-- Normal transactions use the normal styling and do not show leak-only details.
+- History uses the selected period filter and renders transactions in descending `createdAt` order, newest first.
+- Each item shows formatted amount, category display name, date/time, and `Normal` or `Leak` state.
+- Leak transactions use subtle leak styling and show leak reason and note when present.
+- Normal transactions use normal styling and do not show leak-only details.
 
-### 15. Home summary recalculation
+### 15. Today summary recalculation
 
 **Preconditions**
 
@@ -439,16 +463,16 @@
 
 **Steps**
 
-1. Note the current summary values on `Home`.
+1. Note the current Today summary values on `Home`.
 2. Add one new normal transaction.
 3. Add one new leak transaction.
 4. Return to `Home` after each save.
 
 **Expected result**
 
-- `Total spent` increases by the sum of both new amounts.
-- `Total leaks` increases only by the leak transaction amount.
-- `Leak percentage` recalculates after each change.
+- Today summary `Total` increases by the sum of both new today-dated amounts.
+- Today summary `Leak` increases only by the leak transaction amount.
+- Today summary `Leak %` recalculates after each change.
 
 ### 16. Delete confirmation cancel
 
@@ -458,14 +482,14 @@
 
 **Steps**
 
-1. Tap `Delete` on any transaction.
+1. Swipe any transaction right and tap the red delete action.
 2. In the confirmation alert, tap `Cancel`.
 
 **Expected result**
 
 - Transaction remains in the list.
 - No loading or deleting state remains stuck on screen.
-- Summary values do not change.
+- Today summary and History values do not change.
 
 ### 17. Delete confirmation confirm
 
@@ -475,14 +499,15 @@
 
 **Steps**
 
-1. Tap `Delete` on any transaction.
+1. Swipe any transaction right and tap the red delete action.
 2. In the confirmation alert, tap `Delete`.
 
 **Expected result**
 
 - Deleted transaction is removed from the list.
-- Summary values recalculate immediately after deletion completes.
-- Delete button returns to its normal state after completion.
+- Today summary recalculates after deletion completes when the deleted transaction was dated today.
+- History recalculates for the selected period.
+- Delete action closes after completion.
 
 ### 18. Deleting last transaction
 
@@ -500,7 +525,7 @@
 **Expected result**
 
 - Home returns to the empty state.
-- Home summary returns to zero values.
+- Today summary returns to zero values.
 - Analytics returns to the empty state.
 - Shame Card returns to the empty state.
 
@@ -810,7 +835,7 @@
 **Verification note**
 
 - The shared CSV fixtures live in `docs/qa-fixtures/`.
-- The shared period selector defaults to `Today` and persists across `Home`, `Analytics`, and `Shame Card`. Before verifying imported fixture data, use `Choose date` and select the fixture date, such as `Jan 1, 2025` or `Jan 2, 2025`.
+- The shared period selector defaults to `Today` in Analytics and Shame Card. Home History only exposes `Today`, `Yesterday`, and `This week`, so fixed historical fixture rows are verified through Analytics and Shame Card `Choose date`.
 - The fixture dates are fixed historical ISO timestamps. Clear app data before re-importing the same fixture if you need deterministic imported/skipped counts.
 
 ### 34. Import a valid Money Leak CSV backup
@@ -827,8 +852,8 @@
 2. In the `Data` section, tap `Import CSV`.
 3. Pick `docs/qa-fixtures/valid-money-leak.csv` in the native document picker.
 4. Wait for the import to finish.
-5. Open `Home`, use `Choose date` to select `Jan 1, 2025`, then `Jan 2, 2025`, and review the list and summary for each fixture day.
-6. Open `Analytics` with `Choose date` set to `Jan 2, 2025` and review the summary and any visible metric cards.
+5. Open `Home` and confirm the History selector still only offers `Today`, `Yesterday`, and `This week`.
+6. Open `Analytics`, use `Choose date` for `Jan 1, 2025`, then `Jan 2, 2025`, and review the summary and any visible metric cards.
 7. Open `Shame Card` with `Choose date` set to `Jan 2, 2025` and review the preview state.
 
 **Expected result**
@@ -836,9 +861,9 @@
 - Native document picker opens.
 - `Import CSV` changes to `Importing...` while the import is in flight.
 - Settings shows `Imported 2 transactions. Skipped 0 rows.`
-- Valid transactions from the CSV appear in `Home` on their selected fixture dates without needing an app restart.
 - Imported leak transactions show their saved leak reason and optional note.
 - `Analytics` and `Shame Card` reflect the imported data immediately.
+- Home remains stable after import and keeps its three-period History selector.
 - App stays responsive after the import completes.
 
 ### 35. Import a UTF-8 BOM CSV
@@ -855,14 +880,14 @@
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/valid-with-bom.csv`.
 4. Wait for the import to finish.
-5. Open `Home` and use `Choose date` to select `Jan 1, 2025`, then `Jan 2, 2025`.
+5. Open `Analytics` and use `Choose date` to select `Jan 1, 2025`, then `Jan 2, 2025`.
 
 **Expected result**
 
 - Import succeeds without crashing.
 - Settings shows `Imported 2 transactions. Skipped 0 rows.`
 - The BOM at the start of the file does not create a header error or corrupt the first transaction ID.
-- Both imported transactions appear in `Home`.
+- Both imported transactions appear in Analytics for the selected fixture dates.
 
 ### 36. Import a CRLF CSV
 
@@ -896,9 +921,9 @@
 
 **Steps**
 
-1. Open `Home`.
+1. Open `Analytics`.
 2. Confirm the shared period selector is still set to `Choose date: Jan 2`.
-3. Open the imported leak transaction from `docs/qa-fixtures/valid-money-leak.csv`.
+3. Review the imported leak transaction from `docs/qa-fixtures/valid-money-leak.csv` through the available imported-data QA path.
 
 **Expected result**
 
@@ -938,13 +963,13 @@
 1. Open `Settings`.
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/duplicate-ids.csv`.
-4. Open `Home` with the shared period selector set to `Choose date: Jan 1`.
+4. Open `Analytics` with the shared period selector set to `Choose date: Jan 1`.
 
 **Expected result**
 
 - Import completes without crashing.
 - Settings shows `Imported 1 transaction. Skipped 1 row.`
-- Only one transaction card appears in `Home` for the duplicate ID.
+- Only one transaction appears for the duplicate ID.
 - No duplicate transaction cards appear after the import completes.
 
 ### 40. Mixed valid and invalid rows skip bad rows only
@@ -960,13 +985,13 @@
 1. Open `Settings`.
 2. Tap `Import CSV`.
 3. Pick `docs/qa-fixtures/mixed-valid-invalid.csv`.
-4. Open `Home` with the shared period selector set to `Choose date: Jan 1`.
+4. Open `Analytics` with the shared period selector set to `Choose date: Jan 1`.
 
 **Expected result**
 
 - Import completes without crashing.
 - Settings shows `Imported 1 transaction. Skipped 5 rows.`
-- Only the valid transaction appears in `Home`.
+- Only the valid transaction appears for the selected fixture date.
 - The app does not partially render broken transaction data from invalid rows.
 
 ### 41. Empty file, wrong header, and malformed CSV show fatal inline errors
@@ -1154,376 +1179,56 @@
 - `Export CSV` stays disabled when local transaction history could not be prepared on web.
 - Reminder UI safely shows the unsupported platform state without affecting the rest of the screen.
 
-## Daily Review
+## Retired Home Card Coverage
 
-### 49. Daily Review empty DB
-
-**Preconditions**
-
-- Local transaction data is empty.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Today check-in` card.
-
-**Expected result**
-
-- The card is shown above the shared period selector.
-- The card shows `0.00€` for `Total today` and `Leaks today`.
-- The card shows `0%` for `Leak %`.
-- The card shows `No expenses logged today yet.`
-- The card shows the `Add today's first expense` action.
-- No top leak category row is shown.
-
-### 50. Daily Review with no transactions today
+### 49. Daily Review helper coverage after ML-48
 
 **Preconditions**
 
-- At least one local transaction exists, but all of them were created before today in device local time.
+- Local transaction data is empty, then includes normal and leak transactions for today and yesterday.
 
 **Steps**
 
-1. Open `Home`.
-2. Review the `Today check-in` card.
+1. Run the automated Home helper tests.
+2. Open `Home`.
+3. Review the visible Home sections.
 
 **Expected result**
 
-- The card still shows zero values for today's totals.
-- The card shows `No expenses logged today yet.`
-- Yesterday or older transactions do not appear in the daily totals.
-- The existing period selector and main Home summary still behave as before.
+- `calculateDailyReviewSummary` tests still cover empty data, normal today data, leak today data, and yesterday exclusion.
+- Home does not render the old `Today check-in` card.
+- Home renders the ML-48 `Today summary` section instead.
 
-### 51. Daily Review with a normal transaction today
+### 50. Logging Streak helper coverage after ML-48
 
 **Preconditions**
 
-- No leak transactions exist for today in device local time.
+- Local data includes scenarios with empty history, today-only history, yesterday-only history, consecutive local days, and a gap.
 
 **Steps**
 
-1. Add one normal transaction dated today.
-2. Return to `Home`.
-3. Review the `Today check-in` card.
+1. Run the automated Logging Streak helper tests.
+2. Open `Home`.
 
 **Expected result**
 
-- `Total today` matches the new transaction amount.
-- `Leaks today` remains `0.00€`.
-- `Leak %` remains `0%`.
-- The card shows `No leaks today. Clean day so far.`
-- No top leak category row is shown.
+- Logging Streak helper tests still pass.
+- Home does not render the old Logging Streak card or its CTA.
+- Add Transaction remains available from the ML-48 Today summary CTA.
 
-### 52. Daily Review with a leak transaction today
+### 51. Leak Risk helper coverage after ML-48
 
 **Preconditions**
 
-- At least one leak transaction can be created today.
+- Local data includes no-leak, low-risk, medium-risk, high-risk, and near-midnight risk-window scenarios.
 
 **Steps**
 
-1. Add one leak transaction dated today.
-2. Return to `Home`.
-3. Review the `Today check-in` card.
+1. Run the automated Leak Risk helper tests.
+2. Open `Home`.
 
 **Expected result**
 
-- `Total today`, `Leaks today`, and `Leak %` all update to include today's leak transaction.
-- The card shows a `Top leak category` row when a leak exists today.
-- The card shows `Review today's leaks`.
-
-### 53. Daily Review excludes yesterday after midnight
-
-**Preconditions**
-
-- There is at least one transaction from yesterday and at least one transaction from today in device local time.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the main transaction list timestamps if needed.
-3. Review the `Today check-in` card values.
-
-**Expected result**
-
-- Only today's transactions count toward the daily totals.
-- Yesterday's transactions are excluded even if they were close to midnight.
-- The main Home period summary and list remain unchanged outside the new daily card.
-
-### 54. Daily Review refreshes after add, edit, delete, and import
-
-**Preconditions**
-
-- `Home` is visible.
-- Have a way to import a CSV that includes at least one transaction dated today in local time. If needed, create one by exporting a transaction you just added today.
-
-**Steps**
-
-1. Add a transaction dated today and confirm the `Today check-in` card updates.
-2. Edit that transaction's amount, category, or type and save.
-3. Return to `Home` and confirm the card updates again.
-4. Delete the same transaction and confirm the card updates again.
-5. Import a CSV file that contains at least one today-dated transaction.
-6. Return to `Home` and review the card one more time.
-
-**Expected result**
-
-- The daily card refreshes after each add, edit, delete, and import action without restarting the app.
-- The card always reflects the current store data for today's local date.
-- The top leak category row appears or disappears correctly as today's leak data changes.
-
-## Logging Streak
-
-### 55. Logging Streak empty app
-
-**Preconditions**
-
-- Local transaction data is empty.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the streak card below `Today check-in`.
-
-**Expected result**
-
-- The streak card is shown above the shared period selector.
-- The card title is `Start your streak`.
-- The card body is `Log your first expense today.`
-- The `Log expense` CTA is visible.
-
-### 56. Logging Streak with a transaction today
-
-**Preconditions**
-
-- No local transactions exist for yesterday.
-
-**Steps**
-
-1. Add one transaction dated today in device local time.
-2. Return to `Home`.
-3. Review the streak card.
-
-**Expected result**
-
-- The card title is `1-day streak`.
-- The card body is `You logged expenses today. Keep the chain alive.`
-- The `Log expense` CTA is hidden.
-
-### 57. Logging Streak at risk when only yesterday was logged
-
-**Preconditions**
-
-- At least one transaction exists for yesterday in device local time.
-- No transactions exist for today in device local time.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the streak card.
-
-**Expected result**
-
-- The card title is `1-day streak at risk`.
-- The card body is `Log one expense today to keep it alive.`
-- The `Log expense` CTA is visible.
-
-### 58. Logging Streak counts consecutive local days
-
-**Preconditions**
-
-- At least one transaction exists for each of today, yesterday, and the day before yesterday in device local time.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the streak card.
-
-**Expected result**
-
-- The card title is `3-day streak`.
-- The streak includes each consecutive local calendar day only once even if a day has multiple transactions.
-- The period selector and Daily Review card continue to behave as before.
-
-### 59. Logging Streak resets after a gap
-
-**Preconditions**
-
-- At least one transaction exists for today in device local time.
-- No transactions exist for yesterday in device local time.
-- Older historical transactions still exist before yesterday.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the streak card.
-
-**Expected result**
-
-- The card title is `1-day streak`.
-- Older historical transactions do not extend the streak across the missing day.
-- The card still reflects the full transactions store, not the selected Home period filter.
-
-### 60. Logging Streak CTA only appears before today is logged
-
-**Preconditions**
-
-- `Home` is visible.
-
-**Steps**
-
-1. Start from a state where today has no transactions and confirm the CTA is visible.
-2. Tap `Log expense` and create a transaction dated today.
-3. Return to `Home`.
-4. Review the streak card again.
-
-**Expected result**
-
-- The CTA routes to the existing add transaction flow.
-- The CTA is visible before today's first transaction is logged.
-- The CTA is hidden immediately after today's transaction is saved and Home refreshes.
-
-## Leak Risk Insight
-
-### 61. Leak Risk empty app
-
-**Preconditions**
-
-- Local transaction data is empty.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- The card is shown below the streak card and above the shared period selector.
-- The state line is `Not enough leak history yet.`
-- The supporting copy is `Log a few more leaks to see your risky patterns.`
-- No CTA is shown.
-- No top category, top reason, or risk window details are shown.
-
-### 62. Leak Risk with no leaks
-
-**Preconditions**
-
-- At least one local transaction exists, and all of them are `Normal`.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- Normal transactions do not count toward leak risk.
-- The state line is `Not enough leak history yet.`
-- The supporting copy is `Log a few more leaks to see your risky patterns.`
-- No CTA is shown.
-
-### 63. Leak Risk with fewer than three leaks
-
-**Preconditions**
-
-- Local history includes one or two valid leak transactions total.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- The state line is `Not enough leak history yet.`
-- The supporting copy is `Log a few more leaks to see your risky patterns.`
-- The card remains stable even if the existing leaks happened on today's weekday.
-
-### 64. Leak Risk low for a non-matching weekday
-
-**Preconditions**
-
-- Local history includes at least three valid leak transactions total.
-- None of those leaks were created on today's local weekday.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- The state line is `Low risk`.
-- The supporting copy is `No strong leak pattern for today yet.`
-- No CTA is shown.
-
-### 65. Leak Risk medium for one or two matching weekday leaks
-
-**Preconditions**
-
-- Local history includes at least three valid leak transactions total.
-- One or two of those leaks were created on today's local weekday.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- The state line is `Medium risk`.
-- The card shows `You've leaked on this weekday before.`
-- When a peak hour exists, the card shows `Most risky window: HH:00-HH:00`.
-- No CTA is shown.
-
-### 66. Leak Risk high for three or more matching weekday leaks
-
-**Preconditions**
-
-- Local history includes at least three valid leak transactions on today's local weekday.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card.
-
-**Expected result**
-
-- The state line is `High risk`.
-- The card shows `This weekday is a repeat leak pattern.`
-- The card shows `Top category`, `Top reason`, and `Risk window` when those values exist.
-- No CTA is shown.
-
-### 67. Leak Risk suggested window wraps safely near midnight
-
-**Preconditions**
-
-- Local history includes a peak leak hour late enough that the risk window crosses midnight, such as `23:00`.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the `Leak risk today` card details.
-
-**Expected result**
-
-- The suggested window renders as a wrapped 24-hour range such as `23:00-01:00`.
-- The app does not crash or show invalid hour text near midnight.
-
-### 68. Home still works with Daily Review, Streak, Leak Risk, and PeriodSelector
-
-**Preconditions**
-
-- `Home` has enough local data to render all Home cards.
-
-**Steps**
-
-1. Open `Home`.
-2. Review the card order and surrounding Home content.
-3. Change the selected period and review the Home summary and transaction list.
-
-**Expected result**
-
-- Home renders `Today check-in`, then the streak card, then `Leak risk today`, then the shared period selector.
-- Daily Review and Logging Streak still behave as before.
-- Leak Risk still uses the full transaction history while the summary card and transaction list continue to follow the selected period.
+- Leak Risk helper tests still pass.
+- Home does not render the old `Leak risk today` card.
+- Analytics and Shame Card continue to handle leak data without Home-specific changes.

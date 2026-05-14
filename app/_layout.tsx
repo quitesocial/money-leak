@@ -1,5 +1,6 @@
 import '@/lib/reminder-notifications';
 
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
@@ -7,11 +8,23 @@ import { useEffect } from 'react';
 import { initDatabase } from '@/db/transactions';
 
 export default function RootLayout() {
+  const [areFontsLoaded, fontLoadError] = useFonts({
+    NewYork: require('../assets/fonts/NewYork.ttf'),
+  });
+
   useEffect(() => {
     void initDatabase().catch((error) => {
       console.error('Failed to initialize SQLite database', error);
     });
   }, []);
+
+  useEffect(() => {
+    if (!fontLoadError) return;
+
+    console.error('Failed to load New York font', fontLoadError);
+  }, [fontLoadError]);
+
+  if (!areFontsLoaded && !fontLoadError) return null;
 
   return (
     <>

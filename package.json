@@ -1,6 +1,6 @@
 {
   "name": "money-leak",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -27,6 +27,7 @@
     "expo-constants": "~18.0.13",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
+    "expo-font": "~14.0.11",
     "expo-linking": "~8.0.11",
     "expo-notifications": "~0.32.16",
     "expo-router": "~6.0.23",
