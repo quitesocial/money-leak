@@ -116,6 +116,20 @@
 - CSV import still accepts existing Money Leak CSV fixtures.
 - CSV import with an unknown category ID imports safely and old transactions display a readable fallback category name.
 
+## ML-47: iOS26 Footer Navigation
+
+- ML-47 footer shows only `Home`, `Analytics & Leaks`, and `Settings`.
+- Home tab active state matches Figma-style blue icon/label plus gray capsule.
+- `Analytics & Leaks` label wraps into two lines.
+- Settings tab icon and label render correctly.
+- Switching tabs updates active state correctly.
+- No gray spacer/band appears between screen content and footer.
+- Shame Card is no longer a bottom tab.
+- Shame Card opens from the Analytics CTA.
+- Shame Card share still works.
+- Add Transaction remains a pushed root screen and is not visible as a tab.
+- Home, Analytics, Settings, Add/Edit Transaction, Manage Categories, CSV Import/Export, reminders, and editable categories still work.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

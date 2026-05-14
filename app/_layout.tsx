@@ -40,6 +40,15 @@ export default function RootLayout() {
         />
 
         <Stack.Screen
+          name="shame-card"
+          options={{
+            title: 'Shame Card',
+            headerBackButtonDisplayMode: 'generic',
+            headerBackTitle: 'Back',
+          }}
+        />
+
+        <Stack.Screen
           name="transaction/[id]/edit"
           options={{ title: 'Edit Transaction' }}
         />

@@ -1,6 +1,6 @@
 {
   "name": "money-leak",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -33,6 +33,7 @@
     "expo-sharing": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

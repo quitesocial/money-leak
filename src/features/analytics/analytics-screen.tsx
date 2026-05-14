@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { calculateAlternativeReality } from '@/features/alternative-reality/calculate-alternative-reality';
@@ -168,6 +169,12 @@ export function AnalyticsScreen() {
           </View>
         </View>
 
+        <Link href="/shame-card" asChild>
+          <Pressable accessibilityRole="button" style={styles.shameCardAction}>
+            <Text style={styles.shameCardActionText}>Generate Shame Card</Text>
+          </Pressable>
+        </Link>
+
         {isLoading ? (
           <Text style={styles.refreshingText}>Refreshing analytics...</Text>
         ) : null}
@@ -321,13 +328,14 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 32,
+    paddingBottom: 136,
     gap: 20,
   },
   stateContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 32,
+    paddingBottom: 136,
   },
   centeredState: {
     flex: 1,
@@ -387,6 +395,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
+  },
+  shameCardAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#111827',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  shameCardActionText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   errorBox: {
     borderWidth: 1,
