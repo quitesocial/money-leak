@@ -10,11 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  glassButtonShadow,
-  glassColors,
-  glassShadow,
-} from '@/components/glass-styles';
 import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
 import { DailyReviewCard } from '@/features/home/daily-review-card';
 import { LeakRiskCard } from '@/features/home/leak-risk-card';
@@ -154,7 +149,7 @@ export function HomeScreen() {
 
   if (!isInitialized) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={styles.centeredState}>
           <Text style={styles.stateTitle}>Loading transactions</Text>
 
@@ -168,7 +163,7 @@ export function HomeScreen() {
 
   if (error && !hasAnyTransactions) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
           <View style={styles.centeredState}>
             <Text style={styles.stateTitle}>
@@ -184,7 +179,7 @@ export function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerCopy}>
@@ -378,7 +373,7 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: glassColors.background,
+    backgroundColor: '#f7f7f5',
   },
   content: {
     paddingHorizontal: 24,
@@ -414,11 +409,10 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   primaryAction: {
-    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: glassColors.primary,
+    borderRadius: 12,
+    backgroundColor: '#111827',
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
@@ -444,11 +438,10 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   summaryCard: {
-    ...glassShadow,
     borderWidth: 1,
-    borderColor: glassColors.border,
-    borderRadius: 24,
-    backgroundColor: glassColors.surface,
+    borderColor: '#e5e7eb',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
     padding: 16,
     gap: 14,
   },
@@ -471,8 +464,8 @@ const styles = StyleSheet.create({
   errorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 18,
-    backgroundColor: 'rgba(254, 242, 242, 0.86)',
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
     padding: 14,
   },
   errorText: {
@@ -490,19 +483,18 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   transactionCard: {
-    ...glassShadow,
     borderWidth: 1,
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 16,
     gap: 10,
   },
   transactionCardNormal: {
-    borderColor: glassColors.border,
-    backgroundColor: glassColors.surface,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
   },
   transactionCardLeak: {
-    borderColor: 'rgba(252, 165, 165, 0.62)',
-    backgroundColor: 'rgba(255, 241, 242, 0.82)',
+    borderColor: '#fca5a5',
+    backgroundColor: '#fff1f2',
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -529,10 +521,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   typeBadgeNormal: {
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#f3f4f6',
   },
   typeBadgeLeak: {
-    backgroundColor: 'rgba(254, 226, 226, 0.82)',
+    backgroundColor: '#fee2e2',
   },
   typeBadgeText: {
     fontSize: 13,
@@ -560,9 +552,9 @@ const styles = StyleSheet.create({
   },
   editButton: {
     borderWidth: 1,
-    borderColor: glassColors.border,
+    borderColor: '#d1d5db',
     borderRadius: 999,
-    backgroundColor: glassColors.surfaceStrong,
+    backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
@@ -578,7 +570,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     paddingVertical: 8,
   },

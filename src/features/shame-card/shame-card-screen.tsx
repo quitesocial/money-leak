@@ -143,7 +143,7 @@ export function ShameCardScreen() {
 
   if (!isInitialized) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={styles.centeredState}>
           <Text style={styles.stateTitle}>Loading shame card</Text>
 
@@ -157,7 +157,7 @@ export function ShameCardScreen() {
 
   if (error && !hasAnyTransactions) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
           <View style={styles.centeredState}>
             <Text style={styles.stateTitle}>Couldn&apos;t load shame card</Text>
@@ -169,7 +169,7 @@ export function ShameCardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Shame Card</Text>

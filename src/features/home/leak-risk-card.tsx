@@ -1,6 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { glassShadow } from '@/components/glass-styles';
 import { calculateLeakRisk } from '@/features/home/calculate-leak-risk';
 import { getCategoryDisplayName } from '@/lib/category-display';
 import { formatLabel } from '@/lib/display-formatters';
@@ -100,11 +99,10 @@ export function LeakRiskCard({ transactions, categories }: LeakRiskCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    ...glassShadow,
     borderWidth: 1,
-    borderColor: 'rgba(254, 215, 170, 0.68)',
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 250, 243, 0.8)',
+    borderColor: '#fed7aa',
+    borderRadius: 16,
+    backgroundColor: '#fffaf3',
     padding: 16,
     gap: 12,
   },

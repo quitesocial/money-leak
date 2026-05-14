@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { glassColors } from '@/components/glass-styles';
 import { LocalDatePicker } from '@/components/local-date-picker';
 import {
   PERIOD_SCOPE_OPTIONS,
@@ -107,15 +106,15 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: glassColors.border,
+    borderColor: '#d1d5db',
     borderRadius: 999,
-    backgroundColor: glassColors.surface,
-    paddingHorizontal: 15,
-    paddingVertical: 11,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   chipSelected: {
-    borderColor: 'rgba(17, 24, 39, 0.2)',
-    backgroundColor: 'rgba(17, 24, 39, 0.92)',
+    borderColor: '#111827',
+    backgroundColor: '#111827',
   },
   chipText: {
     fontSize: 14,
