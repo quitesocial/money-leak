@@ -3,7 +3,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { glassButtonShadow, glassColors } from '@/components/glass-styles';
 import {
   TransactionForm,
   type TransactionFormSubmissionValues,
@@ -184,7 +183,7 @@ export function EditTransactionScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: glassColors.background,
+    backgroundColor: '#f7f7f5',
   },
   content: {
     flexGrow: 1,
@@ -230,11 +229,10 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   primaryAction: {
-    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: glassColors.primary,
+    borderRadius: 12,
+    backgroundColor: '#111827',
     paddingHorizontal: 18,
     paddingVertical: 14,
   },

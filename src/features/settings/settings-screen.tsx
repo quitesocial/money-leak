@@ -13,11 +13,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 
-import {
-  glassButtonShadow,
-  glassColors,
-  glassShadow,
-} from '@/components/glass-styles';
 import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
   IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
@@ -311,7 +306,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
@@ -512,7 +507,7 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: glassColors.background,
+    backgroundColor: '#f7f7f5',
   },
   content: {
     flexGrow: 1,
@@ -535,16 +530,15 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   sectionCard: {
-    ...glassShadow,
     gap: 12,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: glassColors.border,
-    backgroundColor: glassColors.surface,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
     padding: 20,
   },
   sectionCardDisabled: {
-    backgroundColor: 'rgba(249, 250, 251, 0.7)',
+    backgroundColor: '#f9fafb',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -585,7 +579,7 @@ const styles = StyleSheet.create({
   dataButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 12,
     paddingVertical: 14,
   },
   dataActionButton: {
@@ -596,12 +590,11 @@ const styles = StyleSheet.create({
   },
   importButton: {
     borderWidth: 1,
-    borderColor: glassColors.border,
-    backgroundColor: glassColors.surfaceStrong,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
   },
   exportButton: {
-    ...glassButtonShadow,
-    backgroundColor: glassColors.primary,
+    backgroundColor: '#111827',
   },
   dataButtonText: {
     fontSize: 15,
@@ -612,8 +605,8 @@ const styles = StyleSheet.create({
   },
   supportButton: {
     borderWidth: 1,
-    borderColor: glassColors.border,
-    backgroundColor: glassColors.surfaceStrong,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
   },
   supportButtonText: {
     color: '#111827',

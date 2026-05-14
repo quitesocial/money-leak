@@ -12,8 +12,20 @@ export default function TabLayout() {
           fontWeight: '600',
         },
         tabBarStyle: {
-          borderTopColor: '#e5e7eb',
+          borderTopWidth: 0,
+          height: 64,
           backgroundColor: '#ffffff',
+          elevation: 0,
+          paddingBottom: 6,
+          paddingTop: 4,
+          shadowOpacity: 0,
+        },
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          paddingVertical: 0,
+        },
+        tabBarIconStyle: {
+          marginTop: 0,
         },
         sceneStyle: {
           backgroundColor: '#f7f7f5',

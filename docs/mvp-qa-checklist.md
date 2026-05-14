@@ -116,24 +116,6 @@
 - CSV import still accepts existing Money Leak CSV fixtures.
 - CSV import with an unknown category ID imports safely and old transactions display a readable fallback category name.
 
-## ML-45 / Epic 45: iOS Glass Feel v1
-
-- Home renders with the iOS-like translucent card and button styling.
-- Add Transaction works.
-- Edit Transaction works.
-- Category selector shows active categories.
-- Archived current category remains visible in Edit.
-- Leak toggle still shows/hides leak reason.
-- Period selector still supports `Yesterday`, `Today`, `This week`, and `Choose date`.
-- Choose date works on iOS.
-- Analytics still shows Brutal insight and Next move when leaks exist.
-- Shame Card preview and share still work.
-- Settings Support & Legal still work.
-- Settings Import/Export still work.
-- Manage Categories add/edit/archive still works.
-- Android/Web do not crash and render the React Native fallback styling.
-- Add Transaction bottom tab is not reintroduced.
-
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

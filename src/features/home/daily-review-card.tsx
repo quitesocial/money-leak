@@ -1,11 +1,6 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import {
-  glassButtonShadow,
-  glassColors,
-  glassShadow,
-} from '@/components/glass-styles';
 import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
 import { getCategoryDisplayName } from '@/lib/category-display';
 import { formatEuro, formatPercentage } from '@/lib/display-formatters';
@@ -105,11 +100,10 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   summaryCard: {
-    ...glassShadow,
     borderWidth: 1,
-    borderColor: 'rgba(253, 230, 138, 0.6)',
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 253, 245, 0.78)',
+    borderColor: '#fde68a',
+    borderRadius: 16,
+    backgroundColor: '#fffdf5',
     padding: 16,
     gap: 14,
   },
@@ -138,11 +132,10 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   actionButton: {
-    ...glassButtonShadow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: glassColors.primary,
+    borderRadius: 12,
+    backgroundColor: '#111827',
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
