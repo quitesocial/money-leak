@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LocalDatePicker } from '@/components/local-date-picker';
 import {
@@ -8,11 +8,14 @@ import {
   type PeriodScope,
 } from '@/lib/period-scope';
 
+const SEGMENTED_CONTROL_PADDING = 3;
+
 type PeriodSelectorProps = {
   selectedPeriod: PeriodScope;
   selectedCustomDateStart: number | null;
   onSelectPeriod: (period: PeriodScope) => void;
   onSelectCustomDate: (dateStart: number) => void;
+  periods?: PeriodScope[];
   label?: string;
 };
 
@@ -31,10 +34,34 @@ export function PeriodSelector({
   selectedCustomDateStart,
   onSelectPeriod,
   onSelectCustomDate,
+  periods = PERIOD_SCOPE_OPTIONS,
   label,
 }: PeriodSelectorProps) {
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [controlWidth, setControlWidth] = useState(0);
+  const selectedIndex = periods.indexOf(selectedPeriod);
+  const effectiveSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+  const animatedIndex = useRef(
+    new Animated.Value(effectiveSelectedIndex),
+  ).current;
+
   const datePickerValue = getDatePickerValue(selectedCustomDateStart);
+
+  const segmentWidth =
+    controlWidth > 0
+      ? (controlWidth - SEGMENTED_CONTROL_PADDING * 2) / periods.length
+      : 0;
+
+  useEffect(() => {
+    Animated.spring(animatedIndex, {
+      toValue: effectiveSelectedIndex,
+      damping: 22,
+      mass: 0.75,
+      stiffness: 260,
+      useNativeDriver: false,
+    }).start();
+  }, [animatedIndex, effectiveSelectedIndex]);
 
   function handlePeriodPress(period: PeriodScope) {
     if (period === 'custom_date') {
@@ -55,8 +82,34 @@ export function PeriodSelector({
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
-      <View style={styles.chipList}>
-        {PERIOD_SCOPE_OPTIONS.map((period) => {
+      <View
+        onLayout={(event) => {
+          const nextWidth = event.nativeEvent.layout.width;
+
+          setControlWidth((currentWidth) =>
+            currentWidth === nextWidth ? currentWidth : nextWidth,
+          );
+        }}
+        style={styles.segmentedControl}
+      >
+        {segmentWidth > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeSegment,
+              {
+                width: segmentWidth,
+                transform: [
+                  {
+                    translateX: Animated.multiply(animatedIndex, segmentWidth),
+                  },
+                ],
+              },
+            ]}
+          />
+        ) : null}
+
+        {periods.map((period) => {
           const isSelected = selectedPeriod === period;
 
           return (
@@ -65,12 +118,14 @@ export function PeriodSelector({
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
               onPress={() => handlePeriodPress(period)}
-              style={[styles.chip, isSelected ? styles.chipSelected : null]}
+              style={styles.segment}
             >
               <Text
+                ellipsizeMode="tail"
+                numberOfLines={1}
                 style={[
-                  styles.chipText,
-                  isSelected ? styles.chipTextSelected : null,
+                  styles.segmentText,
+                  isSelected ? styles.segmentTextSelected : null,
                 ]}
               >
                 {getPeriodLabel(period, selectedCustomDateStart)}
@@ -99,29 +154,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  chipList: {
+  segmentedControl: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    borderRadius: 999,
+    backgroundColor: '#e9e9e4',
+    padding: SEGMENTED_CONTROL_PADDING,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  activeSegment: {
+    position: 'absolute',
+    top: SEGMENTED_CONTROL_PADDING,
+    bottom: SEGMENTED_CONTROL_PADDING,
+    left: SEGMENTED_CONTROL_PADDING,
     borderRadius: 999,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
   },
-  chipSelected: {
-    borderColor: '#111827',
-    backgroundColor: '#111827',
+  segment: {
+    zIndex: 1,
+    flex: 1,
+    minHeight: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
   },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+  segmentText: {
+    width: '100%',
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#111111',
   },
-  chipTextSelected: {
-    color: '#ffffff',
+  segmentTextSelected: {
+    color: '#111111',
   },
 });

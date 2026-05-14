@@ -1,7 +1,11 @@
 import { Link, useRouter, type Href } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,46 +14,328 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { calculateTransactionsSummary } from '@/features/home/calculate-transactions-summary';
-import { DailyReviewCard } from '@/features/home/daily-review-card';
-import { LeakRiskCard } from '@/features/home/leak-risk-card';
-import { LoggingStreakCard } from '@/features/home/logging-streak-card';
+import { PeriodSelector } from '@/components/period-selector';
+import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
 import { getCategoryDisplayName } from '@/lib/category-display';
+import { getValidDate } from '@/lib/date-utils';
 import {
   formatEuro,
   formatLabel,
   formatPercentage,
 } from '@/lib/display-formatters';
+import {
+  filterTransactionsByPeriod,
+  getPeriodLabel,
+  type PeriodScope,
+} from '@/lib/period-scope';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
-import { filterTransactionsByPeriod, getPeriodLabel } from '@/lib/period-scope';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
-import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useCategoriesStore } from '@/store/categories-store';
+import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
-import { PeriodSelector } from '@/components/period-selector';
+import type { Category } from '@/types/category';
+import type { Transaction } from '@/types/transaction';
 
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+const TITLE_FONT_FAMILY = Platform.select({
+  ios: 'NewYork',
+  default: 'serif',
 });
 
-function formatTransactionDate(value: number) {
-  if (!Number.isFinite(value)) return 'Unknown date';
+const TITLE_FONT_WEIGHT = Platform.select({
+  ios: '700' as const,
+  default: '800' as const,
+});
 
-  const date = new Date(value);
+const HOME_PERIOD_OPTIONS: PeriodScope[] = ['today', 'yesterday', 'this_week'];
+const SWIPE_ACTION_WIDTH = 86;
+const SWIPE_ACTION_THRESHOLD = 44;
 
-  if (!Number.isFinite(date.getTime())) return 'Unknown date';
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
-  return dateTimeFormatter.format(date);
+const shortDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function isSameLocalDay(firstDate: Date, secondDate: Date) {
+  return (
+    firstDate.getFullYear() === secondDate.getFullYear() &&
+    firstDate.getMonth() === secondDate.getMonth() &&
+    firstDate.getDate() === secondDate.getDate()
+  );
+}
+
+function formatTransactionTimestamp(value: number) {
+  const date = getValidDate(value);
+
+  if (!date) return 'Unknown date';
+
+  if (isSameLocalDay(date, new Date())) return timeFormatter.format(date);
+
+  return shortDateTimeFormatter.format(date);
 }
 
 function AddTransactionAction() {
   return (
     <Link href="/add-transaction" asChild>
-      <Pressable style={styles.primaryAction}>
+      <Pressable accessibilityRole="button" style={styles.primaryAction}>
         <Text style={styles.primaryActionText}>Add Transaction</Text>
       </Pressable>
     </Link>
+  );
+}
+
+type SummaryRowProps = {
+  label: string;
+  value: string;
+};
+
+function SummaryRow({ label, value }: SummaryRowProps) {
+  return (
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </View>
+  );
+}
+
+type SwipeActionIconProps = {
+  fallbackLabel: string;
+  name: SFSymbol;
+};
+
+function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
+  return (
+    <SymbolView
+      fallback={<Text style={styles.swipeActionFallback}>{fallbackLabel}</Text>}
+      name={name}
+      resizeMode="scaleAspectFit"
+      size={26}
+      tintColor="#ffffff"
+      type="monochrome"
+      weight="semibold"
+    />
+  );
+}
+
+type HistoryTransactionItemProps = {
+  categories: Category[];
+  isDeleting: boolean;
+  isDisabled: boolean;
+  onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
+  transaction: Transaction;
+};
+
+function HistoryTransactionItem({
+  categories,
+  isDeleting,
+  isDisabled,
+  onDelete,
+  onEdit,
+  transaction,
+}: HistoryTransactionItemProps) {
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const animateTo = useCallback(
+    (toValue: number) => {
+      Animated.spring(translateX, {
+        toValue,
+        damping: 22,
+        mass: 0.72,
+        stiffness: 260,
+        useNativeDriver: false,
+      }).start();
+    },
+    [translateX],
+  );
+
+  const closeActions = useCallback(() => {
+    animateTo(0);
+  }, [animateTo]);
+
+  const revealDelete = useCallback(() => {
+    animateTo(SWIPE_ACTION_WIDTH);
+  }, [animateTo]);
+
+  const revealEdit = useCallback(() => {
+    animateTo(-SWIPE_ACTION_WIDTH);
+  }, [animateTo]);
+
+  const handleDeletePress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onDelete(transaction.id);
+  }, [closeActions, isDisabled, onDelete, transaction.id]);
+
+  const handleEditPress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onEdit(transaction.id);
+  }, [closeActions, isDisabled, onEdit, transaction.id]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          return (
+            Math.abs(gestureState.dx) > 8 &&
+            Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+          );
+        },
+        onPanResponderGrant: () => {
+          translateX.stopAnimation();
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          if (isDisabled) return;
+
+          const nextTranslateX = Math.max(
+            -SWIPE_ACTION_WIDTH,
+            Math.min(SWIPE_ACTION_WIDTH, gestureState.dx),
+          );
+
+          translateX.setValue(nextTranslateX);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          if (
+            gestureState.dx > SWIPE_ACTION_THRESHOLD ||
+            gestureState.vx > 0.65
+          ) {
+            revealDelete();
+
+            return;
+          }
+
+          if (
+            gestureState.dx < -SWIPE_ACTION_THRESHOLD ||
+            gestureState.vx < -0.65
+          ) {
+            revealEdit();
+
+            return;
+          }
+
+          closeActions();
+        },
+        onPanResponderTerminate: closeActions,
+      }),
+    [closeActions, isDisabled, revealDelete, revealEdit, translateX],
+  );
+
+  useEffect(() => {
+    if (isDisabled) closeActions();
+  }, [closeActions, isDisabled]);
+
+  const isLeak = transaction.isLeak;
+
+  const cardBackgroundColor = translateX.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
+  });
+
+  return (
+    <View style={styles.swipeContainer}>
+      <View style={styles.swipeActionLayer}>
+        <Pressable
+          accessibilityLabel="Delete transaction"
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleDeletePress}
+          style={[
+            styles.swipeActionCircle,
+            styles.deleteSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Del" name="trash" />
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel="Edit transaction"
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleEditPress}
+          style={[
+            styles.swipeActionCircle,
+            styles.editSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
+        </Pressable>
+      </View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          styles.transactionCard,
+          isLeak ? styles.transactionCardLeak : styles.transactionCardNormal,
+          {
+            backgroundColor: cardBackgroundColor,
+            transform: [{ translateX }],
+          },
+        ]}
+      >
+        <View style={styles.transactionMainRow}>
+          <View style={styles.transactionCopy}>
+            <View style={styles.categoryRow}>
+              <Text style={styles.categoryText}>
+                {getCategoryDisplayName(transaction.category, categories)}
+              </Text>
+
+              <View
+                style={[
+                  styles.typeBadge,
+                  isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.typeBadgeText,
+                    isLeak
+                      ? styles.typeBadgeTextLeak
+                      : styles.typeBadgeTextNormal,
+                  ]}
+                >
+                  {isLeak ? 'Leak' : 'Normal'}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.timestampText}>
+              {formatTransactionTimestamp(transaction.createdAt)}
+            </Text>
+          </View>
+
+          <Text style={styles.amountText}>
+            {formatEuro(transaction.amount)}
+          </Text>
+        </View>
+
+        {isLeak && transaction.leakReason ? (
+          <Text style={styles.detailText}>
+            {formatLabel(transaction.leakReason)}
+          </Text>
+        ) : null}
+
+        {transaction.note ? (
+          <Text style={styles.noteText}>{transaction.note}</Text>
+        ) : null}
+
+        {isDeleting ? (
+          <Text style={styles.deletingText}>Deleting...</Text>
+        ) : null}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -78,18 +364,23 @@ export function HomeScreen() {
     (state) => state.setSelectedCustomDate,
   );
 
+  const homeSelectedPeriod = HOME_PERIOD_OPTIONS.includes(selectedPeriod)
+    ? selectedPeriod
+    : 'today';
+
   const filteredTransactions = filterTransactionsByPeriod({
     transactions,
-    period: selectedPeriod,
+    period: homeSelectedPeriod,
     selectedCustomDateStart,
   });
 
-  const summary = calculateTransactionsSummary(filteredTransactions);
+  const todaySummary = calculateDailyReviewSummary({ transactions });
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
+  const hasTodayTransactions = todaySummary.transactionCount > 0;
 
   const selectedPeriodLabel = getPeriodLabel(
-    selectedPeriod,
+    homeSelectedPeriod,
     selectedCustomDateStart,
   );
 
@@ -117,6 +408,12 @@ export function HomeScreen() {
     isInitialized: areCategoriesInitialized,
     loadCategories,
   });
+
+  useEffect(() => {
+    if (HOME_PERIOD_OPTIONS.includes(selectedPeriod)) return;
+
+    setSelectedPeriod('today');
+  }, [selectedPeriod, setSelectedPeriod]);
 
   const handleDeleteTransaction = useCallback(
     (id: string) => {
@@ -147,6 +444,19 @@ export function HomeScreen() {
     [deletingTransactionId, isLoading, removeTransaction],
   );
 
+  const handleEditTransaction = useCallback(
+    (id: string) => {
+      if (deletingTransactionId !== null) return;
+
+      router.push(`/transaction/${id}/edit` as Href);
+    },
+    [deletingTransactionId, router],
+  );
+
+  const handleMorePress = useCallback(() => {
+    router.push('/analytics' as Href);
+  }, [router]);
+
   if (!isInitialized) {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
@@ -167,7 +477,7 @@ export function HomeScreen() {
         <ScrollView contentContainerStyle={styles.stateContent}>
           <View style={styles.centeredState}>
             <Text style={styles.stateTitle}>
-              Couldn&apos;t load transactions
+              {"Couldn't load transactions"}
             </Text>
 
             <Text style={styles.stateMessage}>{error}</Text>
@@ -181,190 +491,120 @@ export function HomeScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Home</Text>
+        <Text style={styles.pageTitle}>Home</Text>
 
-            <Text style={styles.subtitle}>
-              Your latest expenses, including the leaks worth noticing.
-            </Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Today summary</Text>
+
+          <View style={styles.summaryRows}>
+            <SummaryRow
+              label="Total"
+              value={formatEuro(todaySummary.totalSpent)}
+            />
+
+            <SummaryRow
+              label="Leak"
+              value={formatEuro(todaySummary.totalLeaks)}
+            />
+
+            <SummaryRow
+              label="Leak %"
+              value={formatPercentage(todaySummary.leakPercentage)}
+            />
           </View>
+
+          <Text style={styles.summaryMessage}>
+            {hasTodayTransactions
+              ? todaySummary.totalLeaks > 0
+                ? "Today's leaks are worth noticing."
+                : 'No leaks logged today.'
+              : 'No expenses logged today yet.'}
+          </Text>
 
           <AddTransactionAction />
         </View>
 
-        <DailyReviewCard transactions={transactions} categories={categories} />
-        <LoggingStreakCard transactions={transactions} />
-        <LeakRiskCard transactions={transactions} categories={categories} />
+        <View style={styles.section}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.sectionTitle}>History</Text>
 
-        <PeriodSelector
-          label="Period"
-          selectedPeriod={selectedPeriod}
-          selectedCustomDateStart={selectedCustomDateStart}
-          onSelectPeriod={setSelectedPeriod}
-          onSelectCustomDate={setSelectedCustomDate}
-        />
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleMorePress}
+              style={styles.moreButton}
+            >
+              <Text style={styles.moreButtonText}>More</Text>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total spent</Text>
-
-            <Text style={styles.summaryValue}>
-              {formatEuro(summary.totalSpent)}
-            </Text>
+              <SymbolView
+                fallback={<Text style={styles.moreButtonText}>{'>'}</Text>}
+                name="arrow.up.right"
+                resizeMode="scaleAspectFit"
+                size={14}
+                tintColor="#0088ff"
+                type="monochrome"
+                weight="semibold"
+              />
+            </Pressable>
           </View>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total leaks</Text>
+          <PeriodSelector
+            periods={HOME_PERIOD_OPTIONS}
+            selectedPeriod={homeSelectedPeriod}
+            selectedCustomDateStart={selectedCustomDateStart}
+            onSelectPeriod={setSelectedPeriod}
+            onSelectCustomDate={setSelectedCustomDate}
+          />
 
-            <Text style={styles.summaryValue}>
-              {formatEuro(summary.totalLeaks)}
+          {isLoading ? (
+            <Text style={styles.refreshingText}>
+              Refreshing transactions...
             </Text>
-          </View>
+          ) : null}
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Leak percentage</Text>
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
-            <Text style={styles.summaryValue}>
-              {formatPercentage(summary.leakPercentage)}
-            </Text>
-          </View>
+          {hasTransactions ? (
+            <View style={styles.transactionList}>
+              {filteredTransactions.map((transaction) => {
+                const isDeletingThisTransaction =
+                  deletingTransactionId === transaction.id;
+
+                const isTransactionActionDisabled =
+                  isLoading || deletingTransactionId !== null;
+
+                return (
+                  <HistoryTransactionItem
+                    categories={categories}
+                    isDeleting={isDeletingThisTransaction}
+                    isDisabled={isTransactionActionDisabled}
+                    key={transaction.id}
+                    onDelete={handleDeleteTransaction}
+                    onEdit={handleEditTransaction}
+                    transaction={transaction}
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>
+                {hasAnyTransactions
+                  ? `No transactions for ${selectedPeriodLabel}`
+                  : 'No transactions yet'}
+              </Text>
+
+              <Text style={styles.emptyMessage}>
+                {hasAnyTransactions
+                  ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}.`
+                  : 'Add your first expense and mark the ones that felt avoidable.'}
+              </Text>
+            </View>
+          )}
         </View>
-
-        {isLoading ? (
-          <Text style={styles.refreshingText}>Refreshing transactions...</Text>
-        ) : null}
-
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
-
-        {hasTransactions ? (
-          <View style={styles.transactionList}>
-            {filteredTransactions.map((transaction) => {
-              const isLeak = transaction.isLeak;
-
-              const isDeletingThisTransaction =
-                deletingTransactionId === transaction.id;
-
-              const isDeleteDisabled =
-                isLoading || deletingTransactionId !== null;
-
-              const isEditDisabled = deletingTransactionId !== null;
-
-              return (
-                <View
-                  key={transaction.id}
-                  style={[
-                    styles.transactionCard,
-                    isLeak
-                      ? styles.transactionCardLeak
-                      : styles.transactionCardNormal,
-                  ]}
-                >
-                  <View style={styles.transactionHeader}>
-                    <View style={styles.transactionSummary}>
-                      <Text style={styles.amountText}>
-                        {formatEuro(transaction.amount)}
-                      </Text>
-
-                      <Text style={styles.categoryText}>
-                        {getCategoryDisplayName(
-                          transaction.category,
-                          categories,
-                        )}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.typeBadge,
-                        isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.typeBadgeText,
-                          isLeak
-                            ? styles.typeBadgeTextLeak
-                            : styles.typeBadgeTextNormal,
-                        ]}
-                      >
-                        {isLeak ? 'Leak' : 'Normal'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.timestampText}>
-                    {formatTransactionDate(transaction.createdAt)}
-                  </Text>
-
-                  {isLeak && transaction.leakReason ? (
-                    <Text style={styles.detailText}>
-                      Leak reason: {formatLabel(transaction.leakReason)}
-                    </Text>
-                  ) : null}
-
-                  {transaction.note ? (
-                    <Text style={styles.detailText}>
-                      Note: {transaction.note}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.actionRow}>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isEditDisabled}
-                      onPress={() =>
-                        router.push(
-                          `/transaction/${transaction.id}/edit` as Href,
-                        )
-                      }
-                      style={[
-                        styles.editButton,
-                        isEditDisabled ? styles.editButtonDisabled : null,
-                      ]}
-                    >
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </Pressable>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isDeleteDisabled}
-                      onPress={() => handleDeleteTransaction(transaction.id)}
-                      style={[
-                        styles.deleteButton,
-                        isDeleteDisabled ? styles.deleteButtonDisabled : null,
-                      ]}
-                    >
-                      <Text style={styles.deleteButtonText}>
-                        {isDeletingThisTransaction ? 'Deleting...' : 'Delete'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.stateTitle}>
-              {hasAnyTransactions
-                ? `No transactions for ${selectedPeriodLabel}`
-                : 'No transactions yet'}
-            </Text>
-
-            <Text style={styles.stateMessage}>
-              {hasAnyTransactions
-                ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}. Switch periods or add a new one.`
-                : 'Add your first expense and mark the ones that felt avoidable.'}
-            </Text>
-
-            <AddTransactionAction />
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -376,16 +616,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f7f5',
   },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 136,
-    gap: 20,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 156,
+    gap: 36,
   },
   stateContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 136,
+    paddingBottom: 156,
   },
   centeredState: {
     flex: 1,
@@ -393,38 +633,60 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 16,
   },
-  header: {
-    gap: 16,
+  pageTitle: {
+    fontFamily: TITLE_FONT_FAMILY,
+    fontSize: 36,
+    lineHeight: 44,
+    fontWeight: TITLE_FONT_WEIGHT,
+    color: '#0f0f0f',
   },
-  headerCopy: {
-    gap: 8,
+  section: {
+    gap: 18,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
+  sectionTitle: {
+    fontFamily: TITLE_FONT_FAMILY,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: TITLE_FONT_WEIGHT,
+    color: '#0f0f0f',
   },
-  subtitle: {
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  moreButton: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 2,
+  },
+  moreButtonText: {
     fontSize: 15,
-    lineHeight: 22,
-    color: '#4b5563',
+    lineHeight: 20,
+    fontWeight: '500',
+    color: '#0088ff',
   },
   primaryAction: {
+    minHeight: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: 999,
+    backgroundColor: '#111111',
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
   primaryActionText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '600',
     color: '#ffffff',
   },
   stateTitle: {
+    fontFamily: TITLE_FONT_FAMILY,
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: TITLE_FONT_WEIGHT,
     textAlign: 'center',
     color: '#111827',
   },
@@ -438,13 +700,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    padding: 16,
-    gap: 14,
+  summaryRows: {
+    gap: 22,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -454,18 +711,25 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     flex: 1,
-    fontSize: 15,
-    color: '#4b5563',
+    fontSize: 16,
+    lineHeight: 20,
+    color: '#111111',
   },
   summaryValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '800',
+    color: '#050505',
+  },
+  summaryMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#5d5d5d',
   },
   errorBox: {
     borderWidth: 1,
     borderColor: '#fecaca',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#fef2f2',
     padding: 14,
   },
@@ -475,112 +739,143 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
   },
   transactionList: {
-    gap: 16,
+    gap: 14,
   },
   emptyState: {
+    gap: 8,
+    paddingVertical: 18,
+  },
+  emptyTitle: {
+    fontFamily: TITLE_FONT_FAMILY,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: TITLE_FONT_WEIGHT,
+    color: '#111111',
+  },
+  emptyMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#5d5d5d',
+  },
+  swipeContainer: {
+    overflow: 'hidden',
+    borderRadius: 8,
+  },
+  swipeActionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+  },
+  swipeActionCircle: {
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-    paddingVertical: 24,
+    borderRadius: 26,
+  },
+  swipeActionDisabled: {
+    opacity: 0.5,
+  },
+  deleteSwipeAction: {
+    backgroundColor: '#ff3b45',
+  },
+  editSwipeAction: {
+    backgroundColor: '#34c759',
+  },
+  swipeActionFallback: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    color: '#ffffff',
   },
   transactionCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    gap: 8,
   },
   transactionCardNormal: {
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f7f5',
   },
   transactionCardLeak: {
-    borderColor: '#fca5a5',
-    backgroundColor: '#fff1f2',
+    backgroundColor: '#f7f7f5',
   },
-  transactionHeader: {
+  transactionMainRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
-  transactionSummary: {
+  transactionCopy: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
+    gap: 5,
   },
-  amountText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   categoryText: {
-    fontSize: 15,
-    color: '#4b5563',
+    flexShrink: 1,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: '#111111',
+  },
+  amountText: {
+    flexShrink: 0,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '800',
+    textAlign: 'right',
+    color: '#050505',
   },
   typeBadge: {
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   typeBadgeNormal: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#e9e9e4',
   },
   typeBadgeLeak: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#ffe1e1',
   },
   typeBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '800',
   },
   typeBadgeTextNormal: {
-    color: '#374151',
+    color: '#363633',
   },
   typeBadgeTextLeak: {
-    color: '#b91c1c',
+    color: '#bd1f1f',
   },
   timestampText: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#111111',
   },
   detailText: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#374151',
+    color: '#2d2d2a',
   },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  editButton: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  editButtonDisabled: {
-    opacity: 0.5,
-  },
-  editButtonText: {
+  noteText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    lineHeight: 20,
+    color: '#2d2d2a',
   },
-  deleteButton: {
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  deleteButtonDisabled: {
-    opacity: 0.5,
-  },
-  deleteButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#b91c1c',
+  deletingText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    textAlign: 'right',
+    color: '#c22121',
   },
 });
