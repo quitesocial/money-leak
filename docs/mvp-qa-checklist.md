@@ -168,6 +168,17 @@
 - Opening one row closes the previously open row.
 - Footer tabs remain `Home`, `Analytics & Leaks`, and `Settings`.
 
+## ML-50 / Epic 50: Add/Edit Transaction Amount Autofocus
+
+- Add Transaction opens with the amount input focused and ready for typing.
+- Edit Transaction opens with the amount input focused and the existing amount still populated.
+- The keyboard opens automatically on native devices when Add Transaction or Edit Transaction opens.
+- Amount validation still works for empty, invalid, zero/negative, and valid values.
+- Category selection, leak toggle, leak reason selection, note entry, and submit behavior still work.
+- Back navigation from Add Transaction or Edit Transaction does not leave the app in a broken keyboard or focus state.
+- Footer tabs remain `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
