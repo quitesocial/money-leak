@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatLabel } from '@/lib/display-formatters';
@@ -43,6 +43,7 @@ type TransactionFormProps = {
 };
 
 const leakReasonSet = new Set<string>(LEAK_REASONS);
+const AMOUNT_INPUT_FOCUS_DELAY_MS = 250;
 
 interface ValidateTransactionFormArgs {
   amountText: string;
@@ -115,6 +116,7 @@ export function TransactionForm({
   clearError,
   onSubmit,
 }: TransactionFormProps) {
+  const amountInputRef = useRef<TextInput>(null);
   const categories = useCategoriesStore((state) => state.categories);
 
   const activeCategories = useCategoriesStore(
@@ -152,6 +154,20 @@ export function TransactionForm({
     isInitialized: isCategoriesInitialized,
     loadCategories,
   });
+
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      try {
+        amountInputRef.current?.focus();
+      } catch {
+        // Unsupported focus runtimes should not block form rendering.
+      }
+    }, AMOUNT_INPUT_FOCUS_DELAY_MS);
+
+    return () => {
+      clearTimeout(focusTimer);
+    };
+  }, []);
 
   useEffect(() => {
     clearError();
@@ -296,6 +312,7 @@ export function TransactionForm({
         <Text style={styles.label}>Amount</Text>
 
         <TextInput
+          ref={amountInputRef}
           value={amountText}
           onChangeText={handleAmountChange}
           placeholder="12.50"
