@@ -154,6 +154,20 @@
 - `Analytics & Leaks` and `Settings` tabs still work.
 - Shame Card still opens from Analytics and remains a pushed root screen.
 
+## ML-49: History Swipe Gesture Hardening
+
+- Slow swipe left with slight upward/downward finger drift reveals the green edit action.
+- Slow swipe right with slight upward/downward finger drift reveals the red delete action.
+- Fast short swipe left can reveal Edit if velocity is high enough.
+- Fast short swipe right can reveal Delete if velocity is high enough.
+- Vertical scrolling over History cards still works normally.
+- A mostly vertical gesture does not accidentally open swipe actions.
+- Delete action still shows confirmation before removing.
+- Edit action still opens `/transaction/[id]/edit`.
+- Returning from edit preserves Home behavior.
+- Opening one row closes the previously open row.
+- Footer tabs remain `Home`, `Analytics & Leaks`, and `Settings`.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

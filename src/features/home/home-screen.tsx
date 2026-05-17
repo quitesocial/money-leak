@@ -47,8 +47,12 @@ const TITLE_FONT_WEIGHT = Platform.select({
 });
 
 const HOME_PERIOD_OPTIONS: PeriodScope[] = ['today', 'yesterday', 'this_week'];
-const SWIPE_ACTION_WIDTH = 86;
-const SWIPE_ACTION_THRESHOLD = 44;
+const SWIPE_ACTION_WIDTH = 88;
+const HORIZONTAL_ACTIVATION_DISTANCE = 10;
+const VERTICAL_SCROLL_DISTANCE = 8;
+const HORIZONTAL_INTENT_RATIO = 0.75;
+const SWIPE_OPEN_THRESHOLD = 44;
+const SWIPE_VELOCITY_THRESHOLD = 0.35;
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
@@ -78,6 +82,31 @@ function formatTransactionTimestamp(value: number) {
   if (isSameLocalDay(date, new Date())) return timeFormatter.format(date);
 
   return shortDateTimeFormatter.format(date);
+}
+
+function clampSwipeTranslation(value: number) {
+  return Math.max(-SWIPE_ACTION_WIDTH, Math.min(SWIPE_ACTION_WIDTH, value));
+}
+
+function hasHorizontalSwipeIntent({ dx, dy }: { dx: number; dy: number }) {
+  const absoluteDx = Math.abs(dx);
+  const absoluteDy = Math.abs(dy);
+
+  if (
+    absoluteDx < HORIZONTAL_ACTIVATION_DISTANCE &&
+    absoluteDy < VERTICAL_SCROLL_DISTANCE
+  ) {
+    return false;
+  }
+
+  if (absoluteDy >= VERTICAL_SCROLL_DISTANCE && absoluteDy > absoluteDx) {
+    return false;
+  }
+
+  return (
+    absoluteDx >= HORIZONTAL_ACTIVATION_DISTANCE &&
+    absoluteDy <= absoluteDx * HORIZONTAL_INTENT_RATIO
+  );
 }
 
 function AddTransactionAction() {
@@ -127,8 +156,12 @@ type HistoryTransactionItemProps = {
   categories: Category[];
   isDeleting: boolean;
   isDisabled: boolean;
+  isOpen: boolean;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  onSwipeClose: (id: string) => void;
+  onSwipeInteractionStart: (id: string) => void;
+  onSwipeOpen: (id: string) => void;
   transaction: Transaction;
 };
 
@@ -136,11 +169,16 @@ function HistoryTransactionItem({
   categories,
   isDeleting,
   isDisabled,
+  isOpen,
   onDelete,
   onEdit,
+  onSwipeClose,
+  onSwipeInteractionStart,
+  onSwipeOpen,
   transaction,
 }: HistoryTransactionItemProps) {
   const translateX = useRef(new Animated.Value(0)).current;
+  const isHorizontallyLockedRef = useRef(false);
 
   const animateTo = useCallback(
     (toValue: number) => {
@@ -157,15 +195,24 @@ function HistoryTransactionItem({
 
   const closeActions = useCallback(() => {
     animateTo(0);
-  }, [animateTo]);
+    onSwipeClose(transaction.id);
+  }, [animateTo, onSwipeClose, transaction.id]);
 
   const revealDelete = useCallback(() => {
+    onSwipeOpen(transaction.id);
     animateTo(SWIPE_ACTION_WIDTH);
-  }, [animateTo]);
+  }, [animateTo, onSwipeOpen, transaction.id]);
 
   const revealEdit = useCallback(() => {
+    onSwipeOpen(transaction.id);
     animateTo(-SWIPE_ACTION_WIDTH);
-  }, [animateTo]);
+  }, [animateTo, onSwipeOpen, transaction.id]);
+
+  const handleTouchStart = useCallback(() => {
+    if (isDisabled) return;
+
+    onSwipeInteractionStart(transaction.id);
+  }, [isDisabled, onSwipeInteractionStart, transaction.id]);
 
   const handleDeletePress = useCallback(() => {
     if (isDisabled) return;
@@ -187,28 +234,41 @@ function HistoryTransactionItem({
         onMoveShouldSetPanResponder: (_event, gestureState) => {
           if (isDisabled) return false;
 
-          return (
-            Math.abs(gestureState.dx) > 8 &&
-            Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
-          );
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
+        },
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
         },
         onPanResponderGrant: () => {
+          onSwipeInteractionStart(transaction.id);
           translateX.stopAnimation();
         },
         onPanResponderMove: (_event, gestureState) => {
-          if (isDisabled) return;
+          if (isDisabled || !isHorizontallyLockedRef.current) return;
 
-          const nextTranslateX = Math.max(
-            -SWIPE_ACTION_WIDTH,
-            Math.min(SWIPE_ACTION_WIDTH, gestureState.dx),
-          );
-
-          translateX.setValue(nextTranslateX);
+          translateX.setValue(clampSwipeTranslation(gestureState.dx));
         },
         onPanResponderRelease: (_event, gestureState) => {
+          const wasHorizontallyLocked = isHorizontallyLockedRef.current;
+          isHorizontallyLockedRef.current = false;
+
+          if (!wasHorizontallyLocked) {
+            closeActions();
+
+            return;
+          }
+
           if (
-            gestureState.dx > SWIPE_ACTION_THRESHOLD ||
-            gestureState.vx > 0.65
+            gestureState.dx > SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx > SWIPE_VELOCITY_THRESHOLD
           ) {
             revealDelete();
 
@@ -216,8 +276,8 @@ function HistoryTransactionItem({
           }
 
           if (
-            gestureState.dx < -SWIPE_ACTION_THRESHOLD ||
-            gestureState.vx < -0.65
+            gestureState.dx < -SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx < -SWIPE_VELOCITY_THRESHOLD
           ) {
             revealEdit();
 
@@ -226,14 +286,33 @@ function HistoryTransactionItem({
 
           closeActions();
         },
-        onPanResponderTerminate: closeActions,
+        onPanResponderTerminationRequest: () =>
+          !isHorizontallyLockedRef.current,
+        onPanResponderTerminate: () => {
+          isHorizontallyLockedRef.current = false;
+          closeActions();
+        },
       }),
-    [closeActions, isDisabled, revealDelete, revealEdit, translateX],
+    [
+      closeActions,
+      isDisabled,
+      onSwipeInteractionStart,
+      revealDelete,
+      revealEdit,
+      transaction.id,
+      translateX,
+    ],
   );
 
   useEffect(() => {
     if (isDisabled) closeActions();
   }, [closeActions, isDisabled]);
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    animateTo(0);
+  }, [animateTo, isOpen]);
 
   const isLeak = transaction.isLeak;
 
@@ -276,6 +355,7 @@ function HistoryTransactionItem({
 
       <Animated.View
         {...panResponder.panHandlers}
+        onTouchStart={handleTouchStart}
         style={[
           styles.transactionCard,
           isLeak ? styles.transactionCardLeak : styles.transactionCardNormal,
@@ -388,6 +468,10 @@ export function HomeScreen() {
     string | null
   >(null);
 
+  const [openSwipeTransactionId, setOpenSwipeTransactionId] = useState<
+    string | null
+  >(null);
+
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
@@ -414,6 +498,40 @@ export function HomeScreen() {
 
     setSelectedPeriod('today');
   }, [selectedPeriod, setSelectedPeriod]);
+
+  useEffect(() => {
+    if (!openSwipeTransactionId) return;
+
+    const isOpenTransactionVisible = filteredTransactions.some(
+      (transaction) => transaction.id === openSwipeTransactionId,
+    );
+
+    if (isOpenTransactionVisible) return;
+
+    setOpenSwipeTransactionId(null);
+  }, [filteredTransactions, openSwipeTransactionId]);
+
+  useEffect(() => {
+    if (!isLoading && deletingTransactionId === null) return;
+
+    setOpenSwipeTransactionId(null);
+  }, [deletingTransactionId, isLoading]);
+
+  const handleSwipeInteractionStart = useCallback((id: string) => {
+    setOpenSwipeTransactionId((currentId) =>
+      currentId === id ? currentId : null,
+    );
+  }, []);
+
+  const handleSwipeOpen = useCallback((id: string) => {
+    setOpenSwipeTransactionId(id);
+  }, []);
+
+  const handleSwipeClose = useCallback((id: string) => {
+    setOpenSwipeTransactionId((currentId) =>
+      currentId === id ? null : currentId,
+    );
+  }, []);
 
   const handleDeleteTransaction = useCallback(
     (id: string) => {
@@ -581,9 +699,13 @@ export function HomeScreen() {
                     categories={categories}
                     isDeleting={isDeletingThisTransaction}
                     isDisabled={isTransactionActionDisabled}
+                    isOpen={openSwipeTransactionId === transaction.id}
                     key={transaction.id}
                     onDelete={handleDeleteTransaction}
                     onEdit={handleEditTransaction}
+                    onSwipeClose={handleSwipeClose}
+                    onSwipeInteractionStart={handleSwipeInteractionStart}
+                    onSwipeOpen={handleSwipeOpen}
                     transaction={transaction}
                   />
                 );
