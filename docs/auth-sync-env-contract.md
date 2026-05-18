@@ -22,6 +22,30 @@ client because they identify public endpoints or app identifiers.
 | `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER` | `com.example.moneyleak`           | iOS bundle identifier used when configuring auth providers.                 |
 | `EXPO_PUBLIC_ANDROID_PACKAGE`       | `com.example.moneyleak`           | Android package name used when configuring auth providers.                  |
 
+## Production / TestFlight Builds
+
+Local `.env` values are enough for local Expo development, but they are not
+enough for TestFlight builds produced by GitHub Actions and EAS. Production
+builds must receive all public client config values from the GitHub/EAS build
+environment:
+
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`
+- `EXPO_PUBLIC_AUTH_REDIRECT_PATH`
+- `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`
+- `EXPO_PUBLIC_ANDROID_PACKAGE`
+
+Expo inlines `EXPO_PUBLIC_*` values into the app bundle at build time. Adding
+or changing these values after a TestFlight build already exists does not update
+that installed build. Create a new production build after public auth config
+changes.
+
+Money Leak's `Release iOS` workflow runs on every push to `main`, but it only
+continues into the real iOS build path when `package.json.version` changes. For
+auth config rebuild hotfixes, bump the app version even when runtime code stays
+unchanged.
+
 ## Values That Must Never Be Committed
 
 Do not commit real secrets to the repo, including:
@@ -83,7 +107,8 @@ Recommended handling:
 - Preview builds: use preview Supabase/provider projects or preview-scoped
   EAS/CI environment values.
 - Production builds: use production Supabase/provider projects and production
-  EAS/CI environment values.
+  EAS/CI environment values, then create a new build so Expo can bake the
+  public values into the app.
 - `.env.example`: keep placeholders only.
 
 ML-56 wires these values into runtime Google auth config only. Backup, restore,

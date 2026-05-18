@@ -12,9 +12,23 @@ This runbook covers the first live CI-driven TestFlight release verification flo
   - `EXPO_ASC_API_KEY_ID`
   - `EXPO_ASC_API_KEY_ISSUER_ID`
   - `EXPO_ASC_API_KEY_P8_BASE64`
+- For Google login builds, the production GitHub/EAS build environment has the
+  required public Expo values configured:
+  - `EXPO_PUBLIC_SUPABASE_URL`
+  - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+  - `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`
+  - `EXPO_PUBLIC_AUTH_REDIRECT_PATH`
+  - `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`
+  - `EXPO_PUBLIC_ANDROID_PACKAGE`
 - EAS remote iOS build numbers are already aligned with the latest build number in App Store Connect.
 
 ## First Live Verification Flow
+
+For auth config rebuilds such as ML-57, local `.env` values are not enough.
+Expo bakes `EXPO_PUBLIC_*` values into the native app during the EAS build, so
+adding or changing those values requires a new TestFlight build. The
+`Release iOS` workflow only creates that build when `package.json.version`
+changes.
 
 ### 1. Confirm PR `Validate` passes
 
@@ -58,6 +72,15 @@ Note: `Release iOS` is triggered on every push to `main`. The release path only 
 
 - In TestFlight, confirm the processed build is selectable for distribution.
 - Confirm the version and build number match the release you just merged.
+
+### 8. Confirm ML-57 Google login config on device
+
+- Install the TestFlight build created from version `1.12.1`.
+- Open Settings on a real device and confirm `Continue with Google` appears.
+- Tap `Continue with Google` and confirm login succeeds, or that any provider
+  or config failure uses safe copy without exposing URLs, keys, tokens, or
+  secrets.
+- Sign out and confirm local transactions and categories remain visible.
 
 ## Tester Distribution Paths
 
