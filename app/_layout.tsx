@@ -6,11 +6,18 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 
 import { initDatabase } from '@/db/transactions';
+import { useAuthStore } from '@/store/auth-store';
 
 export default function RootLayout() {
+  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+
   const [areFontsLoaded, fontLoadError] = useFonts({
     NewYork: require('../assets/fonts/NewYork.ttf'),
   });
+
+  useEffect(() => {
+    void initializeAuth();
+  }, [initializeAuth]);
 
   useEffect(() => {
     void initDatabase().catch((error) => {

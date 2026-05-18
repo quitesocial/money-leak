@@ -283,6 +283,39 @@
 - `npx expo config --json` resolves Expo version as `1.11.0`.
 - `git diff --check` passes.
 
+## ML-55: Auth Foundation / Guest Account Architecture
+
+- Auth domain types exist for providers, status, user, session, and safe errors.
+- Auth service and provider adapter interfaces exist without implementing Google, Apple, Supabase, backend, backup, restore, or sync behavior.
+- Guest/no-op auth service restores a token-free local session when one exists and otherwise returns guest mode.
+- Auth session storage uses `expo-secure-store` and does not use AsyncStorage for auth session data.
+- SecureStore unavailable or failing during restore falls back safely to guest mode and does not block local expense tracking.
+- App bootstrap initializes auth from `app/_layout.tsx` without waiting on auth before rendering.
+- Auth initialization does not wipe, relink, or mutate transactions or categories.
+- Feature flags exist and all future auth/sync features remain disabled:
+  `googleAuthEnabled`, `appleAuthEnabled`, `backupEnabled`, `restoreEnabled`,
+  and `incrementalSyncEnabled`.
+- No login wall, account screen, provider button, or navigation route was added.
+- CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- CSV import still accepts CSV v1 and does not require auth.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- No transaction/category SQLite schema changes were made.
+- No Supabase SDK, backend tables, RLS, backup, restore, or sync service was added.
+- No Google Auth or Apple Auth implementation was added.
+- No Supabase service role key or real auth secret was committed.
+- `package.json.version` is bumped intentionally to `1.11.1`.
+- `package-lock.json` top-level and root package version fields are bumped intentionally to `1.11.1`.
+- `app.config.js` is unchanged and continues to read the Expo version from `package.json`.
+- `app.json` includes the minimal `expo-secure-store` config plugin entry required by the Expo installer.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.11.1`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
