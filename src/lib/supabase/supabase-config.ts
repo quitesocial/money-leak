@@ -1,7 +1,5 @@
 import * as Linking from 'expo-linking';
 
-type PublicEnv = Record<string, string | undefined>;
-
 export const SUPABASE_ENV_KEYS = [
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
@@ -12,6 +10,17 @@ export const SUPABASE_ENV_KEYS = [
 ] as const;
 
 export type SupabaseEnvKey = (typeof SUPABASE_ENV_KEYS)[number];
+
+type PublicEnv = Partial<Record<SupabaseEnvKey, string | undefined>>;
+
+type NormalizedPublicEnv = {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  authRedirectScheme: string;
+  authRedirectPath: string;
+  iosBundleIdentifier: string;
+  androidPackage: string;
+};
 
 export type SupabaseClientConfig = {
   supabaseUrl: string;
@@ -44,11 +53,33 @@ export type SupabaseConfigStatus = {
 function getRuntimeEnv(): PublicEnv {
   if (typeof process === 'undefined') return {};
 
-  return process.env;
+  return {
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    EXPO_PUBLIC_AUTH_REDIRECT_SCHEME:
+      process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME,
+    EXPO_PUBLIC_AUTH_REDIRECT_PATH: process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH,
+    EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER:
+      process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER,
+    EXPO_PUBLIC_ANDROID_PACKAGE: process.env.EXPO_PUBLIC_ANDROID_PACKAGE,
+  };
 }
 
-function getEnvValue(env: PublicEnv, key: SupabaseEnvKey) {
-  return env[key]?.trim() ?? '';
+function normalizeEnvValue(value: string | undefined) {
+  return value?.trim() ?? '';
+}
+
+function normalizePublicEnv(env: PublicEnv): NormalizedPublicEnv {
+  return {
+    supabaseUrl: normalizeEnvValue(env.EXPO_PUBLIC_SUPABASE_URL),
+    supabaseAnonKey: normalizeEnvValue(env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
+    authRedirectScheme: normalizeEnvValue(env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME),
+    authRedirectPath: normalizeEnvValue(env.EXPO_PUBLIC_AUTH_REDIRECT_PATH),
+    iosBundleIdentifier: normalizeEnvValue(
+      env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER,
+    ),
+    androidPackage: normalizeEnvValue(env.EXPO_PUBLIC_ANDROID_PACKAGE),
+  };
 }
 
 function isValidUrl(value: string) {
@@ -80,35 +111,36 @@ function isPlaceholderValue(key: SupabaseEnvKey, value: string) {
   return false;
 }
 
-function hasUsableEnvValue(env: PublicEnv, key: SupabaseEnvKey) {
-  const value = getEnvValue(env, key);
-
+function hasUsableEnvValue(key: SupabaseEnvKey, value: string) {
   return value.length > 0 && !isPlaceholderValue(key, value);
 }
 
-export function getSupabaseConfigDiagnostics(
-  env: PublicEnv = getRuntimeEnv(),
+function getSupabaseConfigDiagnosticsFromValues(
+  values: NormalizedPublicEnv,
 ): SupabaseConfigDiagnostics {
-  const hasSupabaseUrl = hasUsableEnvValue(env, 'EXPO_PUBLIC_SUPABASE_URL');
+  const hasSupabaseUrl = hasUsableEnvValue(
+    'EXPO_PUBLIC_SUPABASE_URL',
+    values.supabaseUrl,
+  );
   const hasSupabaseAnonKey = hasUsableEnvValue(
-    env,
     'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+    values.supabaseAnonKey,
   );
   const hasRedirectScheme = hasUsableEnvValue(
-    env,
     'EXPO_PUBLIC_AUTH_REDIRECT_SCHEME',
+    values.authRedirectScheme,
   );
   const hasRedirectPath = hasUsableEnvValue(
-    env,
     'EXPO_PUBLIC_AUTH_REDIRECT_PATH',
+    values.authRedirectPath,
   );
   const hasIosBundleIdentifier = hasUsableEnvValue(
-    env,
     'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
+    values.iosBundleIdentifier,
   );
   const hasAndroidPackage = hasUsableEnvValue(
-    env,
     'EXPO_PUBLIC_ANDROID_PACKAGE',
+    values.androidPackage,
   );
 
   return {
@@ -128,20 +160,106 @@ export function getSupabaseConfigDiagnostics(
   };
 }
 
+export function getSupabaseConfigDiagnostics(
+  env: PublicEnv = getRuntimeEnv(),
+): SupabaseConfigDiagnostics {
+  return getSupabaseConfigDiagnosticsFromValues(normalizePublicEnv(env));
+}
+
+function getMissingKeys(values: NormalizedPublicEnv) {
+  const missingKeys: SupabaseEnvKey[] = [];
+
+  if (values.supabaseUrl.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_SUPABASE_URL');
+  }
+
+  if (values.supabaseAnonKey.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  }
+
+  if (values.authRedirectScheme.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_AUTH_REDIRECT_SCHEME');
+  }
+
+  if (values.authRedirectPath.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_AUTH_REDIRECT_PATH');
+  }
+
+  if (values.iosBundleIdentifier.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER');
+  }
+
+  if (values.androidPackage.length === 0) {
+    missingKeys.push('EXPO_PUBLIC_ANDROID_PACKAGE');
+  }
+
+  return missingKeys;
+}
+
+function getPlaceholderKeys(values: NormalizedPublicEnv) {
+  const placeholderKeys: SupabaseEnvKey[] = [];
+
+  if (
+    values.supabaseUrl.length > 0 &&
+    isPlaceholderValue('EXPO_PUBLIC_SUPABASE_URL', values.supabaseUrl)
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_SUPABASE_URL');
+  }
+
+  if (
+    values.supabaseAnonKey.length > 0 &&
+    isPlaceholderValue('EXPO_PUBLIC_SUPABASE_ANON_KEY', values.supabaseAnonKey)
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_SUPABASE_ANON_KEY');
+  }
+
+  if (
+    values.authRedirectScheme.length > 0 &&
+    isPlaceholderValue(
+      'EXPO_PUBLIC_AUTH_REDIRECT_SCHEME',
+      values.authRedirectScheme,
+    )
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_AUTH_REDIRECT_SCHEME');
+  }
+
+  if (
+    values.authRedirectPath.length > 0 &&
+    isPlaceholderValue(
+      'EXPO_PUBLIC_AUTH_REDIRECT_PATH',
+      values.authRedirectPath,
+    )
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_AUTH_REDIRECT_PATH');
+  }
+
+  if (
+    values.iosBundleIdentifier.length > 0 &&
+    isPlaceholderValue(
+      'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
+      values.iosBundleIdentifier,
+    )
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER');
+  }
+
+  if (
+    values.androidPackage.length > 0 &&
+    isPlaceholderValue('EXPO_PUBLIC_ANDROID_PACKAGE', values.androidPackage)
+  ) {
+    placeholderKeys.push('EXPO_PUBLIC_ANDROID_PACKAGE');
+  }
+
+  return placeholderKeys;
+}
+
 export function getSupabaseConfigStatus(
   env: PublicEnv = getRuntimeEnv(),
 ): SupabaseConfigStatus {
-  const diagnostics = getSupabaseConfigDiagnostics(env);
-
-  const missingKeys = SUPABASE_ENV_KEYS.filter((key) => {
-    return getEnvValue(env, key).length === 0;
-  });
-
-  const placeholderKeys = SUPABASE_ENV_KEYS.filter((key) => {
-    const value = getEnvValue(env, key);
-
-    return value.length > 0 && isPlaceholderValue(key, value);
-  });
+  const values = normalizePublicEnv(env);
+  const diagnostics = getSupabaseConfigDiagnosticsFromValues(values);
+  const missingKeys = getMissingKeys(values);
+  const placeholderKeys = getPlaceholderKeys(values);
 
   if (missingKeys.length > 0 || placeholderKeys.length > 0) {
     return {
@@ -153,27 +271,17 @@ export function getSupabaseConfigStatus(
     };
   }
 
-  const authRedirectScheme = getEnvValue(
-    env,
-    'EXPO_PUBLIC_AUTH_REDIRECT_SCHEME',
-  );
-
-  const authRedirectPath = getEnvValue(env, 'EXPO_PUBLIC_AUTH_REDIRECT_PATH');
-
   return {
     config: {
-      supabaseUrl: getEnvValue(env, 'EXPO_PUBLIC_SUPABASE_URL'),
-      supabaseAnonKey: getEnvValue(env, 'EXPO_PUBLIC_SUPABASE_ANON_KEY'),
-      authRedirectScheme,
-      authRedirectPath,
-      authRedirectUrl: Linking.createURL(authRedirectPath, {
-        scheme: authRedirectScheme,
+      supabaseUrl: values.supabaseUrl,
+      supabaseAnonKey: values.supabaseAnonKey,
+      authRedirectScheme: values.authRedirectScheme,
+      authRedirectPath: values.authRedirectPath,
+      authRedirectUrl: Linking.createURL(values.authRedirectPath, {
+        scheme: values.authRedirectScheme,
       }),
-      iosBundleIdentifier: getEnvValue(
-        env,
-        'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
-      ),
-      androidPackage: getEnvValue(env, 'EXPO_PUBLIC_ANDROID_PACKAGE'),
+      iosBundleIdentifier: values.iosBundleIdentifier,
+      androidPackage: values.androidPackage,
     },
     diagnostics,
     isAvailable: true,

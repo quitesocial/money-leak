@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 
 import {
   getSupabaseConfigDiagnostics,
@@ -27,6 +27,78 @@ const VALID_ENV: Record<SupabaseEnvKey, string> = {
   EXPO_PUBLIC_ANDROID_PACKAGE: 'com.quitesocialorg.moneyleak',
 };
 
+const ORIGINAL_PUBLIC_ENV: Record<SupabaseEnvKey, string | undefined> = {
+  EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  EXPO_PUBLIC_AUTH_REDIRECT_SCHEME:
+    process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME,
+  EXPO_PUBLIC_AUTH_REDIRECT_PATH: process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH,
+  EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER:
+    process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER,
+  EXPO_PUBLIC_ANDROID_PACKAGE: process.env.EXPO_PUBLIC_ANDROID_PACKAGE,
+};
+
+function setRuntimePublicEnv(env: Record<SupabaseEnvKey, string>) {
+  process.env.EXPO_PUBLIC_SUPABASE_URL = env.EXPO_PUBLIC_SUPABASE_URL;
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME =
+    env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME;
+  process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH =
+    env.EXPO_PUBLIC_AUTH_REDIRECT_PATH;
+  process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER =
+    env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER;
+  process.env.EXPO_PUBLIC_ANDROID_PACKAGE = env.EXPO_PUBLIC_ANDROID_PACKAGE;
+}
+
+function restoreRuntimePublicEnv() {
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_SUPABASE_URL === undefined) {
+    delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+  } else {
+    process.env.EXPO_PUBLIC_SUPABASE_URL =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_SUPABASE_URL;
+  }
+
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY === undefined) {
+    delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  } else {
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  }
+
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME === undefined) {
+    delete process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME;
+  } else {
+    process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME;
+  }
+
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_AUTH_REDIRECT_PATH === undefined) {
+    delete process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH;
+  } else {
+    process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_AUTH_REDIRECT_PATH;
+  }
+
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER === undefined) {
+    delete process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER;
+  } else {
+    process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER;
+  }
+
+  if (ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_ANDROID_PACKAGE === undefined) {
+    delete process.env.EXPO_PUBLIC_ANDROID_PACKAGE;
+  } else {
+    process.env.EXPO_PUBLIC_ANDROID_PACKAGE =
+      ORIGINAL_PUBLIC_ENV.EXPO_PUBLIC_ANDROID_PACKAGE;
+  }
+}
+
+afterEach(() => {
+  mockCreateURL.mockClear();
+  restoreRuntimePublicEnv();
+});
+
 describe('Supabase config status', () => {
   it('returns available config when all public env values are real', () => {
     const status = getSupabaseConfigStatus(VALID_ENV);
@@ -52,6 +124,20 @@ describe('Supabase config status', () => {
     });
     expect(status.missingKeys).toEqual([]);
     expect(status.placeholderKeys).toEqual([]);
+  });
+
+  it('reads default runtime env values through static Expo public properties', () => {
+    setRuntimePublicEnv(VALID_ENV);
+
+    const status = getSupabaseConfigStatus();
+
+    expect(status.isAvailable).toBe(true);
+    expect(status.diagnostics.isGoogleAuthConfigAvailable).toBe(true);
+    expect(status.config).toMatchObject({
+      supabaseUrl: VALID_ENV.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: VALID_ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      authRedirectUrl: 'moneyleak://auth/callback',
+    });
   });
 
   it('marks config unavailable when required values are missing', () => {
@@ -118,12 +204,12 @@ describe('Supabase config status', () => {
   });
 
   it('returns boolean-only diagnostics without requiring config creation', () => {
-    expect(
-      getSupabaseConfigDiagnostics({
-        ...VALID_ENV,
-        EXPO_PUBLIC_AUTH_REDIRECT_SCHEME: '',
-      }),
-    ).toEqual({
+    const diagnostics = getSupabaseConfigDiagnostics({
+      ...VALID_ENV,
+      EXPO_PUBLIC_AUTH_REDIRECT_SCHEME: '',
+    });
+
+    expect(diagnostics).toEqual({
       hasSupabaseUrl: true,
       hasSupabaseAnonKey: true,
       hasRedirectScheme: false,
@@ -132,5 +218,10 @@ describe('Supabase config status', () => {
       hasAndroidPackage: true,
       isGoogleAuthConfigAvailable: false,
     });
+    expect(
+      Object.values(diagnostics).every((value) => {
+        return typeof value === 'boolean';
+      }),
+    ).toBe(true);
   });
 });

@@ -483,6 +483,23 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.3`.
 - `git diff --check` passes.
 
+## ML-60: Static Expo Auth Env Read Hotfix
+
+- Auth config reads the required Expo public values through static
+  `process.env.EXPO_PUBLIC_*` property access. Do not use dynamic lookup such
+  as `process.env[key]`, key reducers, or generic `getEnv(key)` helpers for
+  these values because Expo/Metro may not inline them into production JS
+  bundles.
+- Settings Account diagnostics remain in this TestFlight build and show
+  booleans only, never raw URLs, keys, tokens, provider secrets, or
+  `EXPO_PUBLIC_*` values.
+- `package.json.version` is bumped intentionally to `1.12.5`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.5`.
+- A new TestFlight build appears as version `1.12.5`.
+- Real device TestFlight update shows `Continue with Google` when the Expo
+  production environment contains all required public auth values.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
