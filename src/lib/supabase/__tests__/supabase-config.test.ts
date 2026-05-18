@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
 import {
+  getSupabaseConfigDiagnostics,
   getSupabaseConfigStatus,
   type SupabaseEnvKey,
 } from '@/lib/supabase/supabase-config';
@@ -31,6 +32,15 @@ describe('Supabase config status', () => {
     const status = getSupabaseConfigStatus(VALID_ENV);
 
     expect(status.isAvailable).toBe(true);
+    expect(status.diagnostics).toEqual({
+      hasSupabaseUrl: true,
+      hasSupabaseAnonKey: true,
+      hasRedirectScheme: true,
+      hasRedirectPath: true,
+      hasIosBundleIdentifier: true,
+      hasAndroidPackage: true,
+      isGoogleAuthConfigAvailable: true,
+    });
     expect(status.config).toMatchObject({
       supabaseUrl: VALID_ENV.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: VALID_ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY,
@@ -52,6 +62,15 @@ describe('Supabase config status', () => {
     });
 
     expect(status.isAvailable).toBe(false);
+    expect(status.diagnostics).toMatchObject({
+      hasSupabaseUrl: true,
+      hasSupabaseAnonKey: false,
+      hasRedirectScheme: true,
+      hasRedirectPath: true,
+      hasIosBundleIdentifier: true,
+      hasAndroidPackage: false,
+      isGoogleAuthConfigAvailable: false,
+    });
     expect(status.config).toBeNull();
     expect(status.missingKeys).toEqual([
       'EXPO_PUBLIC_SUPABASE_ANON_KEY',
@@ -68,6 +87,15 @@ describe('Supabase config status', () => {
     });
 
     expect(status.isAvailable).toBe(false);
+    expect(status.diagnostics).toMatchObject({
+      hasSupabaseUrl: false,
+      hasSupabaseAnonKey: false,
+      hasRedirectScheme: true,
+      hasRedirectPath: true,
+      hasIosBundleIdentifier: false,
+      hasAndroidPackage: true,
+      isGoogleAuthConfigAvailable: false,
+    });
     expect(status.config).toBeNull();
     expect(status.placeholderKeys).toEqual([
       'EXPO_PUBLIC_SUPABASE_URL',
@@ -83,7 +111,26 @@ describe('Supabase config status', () => {
     });
 
     expect(status.isAvailable).toBe(false);
+    expect(status.diagnostics.hasSupabaseUrl).toBe(false);
+    expect(status.diagnostics.isGoogleAuthConfigAvailable).toBe(false);
     expect(status.config).toBeNull();
     expect(status.placeholderKeys).toEqual(['EXPO_PUBLIC_SUPABASE_URL']);
+  });
+
+  it('returns boolean-only diagnostics without requiring config creation', () => {
+    expect(
+      getSupabaseConfigDiagnostics({
+        ...VALID_ENV,
+        EXPO_PUBLIC_AUTH_REDIRECT_SCHEME: '',
+      }),
+    ).toEqual({
+      hasSupabaseUrl: true,
+      hasSupabaseAnonKey: true,
+      hasRedirectScheme: false,
+      hasRedirectPath: true,
+      hasIosBundleIdentifier: true,
+      hasAndroidPackage: true,
+      isGoogleAuthConfigAvailable: false,
+    });
   });
 });
