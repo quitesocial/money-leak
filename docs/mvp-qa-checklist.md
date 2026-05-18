@@ -439,15 +439,27 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.2`.
 - `git diff --check` passes.
 
-## 1.12.3: EAS Production Environment QA Note
+## ML-59: TestFlight Google Auth Diagnostics
 
 - `eas.json` `build.production.environment` is set to `production`.
+- `npm run release:preflight` fails if
+  `eas.json` `build.production.environment` is not `production`.
 - EAS production builds read the named production environment that contains the
   required public auth values:
   `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
   `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`, `EXPO_PUBLIC_AUTH_REDIRECT_PATH`,
   `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`, and
   `EXPO_PUBLIC_ANDROID_PACKAGE`.
+- When Settings is in guest mode and `Continue with Google` is hidden, Account
+  shows a temporary diagnostics block with only boolean values:
+  `googleAuthEnabled`, `hasSupabaseUrl`, `hasSupabaseAnonKey`,
+  `hasRedirectScheme`, `hasRedirectPath`, `hasIosBundleIdentifier`,
+  `hasAndroidPackage`, and `isGoogleAuthConfigAvailable`.
+- Account diagnostics do not show actual URLs, keys, tokens, OAuth secrets,
+  provider secrets, or raw `EXPO_PUBLIC_*` values.
+- When Google auth is enabled and config is available, normal
+  `Continue with Google` behavior is unchanged and the diagnostics block is not
+  shown.
 - `package.json.version` is bumped intentionally to `1.12.3`.
 - `package-lock.json` top-level and root package version fields are bumped
   intentionally to `1.12.3`.
@@ -455,12 +467,14 @@ Manual owner QA:
   unchanged-version skip path.
 - A new TestFlight build appears as version `1.12.3`.
 - Real device TestFlight update shows `Continue with Google` in Settings.
+- If the Google button is hidden, the Account diagnostics reveal which config
+  gate is false without exposing sensitive values.
 - Google login succeeds or shows a safe provider/config error without exposing
   URLs, keys, tokens, or secrets.
 - Local transactions and categories remain visible after Google login and
   logout.
-- No runtime app code, local schema, CSV format, navigation, auth provider, or
-  sync behavior changed.
+- No local schema, CSV format, navigation, auth provider behavior, or sync
+  behavior changed.
 - `npm run release:preflight` passes.
 - `npm test -- --runInBand` passes.
 - `npm run typecheck` passes.

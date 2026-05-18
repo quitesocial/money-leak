@@ -172,6 +172,20 @@ jest.mock('@/lib/auth/google-auth-adapter', () => ({
   },
 }));
 
+jest.mock('@/lib/supabase/supabase-config', () => ({
+  supabaseConfigStatus: {
+    diagnostics: {
+      hasSupabaseUrl: false,
+      hasSupabaseAnonKey: false,
+      hasRedirectScheme: false,
+      hasRedirectPath: false,
+      hasIosBundleIdentifier: false,
+      hasAndroidPackage: false,
+      isGoogleAuthConfigAvailable: false,
+    },
+  },
+}));
+
 const mockGoogleAuthAdapter = (
   jest.requireMock('@/lib/auth/google-auth-adapter') as {
     googleAuthAdapter: {
@@ -180,6 +194,22 @@ const mockGoogleAuthAdapter = (
     };
   }
 ).googleAuthAdapter;
+
+const mockSupabaseConfigDiagnostics = (
+  jest.requireMock('@/lib/supabase/supabase-config') as {
+    supabaseConfigStatus: {
+      diagnostics: {
+        hasSupabaseUrl: boolean;
+        hasSupabaseAnonKey: boolean;
+        hasRedirectScheme: boolean;
+        hasRedirectPath: boolean;
+        hasIosBundleIdentifier: boolean;
+        hasAndroidPackage: boolean;
+        isGoogleAuthConfigAvailable: boolean;
+      };
+    };
+  }
+).supabaseConfigStatus.diagnostics;
 
 jest.mock('@/store/auth-store', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) => {
@@ -284,6 +314,15 @@ beforeEach(() => {
   mockSetAuthSession.mockResolvedValue(undefined);
   mockSignOut.mockResolvedValue(undefined);
   mockClearAuthError.mockImplementation(() => {});
+  Object.assign(mockSupabaseConfigDiagnostics, {
+    hasSupabaseUrl: false,
+    hasSupabaseAnonKey: false,
+    hasRedirectScheme: false,
+    hasRedirectPath: false,
+    hasIosBundleIdentifier: false,
+    hasAndroidPackage: false,
+    isGoogleAuthConfigAvailable: false,
+  });
   mockGoogleAuthAdapter.isEnabled = true;
   mockGoogleAuthAdapter.signIn.mockResolvedValue(null);
   mockAuthStoreState.status = 'guest';
@@ -359,16 +398,54 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Account');
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).toContain('Continue with Google');
+    expect(text).not.toContain('googleAuthEnabled');
   });
 
-  it('hides Google sign-in when auth config is unavailable', async () => {
+  it('shows safe diagnostics when auth config is unavailable', async () => {
     mockGoogleAuthAdapter.isEnabled = false;
+    Object.assign(mockSupabaseConfigDiagnostics, {
+      hasSupabaseUrl: true,
+      hasSupabaseAnonKey: false,
+      hasRedirectScheme: true,
+      hasRedirectPath: false,
+      hasIosBundleIdentifier: true,
+      hasAndroidPackage: false,
+      isGoogleAuthConfigAvailable: false,
+    });
 
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Continue with Google');
+    expect(text).toContain('googleAuthEnabled: true');
+    expect(text).toContain('hasSupabaseUrl: true');
+    expect(text).toContain('hasSupabaseAnonKey: false');
+    expect(text).toContain('hasRedirectScheme: true');
+    expect(text).toContain('hasRedirectPath: false');
+    expect(text).toContain('hasIosBundleIdentifier: true');
+    expect(text).toContain('hasAndroidPackage: false');
+    expect(text).toContain('isGoogleAuthConfigAvailable: false');
+    expect(text).not.toContain('https://');
+    expect(text).not.toContain('ey-public-anon-key');
+    expect(text).not.toContain('auth/callback');
+    expect(text).not.toContain('com.quitesocialorg.moneyleak');
+    expect(text).not.toContain('EXPO_PUBLIC_');
+  });
+
+  it('does not show diagnostics for authenticated users', async () => {
+    mockGoogleAuthAdapter.isEnabled = false;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Signed in as test@example.com.');
+    expect(text).toContain('Sign Out');
+    expect(text).not.toContain('Continue with Google');
+    expect(text).not.toContain('googleAuthEnabled');
   });
 
   it('persists a token-free session after Google sign-in succeeds', async () => {

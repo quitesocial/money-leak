@@ -114,6 +114,16 @@ runCheck(() => {
 });
 
 runCheck(() => {
+  const environment = easJson?.build?.production?.environment;
+  assertEqual(
+    environment,
+    'production',
+    'eas.json build.production.environment',
+  );
+  ok('eas.json sets build.production.environment to "production"');
+});
+
+runCheck(() => {
   const iosSubmit = easJson?.submit?.production?.ios;
 
   if (!iosSubmit || typeof iosSubmit !== 'object') {
