@@ -201,6 +201,30 @@
 - `npx expo config --json` resolves Expo version as `1.10.3`.
 - `git diff --check` passes.
 
+## ML-52 / Epic 52: Provider / Auth / Sync Config Decision
+
+- `docs/auth-provider-decision.md` exists and documents Supabase Auth as the future auth provider decision.
+- `docs/sync-provider-decision.md` exists and documents Supabase Postgres as the future remote backup/sync provider decision.
+- `docs/auth-sync-env-contract.md` exists and documents future placeholder-only auth/sync config names.
+- `.env.example` contains placeholders only and no real secrets.
+- No runtime auth implementation was added.
+- No backend, account, cloud sync, or provider runtime implementation was added.
+- No Supabase, Firebase, Auth0, Clerk, Google auth, or Apple auth dependency was added.
+- No secrets or Supabase service role key values were committed.
+- CSV v1 remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Shame Card, and Manage Categories remain pushed root Stack screens.
+- `package.json.version` is bumped intentionally to `1.10.4`.
+- `package-lock.json` top-level and root package version fields are bumped intentionally to `1.10.4`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.10.4`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
