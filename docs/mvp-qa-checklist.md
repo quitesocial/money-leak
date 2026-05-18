@@ -179,6 +179,28 @@
 - Footer tabs remain `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
 
+## ML-51: Auth & Sync Readiness Audit
+
+- `docs/auth-sync-audit.md` exists and documents the current local-first auth/sync readiness baseline.
+- `docs/ml-51-handoff.txt` exists and summarizes the audit handoff for the next epic.
+- `package.json.version` is bumped to `1.10.3`.
+- `package-lock.json` top-level and root package version fields are bumped to `1.10.3`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- Runtime app code is unchanged except for documentation and version metadata.
+- Transaction and category TypeScript types are unchanged.
+- SQLite transaction/category schemas are unchanged.
+- CSV import/export format remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No auth, backend, account, cloud sync, or provider dependency was added.
+- Footer tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.10.3`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
