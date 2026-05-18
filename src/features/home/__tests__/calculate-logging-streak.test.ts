@@ -29,6 +29,11 @@ function createTransaction(
     leakReason: null,
     note: null,
     createdAt,
+    ownerId: 'local_test',
+    updatedAt: createdAt,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
     ...rest,
   };
 }

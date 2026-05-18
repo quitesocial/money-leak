@@ -5,7 +5,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { transactionsToCsv } from '@/features/export/export-transactions-csv';
 import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
-import type { Transaction } from '@/types/transaction';
+import type { TransactionInput } from '@/types/transaction';
 
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
@@ -17,7 +17,7 @@ jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn(),
 }));
 
-const NORMAL_TRANSACTION: Transaction = {
+const NORMAL_TRANSACTION: TransactionInput = {
   id: 'txn-normal',
   amount: 12.5,
   category: 'food',
@@ -27,7 +27,7 @@ const NORMAL_TRANSACTION: Transaction = {
   createdAt: 1735732800000,
 };
 
-const LEAK_TRANSACTION: Transaction = {
+const LEAK_TRANSACTION: TransactionInput = {
   id: 'txn-leak',
   amount: 18.4,
   category: 'shopping',
@@ -78,7 +78,7 @@ describe('transactionsToCsv', () => {
   });
 
   it('escapes commas, quotes, CRLF, LF, and embedded newlines inside quoted fields', () => {
-    const transaction: Transaction = {
+    const transaction: TransactionInput = {
       id: 'txn-escape',
       amount: 42,
       category: 'other',
@@ -97,7 +97,7 @@ describe('transactionsToCsv', () => {
   });
 
   it('round-trips exported CSV through the import parser', () => {
-    const transaction: Transaction = {
+    const transaction: TransactionInput = {
       id: 'txn-round-trip',
       amount: 42,
       category: 'other',

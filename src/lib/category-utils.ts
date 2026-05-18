@@ -3,6 +3,7 @@ import {
   DEFAULT_CATEGORIES,
   OTHER_CATEGORY_ID,
   type Category,
+  type CategoryInput,
 } from '@/types/category';
 
 type ValidateCategoryNameArgs = {
@@ -121,7 +122,7 @@ export function createCategoryFromName({
   name,
   categories,
   now = Date.now(),
-}: CreateCategoryFromNameArgs): Category {
+}: CreateCategoryFromNameArgs): CategoryInput {
   const trimmedName = normalizeCategoryName(name);
 
   return {

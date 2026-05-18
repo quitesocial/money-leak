@@ -3,54 +3,72 @@ import {
   type LeakReason,
   type Transaction,
   type TransactionCategory,
+  type TransactionInput,
 } from '@/types/transaction';
 import { ensureArchivedCategoriesForIds } from '@/db/categories.native';
 
+import { ensureLocalIdentity } from './local-identity.native';
 import { getDatabase, initDatabase } from './database.native';
 
 export { initDatabase };
 
 type TransactionRow = {
   id: unknown;
+  owner_id: unknown;
   amount: unknown;
   category: unknown;
   is_leak: unknown;
   leak_reason: unknown;
   note: unknown;
   created_at: unknown;
+  updated_at: unknown;
+  deleted_at: unknown;
+  schema_version: unknown;
+  source_device_id: unknown;
 };
 
 const leakReasonSet = new Set<string>(LEAK_REASONS);
 
-export async function createTransaction(transaction: Transaction) {
+export async function createTransaction(transaction: TransactionInput) {
   await initDatabase();
   await ensureArchivedCategoriesForIds([transaction.category]);
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   await database.runAsync(
     `
       INSERT INTO transactions (
         id,
+        owner_id,
         amount,
         category,
         is_leak,
         leak_reason,
         note,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        created_at,
+        updated_at,
+        deleted_at,
+        schema_version,
+        source_device_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     transaction.id,
+    identity.localOwnerId,
     transaction.amount,
     transaction.category,
     transaction.isLeak ? 1 : 0,
     transaction.leakReason,
     transaction.note,
     transaction.createdAt,
+    transaction.createdAt,
+    null,
+    1,
+    identity.deviceId,
   );
 }
 
-export async function importTransactions(transactions: Transaction[]) {
+export async function importTransactions(transactions: TransactionInput[]) {
   if (!transactions.length) return 0;
 
   await initDatabase();
@@ -60,6 +78,7 @@ export async function importTransactions(transactions: Transaction[]) {
   );
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   let importedCount = 0;
 
@@ -69,21 +88,31 @@ export async function importTransactions(transactions: Transaction[]) {
         `
           INSERT OR IGNORE INTO transactions (
             id,
+            owner_id,
             amount,
             category,
             is_leak,
             leak_reason,
             note,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            created_at,
+            updated_at,
+            deleted_at,
+            schema_version,
+            source_device_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         transaction.id,
+        identity.localOwnerId,
         transaction.amount,
         transaction.category,
         transaction.isLeak ? 1 : 0,
         transaction.leakReason,
         transaction.note,
         transaction.createdAt,
+        transaction.createdAt,
+        null,
+        1,
+        identity.deviceId,
       );
 
       importedCount += result.changes;
@@ -93,11 +122,13 @@ export async function importTransactions(transactions: Transaction[]) {
   return importedCount;
 }
 
-export async function updateTransaction(transaction: Transaction) {
+export async function updateTransaction(transaction: TransactionInput) {
   await initDatabase();
   await ensureArchivedCategoriesForIds([transaction.category]);
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  const updatedAt = Date.now();
 
   await database.runAsync(
     `
@@ -107,14 +138,18 @@ export async function updateTransaction(transaction: Transaction) {
         category = ?,
         is_leak = ?,
         leak_reason = ?,
-        note = ?
-      WHERE id = ?
+        note = ?,
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `,
     transaction.amount,
     transaction.category,
     transaction.isLeak ? 1 : 0,
     transaction.leakReason,
     transaction.note,
+    updatedAt,
+    identity.deviceId,
     transaction.id,
   );
 }
@@ -127,13 +162,19 @@ export async function getTransactions() {
     `
       SELECT
         id,
+        owner_id,
         amount,
         category,
         is_leak,
         leak_reason,
         note,
-        created_at
+        created_at,
+        updated_at,
+        deleted_at,
+        schema_version,
+        source_device_id
       FROM transactions
+      WHERE deleted_at IS NULL
       ORDER BY created_at DESC, id DESC
     `,
   );
@@ -145,8 +186,23 @@ export async function deleteTransaction(id: string) {
   await initDatabase();
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  const deletedAt = Date.now();
 
-  await database.runAsync('DELETE FROM transactions WHERE id = ?', id);
+  await database.runAsync(
+    `
+      UPDATE transactions
+      SET
+        deleted_at = ?,
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
+    `,
+    deletedAt,
+    deletedAt,
+    identity.deviceId,
+    id,
+  );
 }
 
 function mapTransactionRow(row: TransactionRow): Transaction {
@@ -154,12 +210,17 @@ function mapTransactionRow(row: TransactionRow): Transaction {
 
   return {
     id: parseString(row.id, 'id'),
+    ownerId: parseString(row.owner_id, 'owner_id'),
     amount: parseNumber(row.amount, 'amount'),
     category: parseTransactionCategory(row.category),
     isLeak: parseBooleanInteger(row.is_leak),
     leakReason: parseLeakReason(row.leak_reason),
     note: parseNullableString(row.note, 'note'),
     createdAt: parseNumber(row.created_at, 'created_at'),
+    updatedAt: parseNumber(row.updated_at, 'updated_at'),
+    deletedAt: parseNullableNumber(row.deleted_at, 'deleted_at'),
+    schemaVersion: parseNumber(row.schema_version, 'schema_version'),
+    sourceDeviceId: parseString(row.source_device_id, 'source_device_id'),
   };
 }
 
@@ -198,6 +259,12 @@ function parseNumber(value: unknown, fieldName: string) {
   }
 
   return value;
+}
+
+function parseNullableNumber(value: unknown, fieldName: string) {
+  if (value === null) return null;
+
+  return parseNumber(value, fieldName);
 }
 
 function parseBooleanInteger(value: unknown) {

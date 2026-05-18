@@ -1,21 +1,21 @@
-import type { Transaction } from '@/types/transaction';
+import type { Transaction, TransactionInput } from '@/types/transaction';
 
 const NATIVE_ONLY_ERROR_MESSAGE =
   'SQLite transaction persistence is only available on native platforms in this build.';
 
 export async function initDatabase() {}
 
-export async function createTransaction(_transaction: Transaction) {
+export async function createTransaction(_transaction: TransactionInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
 export async function importTransactions(
-  _transactions: Transaction[],
+  _transactions: TransactionInput[],
 ): Promise<number> {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
-export async function updateTransaction(_transaction: Transaction) {
+export async function updateTransaction(_transaction: TransactionInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 

@@ -12,6 +12,11 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
     leakReason: 'impulse',
     note: null,
     createdAt: Date.parse('2026-05-01T12:00:00.000Z'),
+    ownerId: 'local_test',
+    updatedAt: Date.parse('2026-05-01T12:00:00.000Z'),
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
     ...overrides,
   };
 }

@@ -2,17 +2,22 @@ import {
   getReadableCategoryNameFromId,
   sortCategories,
 } from '@/lib/category-utils';
-import type { Category } from '@/types/category';
+import type { Category, CategoryInput } from '@/types/category';
 
+import { ensureLocalIdentity } from './local-identity.native';
 import { getDatabase, initDatabase } from './database.native';
 
 type CategoryRow = {
   id: unknown;
+  owner_id: unknown;
   name: unknown;
   created_at: unknown;
   updated_at: unknown;
   is_default: unknown;
   is_archived: unknown;
+  deleted_at: unknown;
+  schema_version: unknown;
+  source_device_id: unknown;
   sort_order: unknown;
 };
 
@@ -34,13 +39,18 @@ export async function getCategories() {
     `
       SELECT
         id,
+        owner_id,
         name,
         created_at,
         updated_at,
         is_default,
         is_archived,
+        deleted_at,
+        schema_version,
+        source_device_id,
         sort_order
       FROM categories
+      WHERE deleted_at IS NULL
       ORDER BY sort_order ASC, created_at ASC, id ASC
     `,
   );
@@ -48,29 +58,38 @@ export async function getCategories() {
   return sortCategories(rows.map(mapCategoryRow));
 }
 
-export async function createCategory(category: Category) {
+export async function createCategory(category: CategoryInput) {
   await initDatabase();
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   await database.runAsync(
     `
       INSERT INTO categories (
         id,
+        owner_id,
         name,
         created_at,
         updated_at,
         is_default,
         is_archived,
+        deleted_at,
+        schema_version,
+        source_device_id,
         sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     category.id,
+    identity.localOwnerId,
     category.name,
     category.createdAt,
     category.updatedAt,
     category.isDefault ? 1 : 0,
     category.isArchived ? 1 : 0,
+    null,
+    1,
+    identity.deviceId,
     category.sortOrder,
   );
 }
@@ -87,17 +106,20 @@ export async function updateCategoryName({
   await initDatabase();
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   await database.runAsync(
     `
       UPDATE categories
       SET
         name = ?,
-        updated_at = ?
-      WHERE id = ?
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `,
     name,
     updatedAt,
+    identity.deviceId,
     id,
   );
 }
@@ -112,16 +134,19 @@ export async function archiveCategory({
   await initDatabase();
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   await database.runAsync(
     `
       UPDATE categories
       SET
         is_archived = 1,
-        updated_at = ?
-      WHERE id = ?
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `,
     updatedAt,
+    identity.deviceId,
     id,
   );
 }
@@ -140,6 +165,7 @@ export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
   await initDatabase();
 
   const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
 
   const existingRows = await database.getAllAsync<CategoryIdRow>(
     'SELECT id FROM categories',
@@ -177,20 +203,28 @@ export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
         `
           INSERT OR IGNORE INTO categories (
             id,
+            owner_id,
             name,
             created_at,
             updated_at,
             is_default,
             is_archived,
+            deleted_at,
+            schema_version,
+            source_device_id,
             sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         categoryId,
+        identity.localOwnerId,
         getReadableCategoryNameFromId(categoryId),
         now,
         now,
         0,
         1,
+        null,
+        1,
+        identity.deviceId,
         nextSortOrder,
       );
 
@@ -204,11 +238,15 @@ function mapCategoryRow(row: CategoryRow): Category {
 
   return {
     id: parseString(row.id, 'id'),
+    ownerId: parseString(row.owner_id, 'owner_id'),
     name: parseString(row.name, 'name'),
     createdAt: parseNumber(row.created_at, 'created_at'),
     updatedAt: parseNumber(row.updated_at, 'updated_at'),
     isDefault: parseBooleanInteger(row.is_default, 'is_default'),
     isArchived: parseBooleanInteger(row.is_archived, 'is_archived'),
+    deletedAt: parseNullableNumber(row.deleted_at, 'deleted_at'),
+    schemaVersion: parseNumber(row.schema_version, 'schema_version'),
+    sourceDeviceId: parseString(row.source_device_id, 'source_device_id'),
     sortOrder: parseNumber(row.sort_order, 'sort_order'),
   };
 }
@@ -236,6 +274,12 @@ function parseNumber(value: unknown, fieldName: string) {
   }
 
   return value;
+}
+
+function parseNullableNumber(value: unknown, fieldName: string) {
+  if (value === null) return null;
+
+  return parseNumber(value, fieldName);
 }
 
 function parseBooleanInteger(value: unknown, fieldName: string) {

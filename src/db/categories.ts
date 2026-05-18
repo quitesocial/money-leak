@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-import type { Category } from '@/types/category';
+import type { Category, CategoryInput } from '@/types/category';
 
 import * as nativeCategories from './categories.native';
 import * as webCategories from './categories.web';
@@ -8,7 +8,7 @@ import * as webCategories from './categories.web';
 type CategoriesModule = {
   initDatabase: () => Promise<void>;
   getCategories: () => Promise<Category[]>;
-  createCategory: (category: Category) => Promise<void>;
+  createCategory: (category: CategoryInput) => Promise<void>;
   updateCategoryName: (input: {
     id: string;
     name: string;

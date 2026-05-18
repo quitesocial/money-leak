@@ -24,6 +24,10 @@ function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
     updatedAt: overrides.updatedAt ?? 1,
     isDefault: overrides.isDefault ?? false,
     isArchived: overrides.isArchived ?? false,
+    ownerId: overrides.ownerId ?? 'local_test',
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test',
     sortOrder: overrides.sortOrder ?? 10,
   };
 }
