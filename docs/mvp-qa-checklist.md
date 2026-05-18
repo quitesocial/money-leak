@@ -400,6 +400,45 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.1`.
 - `git diff --check` passes.
 
+## ML-58: TestFlight Google Auth Config Rebuild Hotfix
+
+- Expo production environment has the required public auth values:
+  `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+  `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`, `EXPO_PUBLIC_AUTH_REDIRECT_PATH`,
+  `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`, and
+  `EXPO_PUBLIC_ANDROID_PACKAGE`.
+- `package.json.version` is bumped intentionally to `1.12.2`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.2`.
+- After merge to `main`, `Release iOS` starts and continues past the
+  unchanged-version skip path.
+- A new TestFlight build appears as version `1.12.2`.
+- Real device TestFlight update shows `Continue with Google` in Settings.
+- Google login succeeds or shows a safe provider/config error without exposing
+  URLs, keys, tokens, or secrets.
+- Local transactions and categories remain visible after Google login and
+  logout.
+- `Sign Out` returns to guest/local mode and does not delete, archive, relink,
+  upload, merge, back up, restore, sync, or mutate local
+  transactions/categories.
+- No Apple Sign-In, backup, restore, incremental sync, Supabase database
+  tables, RLS policies, backend user profile logic, or account linking was
+  added.
+- CSV export still uses exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
+  broad visual redesign was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.2`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
