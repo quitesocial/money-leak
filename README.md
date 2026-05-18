@@ -161,6 +161,24 @@ Configure these repository secrets in `Settings -> Secrets and variables -> Acti
 - `EXPO_ASC_API_KEY_ISSUER_ID`
 - `EXPO_ASC_API_KEY_P8_BASE64`
 
+### Required Public Build Environment
+
+Google login also needs these public Expo client values in the production
+GitHub/EAS build environment:
+
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`
+- `EXPO_PUBLIC_AUTH_REDIRECT_PATH`
+- `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`
+- `EXPO_PUBLIC_ANDROID_PACKAGE`
+
+Local `.env` values only affect local Expo runs and local builds. They are not
+automatically available to the GitHub Actions release build, and
+`EXPO_PUBLIC_*` values are baked into the native app bundle at build time. If
+one of these values is added or changed for TestFlight, merge a new
+`package.json.version` bump so `Release iOS` creates a fresh production build.
+
 ## Pull Request Checks
 
 The repository also includes [`pr-checks.yml`](.github/workflows/pr-checks.yml), a GitHub Actions workflow for pull requests targeting `main`.
