@@ -225,6 +225,33 @@
 - `npx expo config --json` resolves Expo version as `1.10.4`.
 - `git diff --check` passes.
 
+## ML-53: Sync-Ready Data Contract
+
+- `docs/sync-data-contract.md` exists and documents the sync-ready local and remote data contract.
+- Transactions, categories, and settings/storage baselines are covered.
+- Future transaction and category sync-ready fields are documented.
+- The owner model is documented, including `localOwnerId`, `appUserId`, `authUserId`, and `ownerId` behavior.
+- Logout is documented as preserving local data.
+- Soft delete and tombstone behavior is documented, including the current transaction hard-delete risk.
+- Device identity and timestamp normalization rules are documented.
+- Entity `schemaVersion` is documented separately from SQLite migration version.
+- CSV v1 remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+- CSV v1 compatibility is preserved and no sync metadata is added to CSV v1.
+- `docs/ml-53-handoff.txt` exists and summarizes the contract handoff.
+- No runtime auth, backend, account, backup, sync, SQLite schema, or navigation changes were made.
+- No Supabase, Google Auth, Apple Sign-In, or other auth/provider runtime dependency was added.
+- No secrets or Supabase service role key values were committed.
+- `package.json.version` is bumped intentionally to `1.10.5`.
+- `package-lock.json` top-level and root package version fields are bumped intentionally to `1.10.5`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.10.5`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
