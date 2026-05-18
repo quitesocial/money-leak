@@ -7,7 +7,7 @@ export const CATEGORY_NAME_MAX_LENGTH = 32;
 
 export const OTHER_CATEGORY_ID = 'other';
 
-export type Category = {
+export type CategoryInput = {
   id: string;
   name: string;
   createdAt: number;
@@ -15,6 +15,13 @@ export type Category = {
   isDefault: boolean;
   isArchived: boolean;
   sortOrder: number;
+};
+
+export type Category = CategoryInput & {
+  ownerId: string;
+  deletedAt: number | null;
+  schemaVersion: number;
+  sourceDeviceId: string;
 };
 
 export const DEFAULT_CATEGORY_NAMES: Record<
@@ -29,7 +36,7 @@ export const DEFAULT_CATEGORY_NAMES: Record<
   other: 'Other',
 };
 
-export const DEFAULT_CATEGORIES: Category[] = TRANSACTION_CATEGORIES.map(
+export const DEFAULT_CATEGORIES: CategoryInput[] = TRANSACTION_CATEGORIES.map(
   (id, index) => ({
     id,
     name: DEFAULT_CATEGORY_NAMES[id],

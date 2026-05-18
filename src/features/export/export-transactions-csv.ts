@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
-import type { Transaction } from '@/types/transaction';
+import type { TransactionInput } from '@/types/transaction';
 import {
   formatTransactionCreatedAt,
   TRANSACTIONS_CSV_HEADER,
@@ -43,7 +43,7 @@ function getExportErrorMessage(error: unknown) {
   return EXPORT_TRANSACTIONS_ERROR_MESSAGE;
 }
 
-export function transactionsToCsv(transactions: Transaction[]) {
+export function transactionsToCsv(transactions: TransactionInput[]) {
   if (!transactions.length) return TRANSACTIONS_CSV_HEADER;
 
   const rows = transactions.map((transaction) =>
@@ -63,7 +63,7 @@ export function transactionsToCsv(transactions: Transaction[]) {
   return [TRANSACTIONS_CSV_HEADER, ...rows].join('\n');
 }
 
-export async function exportTransactionsCsv(transactions: Transaction[]) {
+export async function exportTransactionsCsv(transactions: TransactionInput[]) {
   const isSharingAvailable = await Sharing.isAvailableAsync();
 
   if (!isSharingAvailable) {

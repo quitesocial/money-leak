@@ -7,7 +7,7 @@ import {
   importTransactions as persistTransactionsImport,
   updateTransaction as persistTransactionUpdate,
 } from '@/db/transactions';
-import type { Transaction } from '@/types/transaction';
+import type { Transaction, TransactionInput } from '@/types/transaction';
 
 type TransactionsStore = {
   transactions: Transaction[];
@@ -15,9 +15,9 @@ type TransactionsStore = {
   isInitialized: boolean;
   error: string | null;
   loadTransactions: () => Promise<void>;
-  addTransaction: (transaction: Transaction) => Promise<void>;
-  importTransactions: (transactions: Transaction[]) => Promise<number>;
-  updateTransaction: (transaction: Transaction) => Promise<void>;
+  addTransaction: (transaction: TransactionInput) => Promise<void>;
+  importTransactions: (transactions: TransactionInput[]) => Promise<number>;
+  updateTransaction: (transaction: TransactionInput) => Promise<void>;
   removeTransaction: (id: string) => Promise<void>;
   clearError: () => void;
 };

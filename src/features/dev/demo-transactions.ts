@@ -1,7 +1,7 @@
 import type {
   LeakReason,
-  Transaction,
   TransactionCategory,
+  TransactionInput,
 } from '@/types/transaction';
 
 type DemoTransactionConfig = {
@@ -89,7 +89,7 @@ function createTransaction({
 }: {
   config: DemoTransactionConfig;
   referenceDate: Date;
-}): Transaction {
+}): TransactionInput {
   const transactionDate = addDays({
     referenceDate,
     days: config.dayOffset,
@@ -113,7 +113,7 @@ function createTransaction({
   };
 }
 
-export function createDemoTransactions(): Transaction[] {
+export function createDemoTransactions(): TransactionInput[] {
   const today = getStartOfDay(getReferenceDate());
 
   // Keep the default Today views populated while the full-history cards

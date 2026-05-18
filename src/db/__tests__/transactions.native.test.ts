@@ -1,0 +1,309 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+
+import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
+import type { TransactionInput } from '@/types/transaction';
+
+import {
+  createTransaction,
+  deleteTransaction,
+  getTransactions,
+  importTransactions,
+  updateTransaction,
+} from '../transactions.native';
+
+const mockInitDatabase = jest.fn<() => Promise<void>>();
+const mockGetDatabase = jest.fn<() => Promise<FakeTransactionsDatabase>>();
+const mockEnsureArchivedCategoriesForIds =
+  jest.fn<(categoryIds: string[]) => Promise<void>>();
+
+const mockEnsureLocalIdentity =
+  jest.fn<() => Promise<{ localOwnerId: string; deviceId: string }>>();
+
+jest.mock('../database.native', () => ({
+  initDatabase: () => mockInitDatabase(),
+  getDatabase: () => mockGetDatabase(),
+}));
+
+jest.mock('../categories.native', () => ({
+  ensureArchivedCategoriesForIds: (categoryIds: string[]) =>
+    mockEnsureArchivedCategoriesForIds(categoryIds),
+}));
+
+jest.mock('../local-identity.native', () => ({
+  ensureLocalIdentity: () => mockEnsureLocalIdentity(),
+}));
+
+type RawTransactionRow = {
+  id: string;
+  owner_id: string;
+  amount: number;
+  category: string;
+  is_leak: number;
+  leak_reason: string | null;
+  note: string | null;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  schema_version: number;
+  source_device_id: string;
+};
+
+class FakeTransactionsDatabase {
+  transactions: RawTransactionRow[] = [];
+
+  async runAsync(source: string, ...params: unknown[]) {
+    if (source.includes('INSERT INTO transactions')) {
+      this.insertTransaction(params, false);
+      return { changes: 1 };
+    }
+
+    if (source.includes('INSERT OR IGNORE INTO transactions')) {
+      return { changes: this.insertTransaction(params, true) ? 1 : 0 };
+    }
+
+    if (source.includes('amount = ?')) {
+      this.updateTransaction(params);
+      return { changes: 1 };
+    }
+
+    if (source.includes('deleted_at = ?')) {
+      this.softDeleteTransaction(params);
+      return { changes: 1 };
+    }
+
+    return { changes: 0 };
+  }
+
+  async getAllAsync<T>(source: string): Promise<T[]> {
+    if (!source.includes('FROM transactions')) return [];
+
+    return this.transactions
+      .filter((transaction) => transaction.deleted_at === null)
+      .sort((firstTransaction, secondTransaction) => {
+        if (secondTransaction.created_at !== firstTransaction.created_at) {
+          return secondTransaction.created_at - firstTransaction.created_at;
+        }
+
+        return secondTransaction.id.localeCompare(firstTransaction.id);
+      }) as T[];
+  }
+
+  async withExclusiveTransactionAsync(
+    callback: (transactionDatabase: FakeTransactionsDatabase) => Promise<void>,
+  ) {
+    await callback(this);
+  }
+
+  private insertTransaction(params: unknown[], ignoreDuplicates: boolean) {
+    const [
+      id,
+      ownerId,
+      amount,
+      category,
+      isLeak,
+      leakReason,
+      note,
+      createdAt,
+      updatedAt,
+      deletedAt,
+      schemaVersion,
+      sourceDeviceId,
+    ] = params;
+
+    if (
+      typeof id !== 'string' ||
+      typeof ownerId !== 'string' ||
+      typeof amount !== 'number' ||
+      typeof category !== 'string' ||
+      typeof isLeak !== 'number' ||
+      typeof createdAt !== 'number' ||
+      typeof updatedAt !== 'number' ||
+      typeof schemaVersion !== 'number' ||
+      typeof sourceDeviceId !== 'string'
+    ) {
+      throw new Error('Invalid transaction insert params.');
+    }
+
+    if (this.transactions.some((transaction) => transaction.id === id)) {
+      if (ignoreDuplicates) return false;
+
+      throw new Error('Duplicate transaction id.');
+    }
+
+    this.transactions.push({
+      id,
+      owner_id: ownerId,
+      amount,
+      category,
+      is_leak: isLeak,
+      leak_reason: typeof leakReason === 'string' ? leakReason : null,
+      note: typeof note === 'string' ? note : null,
+      created_at: createdAt,
+      updated_at: updatedAt,
+      deleted_at: typeof deletedAt === 'number' ? deletedAt : null,
+      schema_version: schemaVersion,
+      source_device_id: sourceDeviceId,
+    });
+
+    return true;
+  }
+
+  private updateTransaction(params: unknown[]) {
+    const [
+      amount,
+      category,
+      isLeak,
+      leakReason,
+      note,
+      updatedAt,
+      sourceDeviceId,
+      id,
+    ] = params;
+
+    const transaction = this.transactions.find(
+      (currentTransaction) =>
+        currentTransaction.id === id && currentTransaction.deleted_at === null,
+    );
+
+    if (!transaction) return;
+
+    transaction.amount = amount as number;
+    transaction.category = category as string;
+    transaction.is_leak = isLeak as number;
+    transaction.leak_reason = leakReason as string | null;
+    transaction.note = note as string | null;
+    transaction.updated_at = updatedAt as number;
+    transaction.source_device_id = sourceDeviceId as string;
+  }
+
+  private softDeleteTransaction(params: unknown[]) {
+    const [deletedAt, updatedAt, sourceDeviceId, id] = params;
+    const transaction = this.transactions.find(
+      (currentTransaction) =>
+        currentTransaction.id === id && currentTransaction.deleted_at === null,
+    );
+
+    if (!transaction) return;
+
+    transaction.deleted_at = deletedAt as number;
+    transaction.updated_at = updatedAt as number;
+    transaction.source_device_id = sourceDeviceId as string;
+  }
+}
+
+function createTransactionInput(
+  overrides: Partial<TransactionInput> & Pick<TransactionInput, 'id'>,
+): TransactionInput {
+  return {
+    amount: 12.5,
+    category: 'food',
+    isLeak: false,
+    leakReason: null,
+    note: null,
+    createdAt: 1000,
+    ...overrides,
+  };
+}
+
+describe('native transaction persistence', () => {
+  let database: FakeTransactionsDatabase;
+
+  beforeEach(() => {
+    jest.restoreAllMocks();
+
+    database = new FakeTransactionsDatabase();
+
+    mockInitDatabase.mockResolvedValue(undefined);
+    mockGetDatabase.mockResolvedValue(database);
+    mockEnsureArchivedCategoriesForIds.mockResolvedValue(undefined);
+    mockEnsureLocalIdentity.mockResolvedValue({
+      localOwnerId: 'local_test-owner',
+      deviceId: 'device_test-device',
+    });
+  });
+
+  it('adds sync-ready fields to new transaction rows', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-new',
+        createdAt: 1234,
+      }),
+    );
+
+    expect(database.transactions[0]).toMatchObject({
+      id: 'txn-new',
+      owner_id: 'local_test-owner',
+      updated_at: 1234,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+    });
+  });
+
+  it('updates updatedAt when editing a transaction', async () => {
+    await createTransaction(createTransactionInput({ id: 'txn-edit' }));
+
+    jest.spyOn(Date, 'now').mockReturnValue(5000);
+
+    await updateTransaction(
+      createTransactionInput({
+        id: 'txn-edit',
+        amount: 20,
+        category: 'shopping',
+        isLeak: true,
+        leakReason: 'impulse',
+        note: 'Edited',
+      }),
+    );
+
+    expect(database.transactions[0]).toMatchObject({
+      amount: 20,
+      category: 'shopping',
+      is_leak: 1,
+      leak_reason: 'impulse',
+      note: 'Edited',
+      updated_at: 5000,
+      source_device_id: 'device_test-device',
+    });
+  });
+
+  it('hides soft-deleted rows from normal transaction reads', async () => {
+    await createTransaction(createTransactionInput({ id: 'txn-visible' }));
+    await createTransaction(createTransactionInput({ id: 'txn-deleted' }));
+
+    jest.spyOn(Date, 'now').mockReturnValue(6000);
+
+    await deleteTransaction('txn-deleted');
+
+    expect(await getTransactions()).toHaveLength(1);
+    expect((await getTransactions())[0].id).toBe('txn-visible');
+    expect(
+      database.transactions.find((row) => row.id === 'txn-deleted'),
+    ).toMatchObject({
+      deleted_at: 6000,
+      updated_at: 6000,
+    });
+  });
+
+  it('imports CSV v1 rows with local metadata while preserving duplicate ignores', async () => {
+    const { transactions } = parseTransactionsCsv(
+      [
+        'id,amount,category,isLeak,leakReason,note,createdAt',
+        'txn-import,9.5,coffee,false,,,2025-01-01T12:00:00.000Z',
+        'txn-import,10,food,false,,,2025-01-02T12:00:00.000Z',
+      ].join('\n'),
+    );
+
+    await expect(importTransactions(transactions)).resolves.toBe(1);
+
+    expect(database.transactions).toHaveLength(1);
+    expect(database.transactions[0]).toMatchObject({
+      id: 'txn-import',
+      owner_id: 'local_test-owner',
+      updated_at: Date.parse('2025-01-01T12:00:00.000Z'),
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+    });
+  });
+});

@@ -7,7 +7,7 @@ import {
   type TransactionFormSubmissionValues,
 } from '@/features/transaction-form/transaction-form';
 import { useTransactionsStore } from '@/store/transactions-store';
-import type { Transaction } from '@/types/transaction';
+import type { TransactionInput } from '@/types/transaction';
 
 function generateTransactionId() {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -25,7 +25,7 @@ export function AddTransactionScreen() {
   const storeError = useTransactionsStore((state) => state.error);
 
   async function handleSubmit(values: TransactionFormSubmissionValues) {
-    const transaction: Transaction = {
+    const transaction: TransactionInput = {
       id: generateTransactionId(),
       amount: values.amount,
       category: values.category,

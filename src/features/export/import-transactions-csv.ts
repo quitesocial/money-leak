@@ -6,8 +6,8 @@ import { TRANSACTIONS_CSV_COLUMNS } from '@/features/export/transactions-csv-for
 import {
   LEAK_REASONS,
   type LeakReason,
-  type Transaction,
   type TransactionCategory,
+  type TransactionInput,
 } from '@/types/transaction';
 
 const IMPORT_TRANSACTIONS_ERROR_MESSAGE = "Couldn't import CSV. Try again.";
@@ -28,7 +28,7 @@ type TransactionsCsvImportResult =
   | { status: 'cancelled' }
   | {
       status: 'selected';
-      transactions: Transaction[];
+      transactions: TransactionInput[];
       skippedCount: number;
     };
 
@@ -107,7 +107,7 @@ export function parseTransactionsCsv(csvContents: string) {
     throw new Error(INVALID_TRANSACTIONS_CSV_HEADER_ERROR_MESSAGE);
   }
 
-  const transactions: Transaction[] = [];
+  const transactions: TransactionInput[] = [];
 
   let skippedCount = 0;
 

@@ -23,7 +23,7 @@ export type TransactionCategory = string;
 
 export type LeakReason = (typeof LEAK_REASONS)[number];
 
-export type Transaction = {
+export type TransactionInput = {
   id: string;
   amount: number;
   category: TransactionCategory;
@@ -31,4 +31,12 @@ export type Transaction = {
   leakReason: LeakReason | null;
   note: string | null;
   createdAt: number;
+};
+
+export type Transaction = TransactionInput & {
+  ownerId: string;
+  updatedAt: number;
+  deletedAt: number | null;
+  schemaVersion: number;
+  sourceDeviceId: string;
 };

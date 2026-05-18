@@ -1,4 +1,4 @@
-import type { Category } from '@/types/category';
+import type { Category, CategoryInput } from '@/types/category';
 
 const NATIVE_ONLY_ERROR_MESSAGE =
   'SQLite category persistence is only available on native platforms in this build.';
@@ -9,7 +9,7 @@ export async function getCategories(): Promise<Category[]> {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
-export async function createCategory(_category: Category) {
+export async function createCategory(_category: CategoryInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 

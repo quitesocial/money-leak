@@ -12,6 +12,23 @@ format changes.
 SQLite remains the source of truth for the current app UX. Guest/local mode
 remains a permanent product mode.
 
+## ML-54 Implementation Notes
+
+ML-54 implements the local-only foundation described in this contract without
+adding auth, backup, cloud sync, Supabase SDKs, or CSV format changes.
+
+- Native SQLite now has a versioned `schema_migrations` runner.
+- `localOwnerId` and `deviceId` are stored in local SQLite `app_metadata`.
+- Transaction and category rows have local sync-ready metadata columns.
+- Normal reads hide rows with `deletedAt` / `deleted_at` set.
+- Transaction delete now writes a local tombstone instead of physically deleting
+  the row.
+- Category archive remains the product-level hide behavior; category
+  `deletedAt` remains reserved for future sync tombstones.
+- SQLite keeps the physical transaction `category` column for compatibility;
+  it still stores the category ID.
+- CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+
 ## Current Local Baseline
 
 ### Transactions

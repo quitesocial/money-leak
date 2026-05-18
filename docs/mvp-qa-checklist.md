@@ -252,6 +252,37 @@
 - `npx expo config --json` resolves Expo version as `1.10.5`.
 - `git diff --check` passes.
 
+## ML-54: Versioned Local Migrations And Sync-Ready SQLite
+
+- Native SQLite initialization creates `schema_migrations` and records applied local migrations.
+- Running native database initialization more than once does not duplicate or reapply completed migrations.
+- Existing transaction rows keep their data and receive `ownerId`, `updatedAt`, `deletedAt`, `schemaVersion`, and `sourceDeviceId`.
+- Existing category rows keep their data and receive `ownerId`, `deletedAt`, `schemaVersion`, and `sourceDeviceId`.
+- Existing category `updatedAt` values are preserved when valid, otherwise repaired from `createdAt` or the migration time.
+- New transaction rows receive local sync metadata at insert time.
+- Edited transactions refresh `updatedAt`.
+- Deleting a transaction hides it from Home, Analytics, and Shame Card while retaining a local soft-delete tombstone.
+- Category delete/archive behavior remains unchanged: archived categories are hidden from selectors, and `deletedAt` stays reserved for future sync tombstones.
+- CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- CSV import still accepts CSV v1 files and imported rows receive local sync metadata in SQLite.
+- Duplicate CSV import IDs continue to be skipped by `INSERT OR IGNORE`.
+- `localOwnerId` and `deviceId` are stable local SQLite metadata values and are not auth/session tokens.
+- `package.json.version` is bumped intentionally to `1.11.0`.
+- `package-lock.json` top-level and root package version fields are bumped intentionally to `1.11.0`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- No Supabase SDK, auth UI, backend tables, RLS, backup, or sync service was added.
+- No Google Auth or Apple Auth implementation was added.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or Liquid Glass imitation was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.11.0`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
