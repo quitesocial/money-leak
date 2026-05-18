@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import type { AuthSession, AuthUser } from '@/types/auth';
 
-export const AUTH_SESSION_STORAGE_KEY = 'money-leak:auth-session:v1';
+export const AUTH_SESSION_STORAGE_KEY = 'money-leak-auth-session-v1';
 const STORED_AUTH_SESSION_SCHEMA_VERSION = 1;
 
 type StoredAuthSession = {
