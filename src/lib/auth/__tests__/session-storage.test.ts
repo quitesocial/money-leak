@@ -52,6 +52,10 @@ beforeEach(() => {
 });
 
 describe('secure auth session storage', () => {
+  it('uses a SecureStore-compatible key', () => {
+    expect(AUTH_SESSION_STORAGE_KEY).toMatch(/^[\w.-]+$/);
+  });
+
   it('returns null when SecureStore is unavailable', async () => {
     mockIsAvailableAsync.mockResolvedValue(false);
 

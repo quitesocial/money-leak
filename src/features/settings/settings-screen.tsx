@@ -19,6 +19,10 @@ import {
   pickTransactionsCsvImport,
 } from '@/features/export/import-transactions-csv';
 import {
+  getGoogleAuthSafeErrorMessage,
+  googleAuthAdapter,
+} from '@/lib/auth/google-auth-adapter';
+import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
   requestReminderPermissions,
@@ -26,8 +30,10 @@ import {
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
 import { APP_LINKS } from '@/lib/app-links';
+import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { useAuthStore } from '@/store/auth-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 type ImportResult = {
@@ -58,6 +64,13 @@ function formatImportResult({ importedCount, skippedCount }: ImportResult) {
 }
 
 export function SettingsScreen() {
+  const authStatus = useAuthStore((state) => state.status);
+  const authUser = useAuthStore((state) => state.user);
+  const authError = useAuthStore((state) => state.error);
+  const setAuthSession = useAuthStore((state) => state.setSession);
+  const signOut = useAuthStore((state) => state.signOut);
+  const clearAuthError = useAuthStore((state) => state.clearAuthError);
+
   const transactions = useTransactionsStore((state) => state.transactions);
 
   const isTransactionsLoading = useTransactionsStore(
@@ -85,8 +98,10 @@ export function SettingsScreen() {
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
+  const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -97,11 +112,16 @@ export function SettingsScreen() {
 
   const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
   const isImportUnsupported = Platform.OS === 'web';
+  const isAuthenticated = authStatus === 'authenticated' && authUser !== null;
+  const isGoogleAuthAvailable =
+    featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled;
 
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
 
   const isDataActionBusy = isExporting || isImporting;
+  const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
+  const isSignOutDisabled = isAuthBusy || authStatus === 'loading';
 
   const isDataPreparing =
     !isTransactionsInitialized || isTransactionsLoading || isDataActionBusy;
@@ -230,6 +250,44 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleGoogleSignInPress() {
+    if (isGoogleAuthDisabled || !isGoogleAuthAvailable) return;
+
+    setIsAuthBusy(true);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      const session = await googleAuthAdapter.signIn();
+
+      if (!session) return;
+
+      await setAuthSession(session);
+    } catch (error) {
+      console.error('Failed to sign in with Google', error);
+      setAccountError(getGoogleAuthSafeErrorMessage(error));
+    } finally {
+      setIsAuthBusy(false);
+    }
+  }
+
+  async function handleSignOutPress() {
+    if (isSignOutDisabled) return;
+
+    setIsAuthBusy(true);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Failed to sign out', error);
+      setAccountError('Could not sign out. Try again.');
+    } finally {
+      setIsAuthBusy(false);
+    }
+  }
+
   async function handleImportPress() {
     if (isImportDisabled) return;
 
@@ -354,6 +412,62 @@ export function SettingsScreen() {
 
           {reminderError ? (
             <Text style={styles.errorText}>{reminderError}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionCopy}>
+            <Text style={styles.sectionTitle}>Account</Text>
+
+            <Text style={styles.sectionBody}>
+              {isAuthenticated
+                ? `Signed in as ${authUser.email ?? authUser.displayName ?? 'Google account'}. Local expense data stays on this device.`
+                : 'Using local guest mode on this device.'}
+            </Text>
+          </View>
+
+          {isAuthenticated ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isSignOutDisabled}
+              onPress={() => {
+                void handleSignOutPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.supportButton,
+                isSignOutDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
+                {isAuthBusy ? 'Signing Out...' : 'Sign Out'}
+              </Text>
+            </Pressable>
+          ) : isGoogleAuthAvailable ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isGoogleAuthDisabled}
+              onPress={() => {
+                void handleGoogleSignInPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.googleButton,
+                isGoogleAuthDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.googleButtonText]}>
+                {isAuthBusy ? 'Opening Google...' : 'Continue with Google'}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {accountError ? (
+            <Text style={styles.errorText}>{accountError}</Text>
+          ) : null}
+
+          {authError ? (
+            <Text style={styles.errorText}>{authError.message}</Text>
           ) : null}
         </View>
 
@@ -608,8 +722,16 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     backgroundColor: '#ffffff',
   },
+  googleButton: {
+    borderWidth: 1,
+    borderColor: '#111827',
+    backgroundColor: '#111827',
+  },
   supportButtonText: {
     color: '#111827',
+  },
+  googleButtonText: {
+    color: '#ffffff',
   },
   exportButtonText: {
     color: '#ffffff',

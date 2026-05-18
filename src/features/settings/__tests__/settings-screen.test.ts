@@ -17,6 +17,12 @@ import {
 
 import { SettingsScreen } from '@/features/settings/settings-screen';
 import { APP_LINKS } from '@/lib/app-links';
+import type {
+  AuthError,
+  AuthSession,
+  AuthStatus,
+  AuthUser,
+} from '@/types/auth';
 
 type MockReminderPermissionStatus =
   | 'granted'
@@ -49,8 +55,44 @@ const mockImportTransactions =
 
 const mockClearError = jest.fn();
 const mockGetTransactionsStoreState = jest.fn();
+const mockSetAuthSession = jest.fn<(_session: AuthSession) => Promise<void>>();
+const mockSignOut = jest.fn<() => Promise<void>>();
+const mockClearAuthError = jest.fn();
 const mockReact = React;
 const mockView = View;
+
+const mockAuthSession: AuthSession = {
+  provider: 'google',
+  createdAt: 1760000000000,
+  expiresAt: null,
+  user: {
+    id: 'auth-user-test',
+    provider: 'google',
+    email: 'test@example.com',
+    displayName: 'Test User',
+    photoUrl: null,
+  },
+};
+
+const mockAuthStoreState: {
+  status: AuthStatus;
+  session: AuthSession | null;
+  user: AuthUser | null;
+  error: AuthError | null;
+  isInitialized: boolean;
+  setSession: (_session: AuthSession) => Promise<void>;
+  signOut: () => Promise<void>;
+  clearAuthError: () => void;
+} = {
+  status: 'guest',
+  session: null,
+  user: null,
+  error: null,
+  isInitialized: true,
+  setSession: mockSetAuthSession,
+  signOut: mockSignOut,
+  clearAuthError: mockClearAuthError,
+};
 
 const mockTransactionsStoreState = {
   transactions: [] as unknown[],
@@ -120,6 +162,31 @@ jest.mock('@/lib/reminder-notifications', () => ({
   },
 }));
 
+jest.mock('@/lib/auth/google-auth-adapter', () => ({
+  getGoogleAuthSafeErrorMessage: () =>
+    "Couldn't continue with Google. Try again.",
+  googleAuthAdapter: {
+    provider: 'google',
+    isEnabled: true,
+    signIn: jest.fn<() => Promise<AuthSession | null>>(),
+  },
+}));
+
+const mockGoogleAuthAdapter = (
+  jest.requireMock('@/lib/auth/google-auth-adapter') as {
+    googleAuthAdapter: {
+      isEnabled: boolean;
+      signIn: jest.MockedFunction<() => Promise<AuthSession | null>>;
+    };
+  }
+).googleAuthAdapter;
+
+jest.mock('@/store/auth-store', () => ({
+  useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) => {
+    return selector(mockAuthStoreState);
+  },
+}));
+
 jest.mock('@/store/transactions-store', () => ({
   useTransactionsStore: Object.assign(
     (selector: (state: typeof mockTransactionsStoreState) => unknown) => {
@@ -184,12 +251,13 @@ async function renderSettingsScreen() {
     throw new Error('Settings screen did not render.');
   }
 
-  return renderer;
+  return renderer as ReactTestRenderer;
 }
 
 async function pressButton(renderer: ReactTestRenderer, label: string) {
   await act(async () => {
     findButton(renderer, label).props.onPress();
+    await Promise.resolve();
     await Promise.resolve();
   });
 }
@@ -213,6 +281,15 @@ beforeEach(() => {
   mockScheduleDailyCheckInReminder.mockResolvedValue(undefined);
   mockCancelDailyCheckInReminder.mockResolvedValue(undefined);
   mockGetTransactionsStoreState.mockReturnValue(mockTransactionsStoreState);
+  mockSetAuthSession.mockResolvedValue(undefined);
+  mockSignOut.mockResolvedValue(undefined);
+  mockClearAuthError.mockImplementation(() => {});
+  mockGoogleAuthAdapter.isEnabled = true;
+  mockGoogleAuthAdapter.signIn.mockResolvedValue(null);
+  mockAuthStoreState.status = 'guest';
+  mockAuthStoreState.session = null;
+  mockAuthStoreState.user = null;
+  mockAuthStoreState.error = null;
   openUrlSpy.mockResolvedValue(undefined);
 });
 
@@ -270,5 +347,63 @@ describe('SettingsScreen support links', () => {
       2,
       'Support contact is not configured.',
     );
+  });
+});
+
+describe('SettingsScreen account section', () => {
+  it('shows guest account state by default', async () => {
+    const renderer = await renderSettingsScreen();
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Account');
+    expect(text).toContain('Using local guest mode on this device.');
+    expect(text).toContain('Continue with Google');
+  });
+
+  it('hides Google sign-in when auth config is unavailable', async () => {
+    mockGoogleAuthAdapter.isEnabled = false;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Using local guest mode on this device.');
+    expect(text).not.toContain('Continue with Google');
+  });
+
+  it('persists a token-free session after Google sign-in succeeds', async () => {
+    mockGoogleAuthAdapter.signIn.mockResolvedValue(mockAuthSession);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Continue with Google');
+
+    expect(mockGoogleAuthAdapter.signIn).toHaveBeenCalledTimes(1);
+    expect(mockSetAuthSession).toHaveBeenCalledWith(mockAuthSession);
+  });
+
+  it('does not persist a session when Google sign-in is cancelled', async () => {
+    mockGoogleAuthAdapter.signIn.mockResolvedValue(null);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Continue with Google');
+
+    expect(mockGoogleAuthAdapter.signIn).toHaveBeenCalledTimes(1);
+    expect(mockSetAuthSession).not.toHaveBeenCalled();
+  });
+
+  it('signs out through the auth store without touching local data stores', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sign Out');
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockImportTransactions).not.toHaveBeenCalled();
+    expect(mockExportTransactionsCsv).not.toHaveBeenCalled();
   });
 });

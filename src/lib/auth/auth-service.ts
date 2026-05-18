@@ -3,7 +3,7 @@ import type { AuthProvider, AuthSession } from '@/types/auth';
 export type AuthProviderAdapter = {
   provider: AuthProvider;
   isEnabled: boolean;
-  signIn: () => Promise<AuthSession>;
+  signIn: () => Promise<AuthSession | null>;
   signOut?: (session: AuthSession) => Promise<void>;
 };
 

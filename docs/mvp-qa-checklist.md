@@ -316,6 +316,48 @@
 - `npx expo config --json` resolves Expo version as `1.11.1`.
 - `git diff --check` passes.
 
+## ML-56: Google Auth v1 Through Supabase
+
+- Settings shows a compact `Account` section.
+- Guest/local mode remains the default when no token-free auth session exists.
+- `Continue with Google` appears only when Google auth is enabled and required public config is present.
+- Tapping `Continue with Google` opens the Supabase/Google OAuth flow in an EAS development build or native iOS build.
+- Canceling or dismissing Google login returns quietly to Settings without an error.
+- Successful Google login returns to the app and shows the signed-in account identity.
+- Google login failure, bad config, or network failure shows safe generic copy without tokens or secrets.
+- Local transactions and categories remain visible and unchanged after login.
+- `Sign Out` returns to guest/local mode and does not delete, archive, relink, upload, merge, back up, restore, sync, or mutate local transactions/categories.
+- App restart restores only the token-free local auth display session added by ML-55; deeper Supabase token-backed session restore hardening remains for ML-57.
+- `.env.example` contains placeholders only and no real secrets.
+- No Supabase service role key, OAuth client secret, provider token, access token, refresh token, ID token, or secret-like value was committed.
+- CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- CSV import still accepts CSV v1 and does not require auth.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not visible bottom tabs.
+- No transaction/category SQLite schema changes or migrations were added.
+- No backup, restore, incremental sync, Supabase database tables, RLS policies, Apple Sign-In, backend user profile logic, or account linking was added.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or broad visual redesign was added.
+- `package.json.version` is bumped intentionally to `1.12.0`.
+- `package-lock.json` top-level and root package version fields are bumped intentionally to `1.12.0`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.0`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Test Google login success on a real device or EAS development/native iOS build.
+- Test Google login cancel/dismiss.
+- Test bad or missing config if practical.
+- Test no-internet or network failure if practical.
+- Verify local data remains visible after login.
+- Verify logout keeps local data.
+- Verify app restart/session behavior and record any ML-57 restore hardening needed.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
