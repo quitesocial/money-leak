@@ -439,6 +439,36 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.2`.
 - `git diff --check` passes.
 
+## 1.12.3: EAS Production Environment QA Note
+
+- `eas.json` `build.production.environment` is set to `production`.
+- EAS production builds read the named production environment that contains the
+  required public auth values:
+  `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+  `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`, `EXPO_PUBLIC_AUTH_REDIRECT_PATH`,
+  `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`, and
+  `EXPO_PUBLIC_ANDROID_PACKAGE`.
+- `package.json.version` is bumped intentionally to `1.12.3`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.3`.
+- After merge to `main`, `Release iOS` starts and continues past the
+  unchanged-version skip path.
+- A new TestFlight build appears as version `1.12.3`.
+- Real device TestFlight update shows `Continue with Google` in Settings.
+- Google login succeeds or shows a safe provider/config error without exposing
+  URLs, keys, tokens, or secrets.
+- Local transactions and categories remain visible after Google login and
+  logout.
+- No runtime app code, local schema, CSV format, navigation, auth provider, or
+  sync behavior changed.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.3`.
+- `git diff --check` passes.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
