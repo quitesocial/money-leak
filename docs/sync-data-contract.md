@@ -29,6 +29,33 @@ adding auth, backup, cloud sync, Supabase SDKs, or CSV format changes.
   it still stores the category ID.
 - CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 
+## ML-64 Implementation Notes
+
+ML-64 adds the hidden backup/sync foundation layer for future manual backup. It
+does not add a production backup button, restore UI, automatic sync, background
+sync, remote merge, delete account, or Apple Sign-In.
+
+- Supabase now has remote backup table DDL for `remote_transactions` and
+  `remote_categories`.
+- Remote rows use `user_id` with `auth.uid()` RLS policies. This concretizes
+  the earlier conceptual remote `owner_id` contract without changing local
+  `ownerId`.
+- Remote primary keys are `(user_id, id)` so the same local row ID cannot
+  collide across users.
+- Remote timestamps are stored as `timestamptz`. The app-side foundation maps
+  local Unix epoch milliseconds to ISO strings for deterministic
+  `timestamptz` writes.
+- Normal backup payloads include active transactions and non-deleted
+  categories. Archived categories are included because archive is product state
+  and preserves transaction references.
+- Normal ML-64 backup payloads do not include tombstones. `deleted_at` remains
+  in the remote schema for soft-delete-compatible future backup/sync work.
+- No `remote_settings` or `sync_metadata` table is created in ML-64. Current
+  settings remain device-local until a later product decision justifies account
+  settings backup.
+- The mobile app still uses only the Supabase anon client boundary. It does not
+  use a service role key.
+
 ## Current Local Baseline
 
 ### Transactions
@@ -310,10 +337,11 @@ Rules:
 - Future soft-deleted rows should not be included in normal CSV v1 export unless
   a separate archival export mode is designed.
 
-## Draft Supabase Remote Contract
+## Supabase Remote Contract
 
-Supabase Postgres is the future remote backup/sync provider. This section is
-conceptual only. ML-53 does not create Supabase migrations or RLS policies.
+Supabase Postgres is the future remote backup/sync provider. ML-64 creates the
+first remote transaction/category backup table foundation. The tables are not
+wired to production UI or automatic sync.
 
 Required security rule:
 
@@ -321,14 +349,14 @@ Required security rule:
   remotely.
 - The mobile app must never use a Supabase service role key.
 
-Conceptual tables:
+Tables:
 
 ### Profiles / App Users
 
 Expected columns:
 
-- `id` as the normalized `appUserId`
-- `auth_user_id` mapped to Supabase Auth
+- `id` as the Supabase Auth user ID used by the current profile foundation
+- profile display fields needed by authenticated Account UI
 - `created_at`
 - `updated_at`
 - optional account lifecycle fields for later delete-account/privacy work
@@ -338,7 +366,7 @@ Expected columns:
 Expected columns:
 
 - `id`
-- `owner_id`
+- `user_id`
 - `amount`
 - `category_id`
 - `is_leak`
@@ -351,12 +379,22 @@ Expected columns:
 - `source_device_id`
 - later sync metadata only when needed
 
+Remote key and ownership:
+
+- Primary key is `(user_id, id)`.
+- `user_id` references `auth.users(id)` with `on delete cascade`.
+- Row Level Security allows authenticated users to select, insert, update, and
+  delete only rows where `auth.uid()` equals `user_id`.
+- Physical delete is allowed by policy for future account/privacy/manual cleanup
+  needs, but ML-64 app code does not call physical delete. Normal backup/sync
+  design should prefer `deleted_at` soft deletes.
+
 ### `remote_categories`
 
 Expected columns:
 
 - `id`
-- `owner_id`
+- `user_id`
 - `name`
 - `created_at`
 - `updated_at`
@@ -368,9 +406,18 @@ Expected columns:
 - `source_device_id`
 - later sync metadata only when needed
 
+Remote key and ownership:
+
+- Primary key is `(user_id, id)`.
+- `user_id` references `auth.users(id)` with `on delete cascade`.
+- Row Level Security allows authenticated users to select, insert, update, and
+  delete only their own category rows.
+- Archived categories are valid remote records. `deleted_at` is reserved for
+  future tombstones.
+
 ### `remote_settings`
 
-Expected columns:
+Later-only candidate columns:
 
 - `id`
 - `owner_id`
@@ -382,6 +429,7 @@ Expected columns:
 - `source_device_id`
 
 Device-only settings should not be stored in `remote_settings`.
+ML-64 intentionally does not create this table.
 
 ## Now Vs Later
 

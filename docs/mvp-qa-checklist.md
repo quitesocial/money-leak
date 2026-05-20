@@ -733,6 +733,63 @@ Manual owner QA:
 - Verify no raw config values, secrets, tokens, account identifiers, or device
   identifiers are visible in the app, logs, tests, or docs.
 
+## ML-64: Backup/Sync Foundation Layer v1
+
+- `supabase/migrations/20260520010000_create_remote_backup_tables.sql` exists
+  and creates only `remote_transactions` and `remote_categories`.
+- `remote_transactions` and `remote_categories` use `(user_id, id)` composite
+  primary keys and reference `auth.users(id)` with `on delete cascade`.
+- Row Level Security is enabled on both remote backup tables.
+- Anonymous/public table access is revoked, and authenticated users can select,
+  insert, update, and delete only their own rows through `auth.uid()` policies.
+- No `remote_settings`, `sync_metadata`, production backup button, restore UI,
+  automatic sync, background sync, remote merge, delete account, Apple Sign-In,
+  or login-triggered upload was added.
+- Backup/restore/incremental sync feature flags remain disabled.
+- The local backup read boundary reads through existing transaction/category DB
+  boundaries and does not mutate local data.
+- Normal backup payloads include active transactions and non-deleted categories;
+  archived categories are included, and tombstones are not included.
+- Guest mode skips backup without reading local data or calling a remote
+  adapter.
+- Authenticated backup requires a non-empty user id before any adapter write.
+- Fake remote adapter tests use no live Supabase network calls and upsert by
+  `(userId, id)` without duplicates.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No Account diagnostics UI was restored.
+- No raw config values, secrets, tokens, service role keys, account identifiers,
+  local owner ids, or device identifiers are rendered in UI/logs/docs.
+- `package.json.version` is bumped intentionally to `1.12.10`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.10`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.10`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Apply `supabase/migrations/20260520010000_create_remote_backup_tables.sql`
+  manually in the target Supabase project after ML-63 has already been applied.
+- In the Supabase dashboard, confirm only `remote_transactions` and
+  `remote_categories` were added by ML-64.
+- Confirm RLS is enabled for both new tables and anonymous users cannot read or
+  write rows.
+- Confirm an authenticated user can access only rows where `user_id` equals the
+  authenticated Supabase user id.
+- Log in through Google, restart, sign out, and repeat login. Verify local
+  transactions/categories remain visible and no remote transaction/category rows
+  are created by the app.
+- Verify Settings still has no backup/restore/sync button or prompt.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
