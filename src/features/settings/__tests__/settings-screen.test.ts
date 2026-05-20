@@ -79,6 +79,24 @@ type MockRestoreRunResult =
       isRecoverable: true;
     };
 
+type MockDeleteAccountResult =
+  | {
+      status: 'succeeded';
+    }
+  | {
+      status: 'failed';
+      error: {
+        code: string;
+        isRecoverable: true;
+        message: string;
+      };
+    }
+  | {
+      status: 'skipped';
+      skippedReason: string;
+      isRecoverable: true;
+    };
+
 const mockExportTransactionsCsv =
   jest.fn<(_transactions: unknown[]) => Promise<void>>();
 
@@ -98,6 +116,9 @@ const mockRunManualBackup =
 
 const mockRunManualRestore =
   jest.fn<(_input: unknown) => Promise<MockRestoreRunResult>>();
+
+const mockRunDeleteAccount =
+  jest.fn<(_input: unknown) => Promise<MockDeleteAccountResult>>();
 
 const mockHasLocalRestoreData = jest.fn<() => Promise<boolean>>();
 
@@ -235,6 +256,14 @@ jest.mock('@/lib/sync/manual-restore-service', () => ({
     },
     runRestore: (input: unknown) => {
       return mockRunManualRestore(input);
+    },
+  },
+}));
+
+jest.mock('@/lib/account/delete-account-service', () => ({
+  deleteAccountService: {
+    runDeleteAccount: (input: unknown) => {
+      return mockRunDeleteAccount(input);
     },
   },
 }));
@@ -437,6 +466,16 @@ async function pressButton(renderer: ReactTestRenderer, label: string) {
   });
 }
 
+function getLastAlertButtons() {
+  const alertButtons = alertSpy.mock.calls.at(-1)?.[2];
+
+  if (!Array.isArray(alertButtons)) {
+    throw new Error('Confirmation buttons were not rendered.');
+  }
+
+  return alertButtons;
+}
+
 function createDeferred<T>() {
   let resolve: (value: T) => void = () => {};
   let reject: (reason?: unknown) => void = () => {};
@@ -512,6 +551,7 @@ beforeEach(() => {
   mockSetLastSuccessfulBackupAt.mockResolvedValue(undefined);
   mockRunManualBackup.mockResolvedValue(createSucceededBackupResult());
   mockRunManualRestore.mockResolvedValue(createSucceededRestoreResult());
+  mockRunDeleteAccount.mockResolvedValue({ status: 'succeeded' });
   mockHasLocalRestoreData.mockResolvedValue(false);
   mockGetReminderEnabled.mockResolvedValue(false);
   mockSetReminderEnabled.mockResolvedValue(undefined);
@@ -605,6 +645,8 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Continue with Apple');
     expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('Restore from backup');
+    expect(text).not.toContain('Delete cloud account data');
+    expect(text).not.toContain('Delete Account');
     expect(text).not.toContain('googleAuthEnabled');
   });
 
@@ -620,6 +662,8 @@ describe('SettingsScreen account section', () => {
     expect(text).not.toContain('Continue with Apple');
     expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('Restore from backup');
+    expect(text).not.toContain('Delete cloud account data');
+    expect(text).not.toContain('Delete Account');
     expect(text).not.toContain('googleAuthEnabled');
     expect(text).not.toContain('hasSupabaseUrl');
     expect(text).not.toContain('hasSupabaseAnonKey');
@@ -652,6 +696,8 @@ describe('SettingsScreen account section', () => {
 
     expect(text).toContain('Signed in as test@example.com.');
     expect(text).toContain('Sign Out');
+    expect(text).toContain('Privacy');
+    expect(text).toContain('Delete Account');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');
     expect(text).not.toContain('googleAuthEnabled');
@@ -681,6 +727,7 @@ describe('SettingsScreen account section', () => {
 
     expect(text).toContain('Signed in as Apple account.');
     expect(text).toContain('Sign Out');
+    expect(text).toContain('Delete Account');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');
   });
@@ -807,6 +854,151 @@ describe('SettingsScreen account section', () => {
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
     expect(mockImportTransactions).not.toHaveBeenCalled();
     expect(mockExportTransactionsCsv).not.toHaveBeenCalled();
+    expect(mockRunDeleteAccount).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation before deleting cloud account data', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete account data?',
+      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions and categories on this device will stay here.',
+      expect.any(Array),
+    );
+    expect(mockRunDeleteAccount).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('does not delete cloud account data when confirmation is cancelled', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[0].onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRunDeleteAccount).not.toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('deletes cloud account data and then signs out without touching local data actions', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRunDeleteAccount).toHaveBeenCalledWith({
+      auth: {
+        status: 'authenticated',
+        userId: 'auth-user-test',
+      },
+    });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockRunManualBackup).not.toHaveBeenCalled();
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
+    expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
+    expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
+    expect(mockImportTransactions).not.toHaveBeenCalled();
+    expect(mockExportTransactionsCsv).not.toHaveBeenCalled();
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
+  });
+
+  it('shows loading state while deleting cloud account data', async () => {
+    const deferred = createDeferred<MockDeleteAccountResult>();
+
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunDeleteAccount.mockReturnValueOnce(deferred.promise);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+    });
+
+    expect(getNodeText(renderer.root)).toContain('Deleting account...');
+    expect(mockSignOut).not.toHaveBeenCalled();
+
+    await act(async () => {
+      deferred.resolve({ status: 'succeeded' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows generic delete account failure copy without raw backend values', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunDeleteAccount.mockResolvedValueOnce({
+      status: 'failed',
+      error: {
+        code: 'remote_delete_failed',
+        isRecoverable: true,
+        message:
+          'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+      },
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't delete account. Try again.");
+    expect(text).not.toContain('raw backend failure');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 });
 

@@ -1051,6 +1051,78 @@ Manual owner QA:
   decision before release.
 - Confirm guest mode still works after signing out.
 
+## ML-69: Delete Account / Privacy Controls v1
+
+- Settings shows a separate `Privacy` section only when the user is
+  authenticated.
+- Guest/local mode remains available with no login wall and no Delete Account
+  UI.
+- `Delete Account` is separate from `Sign Out`.
+- `Sign Out` behavior remains unchanged and does not call the delete account
+  service.
+- Tapping `Delete Account` shows a destructive confirmation that says cloud
+  account/backup data will be deleted and local transactions/categories on this
+  device will stay.
+- Cancelling the confirmation does not delete remote data and does not sign
+  out.
+- Confirming delete removes rows for the authenticated user from
+  `public.remote_transactions`, `public.remote_categories`, and
+  `public.profiles`, then signs out through the existing auth flow.
+- Delete account uses the existing Supabase anon client and authenticated RLS;
+  no service-role key is used in mobile app code.
+- `public.profiles` has authenticated owner-delete RLS policy coverage.
+- Full Supabase Auth `auth.users` hard-delete is out of scope for ML-69 because
+  it requires a future Edge Function or other server-side admin path.
+- Local SQLite transactions/categories are not deleted, overwritten, unlinked,
+  restored, imported, exported, backed up, or otherwise mutated by Delete
+  Account.
+- After successful delete, the app returns to guest/local mode and existing
+  local data remains visible.
+- No automatic backup, restore, sync, upload, or remote merge is triggered.
+- The running state shows `Deleting account...`.
+- Failure copy is generic: `Couldn't delete account. Try again.`
+- Settings never renders raw env values, Supabase URL, anon key, provider
+  secrets, access tokens, refresh tokens, provider tokens, backend errors, auth
+  IDs, owner IDs, local owner IDs, or device IDs during delete account flows.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `package.json.version` is bumped intentionally to `1.16.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.16.0`.
+- `app.config.js` and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.16.0`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Log in through Google or Apple on a device/build with Supabase auth
+  configured.
+- Create or confirm local transactions/categories are visible.
+- Create a manual backup so remote rows exist for the account.
+- Open Settings and confirm `Privacy` and `Delete Account` are visible while
+  authenticated.
+- Tap `Delete Account`, cancel the confirmation, and confirm no sign out occurs
+  and remote rows remain.
+- Tap `Delete Account` again, confirm deletion, and verify the account's
+  `remote_transactions`, `remote_categories`, and `profiles` rows are removed.
+- Confirm the app returns to guest/local mode after deletion.
+- Confirm the same local transactions/categories remain visible after delete
+  completes.
+- Confirm guest Settings does not show `Privacy` or `Delete Account`.
+- Confirm `Sign Out` still returns to guest/local mode without deleting remote
+  account data.
+- Confirm no automatic backup/restore/sync runs during or after deletion.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
