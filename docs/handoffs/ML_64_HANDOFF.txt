@@ -1,0 +1,114 @@
+ML-64 Backup/Sync Foundation Layer v1 Handoff
+
+Summary
+- Added the hidden backup/sync foundation layer for future manual backup.
+- Added Supabase remote transaction/category backup table DDL with RLS.
+- Added narrow TypeScript sync contracts, a local read boundary, a manual-call
+  backup service skeleton, and a fake in-memory adapter for tests.
+- The app remains local-first. Guest/local mode remains permanently available.
+- No production backup button, restore UI, automatic sync, background sync,
+  remote merge, delete account, Apple Sign-In, login wall, or login-triggered
+  upload was added.
+
+Migration
+- Added supabase/migrations/20260520010000_create_remote_backup_tables.sql.
+- Creates only public.remote_transactions and public.remote_categories.
+- Both tables use user_id uuid references auth.users(id) on delete cascade.
+- Both tables use composite primary keys: (user_id, id).
+- Both tables store remote timestamps as timestamptz.
+- Both tables include deleted_at for future soft-delete-compatible backup/sync.
+- Both tables enable Row Level Security.
+- Anonymous/public access is revoked.
+- Authenticated users can select, insert, update, and delete only their own rows
+  through auth.uid() ownership policies.
+- Physical delete is allowed by policy for future account/privacy/manual cleanup
+  needs, but ML-64 app code does not call physical delete.
+- No remote_settings or sync_metadata table was created.
+
+App changes
+- Added src/lib/sync/sync-types.ts.
+- Added src/lib/sync/local-backup-data-source.ts.
+- Added src/lib/sync/backup-service.ts.
+- Added src/lib/sync/fake-remote-backup-adapter.ts.
+- Backup payload mapping converts local epoch milliseconds to ISO strings for
+  remote timestamptz writes.
+- Local transaction category is mapped to remote categoryId.
+- Normal backup payloads include active transactions and non-deleted categories.
+- Archived categories are included because archive is product state and keeps
+  transaction references intact.
+- Normal ML-64 payloads do not include tombstones.
+- Backup stays disabled by the existing feature flag default.
+- Backup skips safely in guest mode and requires a non-empty authenticated user
+  id before adapter writes.
+- No real Supabase backup adapter was added or wired.
+- No Settings, auth-store, router, Google Auth, Supabase config, redirect, or
+  Account diagnostics UI code was reworked.
+
+Tests
+- Added src/lib/sync/__tests__/backup-service.test.ts.
+- Covered local read boundary filtering, local-to-remote payload mapping,
+  category-to-categoryId mapping, required authenticated user id, guest-mode
+  skip behavior, disabled feature flag behavior, non-mutating payload prep,
+  deleted row exclusion, archived category inclusion, fake adapter idempotent
+  upserts by (userId, id), and safe recoverable local/remote failures.
+- Tests use a fake adapter only and make no live Supabase network calls.
+
+Docs
+- Updated docs/sync-data-contract.md with ML-64 concrete remote schema and
+  payload policy decisions.
+- Updated docs/mvp-qa-checklist.md with ML-64 automated and manual QA.
+- Added this handoff document.
+
+Manual Supabase steps required
+- Apply supabase/migrations/20260520010000_create_remote_backup_tables.sql
+  manually in the target Supabase project after ML-63 has already been applied.
+- Confirm only remote_transactions and remote_categories were added by ML-64.
+- Confirm Row Level Security is enabled on both new tables.
+- Confirm anonymous users cannot read or write either table.
+- Confirm authenticated users can access only rows where user_id equals the
+  authenticated Supabase user id.
+- Run the app, log in with Google, restart, sign out, and log in again. Confirm
+  local transactions/categories remain visible and no remote transaction or
+  category rows are created by the app.
+- Confirm Settings still has no backup, restore, or sync UI.
+
+Validation
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 27 suites and 174 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.12.10.
+- git diff --check: passed.
+
+Regression checks
+- CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- No dynamic process.env[...] access was introduced in src or app.
+- Secret/service-role search found only existing documentation/test placeholder
+  references, not committed real secret values or service role keys.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- Account diagnostics UI was not restored.
+- Feature flags remain disabled for backup, restore, and incremental sync.
+
+Version bump
+- package.json is the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.12.9 to 1.12.10 as a patch release because ML-64 is
+  hidden foundation work with no user-facing backup UI.
+- package-lock.json top-level and root package version fields were updated to
+  1.12.10.
+- app.config.js, app.json, and eas.json were not changed.
+
+Intentionally not done
+- No production backup button.
+- No restore UI or restore prompt.
+- No automatic sync, background sync, incremental sync, remote merge, or upload
+  on login/session restore.
+- No remote settings table, sync metadata table, real Supabase backup adapter,
+  service role code, service role key, backend job, delete account, account
+  deletion, or Apple Sign-In.
+- No CSV v1 format change.
+- No bottom tab change.
+- No Account diagnostics UI.
+- No new dependencies.
