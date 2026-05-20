@@ -15,6 +15,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.quitesocialorg.moneyleak",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
