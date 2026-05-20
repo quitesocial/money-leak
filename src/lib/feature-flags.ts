@@ -1,7 +1,7 @@
 export const featureFlags = {
   googleAuthEnabled: true,
   appleAuthEnabled: false,
-  backupEnabled: false,
+  backupEnabled: true,
   restoreEnabled: false,
   incrementalSyncEnabled: false,
 } as const;

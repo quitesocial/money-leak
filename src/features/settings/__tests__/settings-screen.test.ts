@@ -17,6 +17,7 @@ import {
 
 import { SettingsScreen } from '@/features/settings/settings-screen';
 import { APP_LINKS } from '@/lib/app-links';
+import { featureFlags } from '@/lib/feature-flags';
 import type {
   AuthError,
   AuthSession,
@@ -30,6 +31,28 @@ type MockReminderPermissionStatus =
   | 'undetermined'
   | 'unsupported';
 
+type MockBackupRunResult =
+  | {
+      status: 'succeeded';
+      uploadedTransactionsCount: number;
+      uploadedCategoriesCount: number;
+    }
+  | {
+      status: 'failed';
+      payload: null;
+      error: {
+        code: string;
+        isRecoverable: true;
+        message: string;
+      };
+    }
+  | {
+      status: 'skipped';
+      payload: null;
+      skippedReason: string;
+      isRecoverable: true;
+    };
+
 const mockExportTransactionsCsv =
   jest.fn<(_transactions: unknown[]) => Promise<void>>();
 
@@ -37,8 +60,15 @@ const mockPickTransactionsCsvImport =
   jest.fn<() => Promise<{ status: 'cancelled' }>>();
 
 const mockUseTransactionsRefresh = jest.fn();
+const mockGetLastSuccessfulBackupAt = jest.fn<() => Promise<number | null>>();
+
+const mockSetLastSuccessfulBackupAt =
+  jest.fn<(_timestamp: number) => Promise<void>>();
+
 const mockGetReminderEnabled = jest.fn<() => Promise<boolean>>();
 const mockSetReminderEnabled = jest.fn<(_enabled: boolean) => Promise<void>>();
+const mockRunManualBackup =
+  jest.fn<(_input: unknown) => Promise<MockBackupRunResult>>();
 
 const mockGetReminderPermissionStatus =
   jest.fn<() => Promise<MockReminderPermissionStatus>>();
@@ -138,6 +168,23 @@ jest.mock('@/lib/use-transactions-refresh', () => ({
   },
 }));
 
+jest.mock('@/db/backup-status', () => ({
+  getLastSuccessfulBackupAt: () => {
+    return mockGetLastSuccessfulBackupAt();
+  },
+  setLastSuccessfulBackupAt: (timestamp: number) => {
+    return mockSetLastSuccessfulBackupAt(timestamp);
+  },
+}));
+
+jest.mock('@/lib/sync/manual-backup-service', () => ({
+  manualBackupService: {
+    runBackup: (input: unknown) => {
+      return mockRunManualBackup(input);
+    },
+  },
+}));
+
 jest.mock('@/lib/reminder-storage', () => ({
   getReminderEnabled: () => {
     return mockGetReminderEnabled();
@@ -209,6 +256,14 @@ const mutableAppLinks = APP_LINKS as {
   SUPPORT_EMAIL: string;
 };
 
+const mutableFeatureFlags = featureFlags as {
+  googleAuthEnabled: boolean;
+  appleAuthEnabled: boolean;
+  backupEnabled: boolean;
+  restoreEnabled: boolean;
+  incrementalSyncEnabled: boolean;
+};
+
 function getNodeText(node: any): string {
   if (typeof node === 'string') return node;
 
@@ -262,8 +317,51 @@ async function pressButton(renderer: ReactTestRenderer, label: string) {
   });
 }
 
+function createDeferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+}
+
+function createSucceededBackupResult({
+  uploadedCategoriesCount = 2,
+  uploadedTransactionsCount = 3,
+}: {
+  uploadedCategoriesCount?: number;
+  uploadedTransactionsCount?: number;
+} = {}): MockBackupRunResult {
+  return {
+    status: 'succeeded',
+    uploadedTransactionsCount,
+    uploadedCategoriesCount,
+  };
+}
+
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+
+  mutableFeatureFlags.googleAuthEnabled = true;
+  mutableFeatureFlags.appleAuthEnabled = false;
+  mutableFeatureFlags.backupEnabled = true;
+  mutableFeatureFlags.restoreEnabled = false;
+  mutableFeatureFlags.incrementalSyncEnabled = false;
 
   mutableAppLinks.PRIVACY_POLICY =
     'https://quitesocial.notion.site/35357a24e62c804dab18c28d24a6c75a?source=copy_link';
@@ -274,6 +372,9 @@ beforeEach(() => {
   mockClearError.mockImplementation(() => {});
   mockExportTransactionsCsv.mockResolvedValue(undefined);
   mockPickTransactionsCsvImport.mockResolvedValue({ status: 'cancelled' });
+  mockGetLastSuccessfulBackupAt.mockResolvedValue(null);
+  mockSetLastSuccessfulBackupAt.mockResolvedValue(undefined);
+  mockRunManualBackup.mockResolvedValue(createSucceededBackupResult());
   mockGetReminderEnabled.mockResolvedValue(false);
   mockSetReminderEnabled.mockResolvedValue(undefined);
   mockGetReminderPermissionStatus.mockResolvedValue('granted');
@@ -359,6 +460,7 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Account');
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).toContain('Continue with Google');
+    expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('googleAuthEnabled');
   });
 
@@ -370,6 +472,7 @@ describe('SettingsScreen account section', () => {
 
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Continue with Google');
+    expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('googleAuthEnabled');
     expect(text).not.toContain('hasSupabaseUrl');
     expect(text).not.toContain('hasSupabaseAnonKey');
@@ -441,7 +544,153 @@ describe('SettingsScreen account section', () => {
     await pressButton(renderer, 'Sign Out');
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockRunManualBackup).not.toHaveBeenCalled();
+    expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
     expect(mockImportTransactions).not.toHaveBeenCalled();
     expect(mockExportTransactionsCsv).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsScreen backup section', () => {
+  it('renders backup UI only for authenticated users when backup is enabled', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Backup');
+    expect(text).toContain('Create backup now');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+  });
+
+  it('hides backup UI when the feature flag is disabled', async () => {
+    mutableFeatureFlags.backupEnabled = false;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).not.toContain('Create backup now');
+    expect(mockRunManualBackup).not.toHaveBeenCalled();
+  });
+
+  it('does not let guest mode trigger remote backup writes', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Using local guest mode on this device.');
+    expect(text).not.toContain('Create backup now');
+    expect(mockRunManualBackup).not.toHaveBeenCalled();
+  });
+
+  it('shows loading and success states for manual backup', async () => {
+    const deferred = createDeferred<MockBackupRunResult>();
+
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualBackup.mockReturnValueOnce(deferred.promise);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Create backup now');
+
+    expect(getNodeText(renderer.root)).toContain('Creating backup...');
+    expect(mockRunManualBackup).toHaveBeenCalledWith({
+      auth: {
+        status: 'authenticated',
+        userId: 'auth-user-test',
+      },
+    });
+
+    await act(async () => {
+      deferred.resolve(
+        createSucceededBackupResult({
+          uploadedCategoriesCount: 4,
+          uploadedTransactionsCount: 2,
+        }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain(
+      'Backup created. 2 transactions and 4 categories saved.',
+    );
+    expect(text).toContain('Create backup now');
+    expect(mockSetLastSuccessfulBackupAt).toHaveBeenCalledWith(
+      expect.any(Number),
+    );
+  });
+
+  it('loads and displays the last successful backup timestamp when available', async () => {
+    mockGetLastSuccessfulBackupAt.mockResolvedValueOnce(
+      Date.parse('2026-05-20T12:00:00.000Z'),
+    );
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await flushAsyncWork();
+
+    expect(getNodeText(renderer.root)).toContain('Last backup:');
+  });
+
+  it('shows generic backup failure copy without raw backend values', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualBackup.mockRejectedValueOnce(
+      new Error(
+        'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+      ),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Create backup now');
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't create backup. Try again.");
+    expect(text).not.toContain('raw backend failure');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+  });
+
+  it('shows generic backup failure copy for skipped service results', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualBackup.mockResolvedValueOnce({
+      status: 'skipped',
+      payload: null,
+      skippedReason: 'missing_user_id',
+      isRecoverable: true,
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Create backup now');
+
+    expect(getNodeText(renderer.root)).toContain(
+      "Couldn't create backup. Try again.",
+    );
+    expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,10 @@ import {
   pickTransactionsCsvImport,
 } from '@/features/export/import-transactions-csv';
 import {
+  getLastSuccessfulBackupAt,
+  setLastSuccessfulBackupAt,
+} from '@/db/backup-status';
+import {
   getGoogleAuthSafeErrorMessage,
   googleAuthAdapter,
 } from '@/lib/auth/google-auth-adapter';
@@ -30,8 +34,10 @@ import {
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
 import { APP_LINKS } from '@/lib/app-links';
+import { getValidDate } from '@/lib/date-utils';
 import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
+import { manualBackupService } from '@/lib/sync/manual-backup-service';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useTransactionsStore } from '@/store/transactions-store';
@@ -40,6 +46,18 @@ type ImportResult = {
   importedCount: number;
   skippedCount: number;
 };
+
+type BackupResult = {
+  uploadedTransactionsCount: number;
+  uploadedCategoriesCount: number;
+};
+
+const lastBackupFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 function getReminderPermissionError(
   permissionStatus: ReminderPermissionStatus,
@@ -55,12 +73,31 @@ function getReminderPermissionError(
   return 'Allow notifications to get the daily check-in.';
 }
 
-function formatCountLabel(count: number, singularLabel: string) {
-  return `${count} ${singularLabel}${count === 1 ? '' : 's'}`;
+function formatCountLabel(
+  count: number,
+  singularLabel: string,
+  pluralLabel = `${singularLabel}s`,
+) {
+  return `${count} ${count === 1 ? singularLabel : pluralLabel}`;
 }
 
 function formatImportResult({ importedCount, skippedCount }: ImportResult) {
   return `Imported ${formatCountLabel(importedCount, 'transaction')}. Skipped ${formatCountLabel(skippedCount, 'row')}.`;
+}
+
+function formatBackupResult({
+  uploadedCategoriesCount,
+  uploadedTransactionsCount,
+}: BackupResult) {
+  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')} and ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')} saved.`;
+}
+
+function formatLastBackup(timestamp: number) {
+  const date = getValidDate(timestamp);
+
+  if (!date) return null;
+
+  return `Last backup: ${lastBackupFormatter.format(date)}`;
 }
 
 export function SettingsScreen() {
@@ -99,9 +136,15 @@ export function SettingsScreen() {
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
+  const [lastSuccessfulBackupAt, setLastSuccessfulBackupAtState] = useState<
+    number | null
+  >(null);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -115,11 +158,13 @@ export function SettingsScreen() {
   const isAuthenticated = authStatus === 'authenticated' && authUser !== null;
   const isGoogleAuthAvailable =
     featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled;
+  const shouldShowBackup = featureFlags.backupEnabled && isAuthenticated;
 
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
 
   const isDataActionBusy = isExporting || isImporting;
+  const isBackupDisabled = isBackingUp || !shouldShowBackup;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isSignOutDisabled = isAuthBusy || authStatus === 'loading';
 
@@ -142,6 +187,11 @@ export function SettingsScreen() {
           ? 'Your local transaction history could not be fully prepared on this platform.'
           : 'Your local transaction history could not be fully prepared. Import can still restore a Money Leak CSV backup.'
         : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.';
+
+  const lastBackupText =
+    lastSuccessfulBackupAt === null
+      ? null
+      : formatLastBackup(lastSuccessfulBackupAt);
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -175,6 +225,30 @@ export function SettingsScreen() {
         if (isMounted) {
           setIsReminderLoading(false);
         }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!featureFlags.backupEnabled) return;
+
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const timestamp = await getLastSuccessfulBackupAt();
+
+        if (!isMounted) return;
+
+        setLastSuccessfulBackupAtState(timestamp);
+      } catch {
+        if (!isMounted) return;
+
+        setLastSuccessfulBackupAtState(null);
       }
     })();
 
@@ -268,6 +342,47 @@ export function SettingsScreen() {
       setAccountError(getGoogleAuthSafeErrorMessage(error));
     } finally {
       setIsAuthBusy(false);
+    }
+  }
+
+  async function handleBackupPress() {
+    if (isBackupDisabled) return;
+
+    setIsBackingUp(true);
+    setBackupError(null);
+    setBackupResult(null);
+
+    try {
+      const result = await manualBackupService.runBackup({
+        auth: {
+          status: authStatus,
+          userId: authUser?.id,
+        },
+      });
+
+      if (result.status !== 'succeeded') {
+        setBackupError("Couldn't create backup. Try again.");
+
+        return;
+      }
+
+      const completedAt = Date.now();
+
+      try {
+        await setLastSuccessfulBackupAt(completedAt);
+        setLastSuccessfulBackupAtState(completedAt);
+      } catch {
+        setLastSuccessfulBackupAtState(null);
+      }
+
+      setBackupResult({
+        uploadedTransactionsCount: result.uploadedTransactionsCount,
+        uploadedCategoriesCount: result.uploadedCategoriesCount,
+      });
+    } catch {
+      setBackupError("Couldn't create backup. Try again.");
+    } finally {
+      setIsBackingUp(false);
     }
   }
 
@@ -570,6 +685,50 @@ export function SettingsScreen() {
             <Text style={styles.errorText}>{exportError}</Text>
           ) : null}
         </View>
+
+        {shouldShowBackup ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Backup</Text>
+
+              <Text style={styles.sectionBody}>
+                Save a remote copy of the transactions and categories currently
+                on this device.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isBackupDisabled}
+              onPress={() => {
+                void handleBackupPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.exportButton,
+                isBackupDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
+                {isBackingUp ? 'Creating backup...' : 'Create backup now'}
+              </Text>
+            </Pressable>
+
+            {lastBackupText ? (
+              <Text style={styles.metaText}>{lastBackupText}</Text>
+            ) : null}
+
+            {backupResult ? (
+              <Text style={styles.infoText}>
+                {formatBackupResult(backupResult)}
+              </Text>
+            ) : null}
+
+            {backupError ? (
+              <Text style={styles.errorText}>{backupError}</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionCopy}>

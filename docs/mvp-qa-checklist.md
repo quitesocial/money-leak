@@ -790,6 +790,69 @@ Manual owner QA:
   are created by the app.
 - Verify Settings still has no backup/restore/sync button or prompt.
 
+## ML-65: Manual Backup MVP
+
+- `src/lib/sync/supabase-remote-backup-adapter.ts` exists and implements the
+  existing `RemoteBackupAdapter` contract.
+- Manual backup writes categories to `remote_categories` before transactions to
+  `remote_transactions`.
+- Both remote backup writes use Supabase anon-client auth and
+  `onConflict: 'user_id,id'` upserts.
+- No service-role key or service-role client is used in mobile app code.
+- Local transaction `category` remains mapped to remote `category_id`.
+- Re-running backup upserts existing remote rows instead of creating duplicates.
+- `featureFlags.backupEnabled` is enabled.
+- `restoreEnabled`, `incrementalSyncEnabled`, and `appleAuthEnabled` remain
+  disabled.
+- Settings shows the `Backup` card only when the user is authenticated and the
+  backup feature flag is enabled.
+- Guest/local mode remains available with no login wall and no backup action.
+- The backup button label is `Create backup now`.
+- The running state shows `Creating backup...`.
+- Success copy shows saved transaction/category counts.
+- Failure copy is generic: `Couldn't create backup. Try again.`
+- Settings never renders raw backend errors, auth tokens, public env values,
+  account identifiers, owner identifiers, or device identifiers.
+- Last successful backup time is stored locally in `app_metadata` and shown as
+  `Last backup: ...` when available.
+- Sign Out still does not delete, unlink, upload, restore, merge, or mutate
+  local transactions/categories.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No restore, restore prompt, remote merge, automatic backup, session-restore
+  upload, background sync, incremental sync, delete account, Apple Sign-In,
+  account diagnostics UI, CSV change, visual redesign, or glass styling was
+  added.
+- `package.json.version` is bumped intentionally to `1.13.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.13.0`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.13.0`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Log in through Google.
+- Tap `Create backup now` in Settings.
+- Verify rows appear in `remote_transactions` and `remote_categories`.
+- Run backup twice and confirm there are no duplicate rows by `(user_id, id)`.
+- Add a local transaction and run backup again.
+- Confirm the new transaction is uploaded and existing rows are upserted, not
+  duplicated.
+- Sign out and confirm local transactions/categories remain visible and
+  unchanged.
+- Confirm guest mode has no login wall and no backup action.
+- Confirm restore, sync, automatic upload, delete account, Apple Sign-In, CSV
+  changes, and navigation changes are absent.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

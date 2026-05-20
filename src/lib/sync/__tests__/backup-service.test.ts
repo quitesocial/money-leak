@@ -235,12 +235,13 @@ describe('backup service foundation', () => {
     expect(adapter.getWriteCount()).toBe(0);
   });
 
-  it('keeps backup disabled by default', async () => {
+  it('skips backup when the feature flag is disabled', async () => {
     const adapter = createFakeRemoteBackupAdapter();
     const dataSource = createDataSource();
     const service = createBackupService({
       adapter,
       dataSource,
+      isBackupEnabled: false,
       now: () => TEST_NOW,
     });
 
