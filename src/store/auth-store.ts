@@ -1,5 +1,6 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
+import { linkLocalAccount } from '@/db/account-linking';
 import { createSafeAuthError } from '@/lib/auth/auth-errors';
 import type { AuthService } from '@/lib/auth/auth-service';
 import { supabaseAuthService } from '@/lib/auth/supabase-auth-service';
@@ -12,6 +13,7 @@ import type {
 
 type AuthStoreOptions = {
   authService?: AuthService;
+  linkAccount?: (session: AuthSession) => Promise<unknown>;
 };
 
 export type AuthStore = {
@@ -30,6 +32,7 @@ export type AuthStoreApi = UseBoundStore<StoreApi<AuthStore>>;
 
 export function createAuthStore({
   authService = supabaseAuthService,
+  linkAccount = linkLocalAccount,
 }: AuthStoreOptions = {}): AuthStoreApi {
   let initializePromise: Promise<void> | null = null;
 
@@ -40,7 +43,9 @@ export function createAuthStore({
     error: null,
     isInitialized: false,
 
-    initializeAuth: async () => {
+    // Linking is intentionally post-auth and recoverable. Local app usage and
+    // the authenticated display state must not depend on this finishing.
+    async initializeAuth() {
       if (get().isInitialized) return;
       if (initializePromise) return initializePromise;
 
@@ -68,6 +73,13 @@ export function createAuthStore({
             user: session.user,
             error: null,
             isInitialized: true,
+          });
+
+          void linkAuthenticatedLocalData({
+            get,
+            linkAccount,
+            session,
+            set,
           });
         } catch {
           set({
@@ -100,6 +112,13 @@ export function createAuthStore({
           user: session.user,
           error: null,
           isInitialized: true,
+        });
+
+        void linkAuthenticatedLocalData({
+          get,
+          linkAccount,
+          session,
+          set,
         });
       } catch {
         set({
@@ -147,3 +166,36 @@ export function createAuthStore({
 }
 
 export const useAuthStore = createAuthStore();
+
+async function linkAuthenticatedLocalData({
+  get,
+  linkAccount,
+  session,
+  set,
+}: {
+  get: () => AuthStore;
+  linkAccount: (session: AuthSession) => Promise<unknown>;
+  session: AuthSession;
+  set: StoreApi<AuthStore>['setState'];
+}) {
+  try {
+    await linkAccount(session);
+  } catch {
+    const currentState = get();
+
+    if (
+      currentState.status !== 'authenticated' ||
+      currentState.session?.user.id !== session.user.id
+    ) {
+      return;
+    }
+
+    set({
+      error: createSafeAuthError({
+        code: 'account_link_failed',
+        message:
+          'Your local data is still on this device, but account linking could not finish.',
+      }),
+    });
+  }
+}

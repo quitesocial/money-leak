@@ -600,6 +600,81 @@ Manual owner QA:
 - Verify no raw env values, URLs, anon keys, tokens, OAuth secrets, provider
   secrets, or raw `EXPO_PUBLIC_*` values are visible.
 
+## ML-62: Local Account Linking v1
+
+- Successful auth restore locally relinks transactions owned by `localOwnerId`
+  to the authenticated Money Leak user id.
+- Successful Google login locally relinks transactions owned by `localOwnerId`
+  to the authenticated Money Leak user id.
+- Successful auth restore/login locally relinks categories owned by
+  `localOwnerId` to the authenticated Money Leak user id.
+- Repeated login or restore with the same account is idempotent and does not
+  duplicate transaction or category rows.
+- Rows already owned by the authenticated user stay single rows and are not
+  duplicated.
+- Rows owned by another owner id are not relinked, deleted, or mutated.
+- Soft-deleted transaction tombstones keep `deleted_at` and are relinked so a
+  future sync can still see them.
+- Local account linking writes only safe SQLite `app_metadata` markers such as
+  account-linked user and timestamp metadata; it does not use AsyncStorage.
+- A local account linking failure does not sign the user out and does not block
+  guest/local app usage.
+- `Sign Out` does not unlink, delete, archive, relink, upload, merge, back up,
+  restore, sync, or mutate local transactions/categories/owner ids.
+- Guest/local mode remains permanent; there is no login wall.
+- Local transactions and categories remain visible after login, logout, repeat
+  login, auth restore, and account linking failure.
+- `Continue with Google` remains visible when Google auth is enabled and config
+  is valid.
+- `Continue with Google` remains hidden when config is unavailable, without
+  showing diagnostics labels or raw config values.
+- Settings Account does not show diagnostic booleans such as
+  `googleAuthEnabled`, `hasSupabaseUrl`, `hasSupabaseAnonKey`,
+  `hasRedirectScheme`, `hasRedirectPath`, `hasIosBundleIdentifier`,
+  `hasAndroidPackage`, or `isGoogleAuthConfigAvailable`.
+- Settings Account does not show raw owner ids, local owner ids, device ids,
+  env values, Supabase URL, anon key, OAuth secrets, provider secrets, access
+  tokens, refresh tokens, provider tokens, or raw `EXPO_PUBLIC_*` values.
+- No Google Auth adapter, Supabase config, TestFlight visibility, or redirect
+  configuration was changed.
+- No Apple Sign-In, backup, restore, sync, Supabase database tables, RLS,
+  backend profile logic, account deletion, or remote merge was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
+  Liquid Glass imitation was added.
+- `package.json.version` is bumped intentionally to `1.12.8`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.8`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.8`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Confirm the already-verified ML-61 baseline still holds: `Continue with
+Google` is visible, Google login works, authenticated state/email/user info
+  appears, Sign Out preserves local transactions/categories, and a guest
+  transaction added after Sign Out remains visible after the next login.
+- Add a transaction in guest mode, then log in with Google and verify the
+  transaction remains visible on Home and Analytics.
+- Add or rename a category in guest mode, then log in with Google and verify
+  categories remain available in transaction forms.
+- Sign out, add another guest transaction, log in again with the same Google
+  account, and verify no transactions disappear or duplicate.
+- Restart the app after login and verify Account still shows authenticated
+  state and local data remains visible.
+- Verify no diagnostics UI, raw ids, env values, URLs, anon keys, tokens, OAuth
+  secrets, provider secrets, or raw `EXPO_PUBLIC_*` values are visible.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

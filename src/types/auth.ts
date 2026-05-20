@@ -18,6 +18,7 @@ export type AuthSession = {
 };
 
 export type AuthErrorCode =
+  | 'account_link_failed'
   | 'session_restore_failed'
   | 'session_save_failed'
   | 'sign_out_failed'
