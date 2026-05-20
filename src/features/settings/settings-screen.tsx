@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import {
   Alert,
   Linking,
@@ -27,6 +28,10 @@ import {
   googleAuthAdapter,
 } from '@/lib/auth/google-auth-adapter';
 import {
+  appleAuthAdapter,
+  getAppleAuthSafeErrorMessage,
+} from '@/lib/auth/apple-auth-adapter';
+import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
   requestReminderPermissions,
@@ -43,6 +48,7 @@ import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
+import type { AuthUser } from '@/types/auth';
 
 type ImportResult = {
   importedCount: number;
@@ -114,6 +120,13 @@ function formatLastBackup(timestamp: number) {
   return `Last backup: ${lastBackupFormatter.format(date)}`;
 }
 
+function getAccountDisplayName(user: AuthUser) {
+  if (user.email) return user.email;
+  if (user.displayName) return user.displayName;
+
+  return user.provider === 'apple' ? 'Apple account' : 'Google account';
+}
+
 export function SettingsScreen() {
   const authStatus = useAuthStore((state) => state.status);
   const authUser = useAuthStore((state) => state.user);
@@ -152,6 +165,7 @@ export function SettingsScreen() {
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -180,6 +194,12 @@ export function SettingsScreen() {
   const isAuthenticated = authStatus === 'authenticated' && authUser !== null;
   const isGoogleAuthAvailable =
     featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled;
+  const shouldCheckAppleAuthAvailability =
+    featureFlags.appleAuthEnabled &&
+    appleAuthAdapter.isEnabled &&
+    Platform.OS === 'ios';
+  const shouldShowAppleAuth =
+    shouldCheckAppleAuthAvailability && isAppleAuthAvailable;
   const shouldShowBackup = featureFlags.backupEnabled && isAuthenticated;
   const shouldShowRestore = featureFlags.restoreEnabled && isAuthenticated;
 
@@ -190,6 +210,7 @@ export function SettingsScreen() {
   const isBackupDisabled = isBackingUp || !shouldShowBackup;
   const isRestoreDisabled = isRestoring || !shouldShowRestore;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
+  const isAppleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isSignOutDisabled = isAuthBusy || authStatus === 'loading';
 
   const isDataPreparing =
@@ -281,6 +302,32 @@ export function SettingsScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!shouldCheckAppleAuthAvailability) {
+      setIsAppleAuthAvailable(false);
+
+      return;
+    }
+
+    let isMounted = true;
+
+    void (async () => {
+      const isAvailable = await appleAuthAdapter.isAvailable();
+
+      if (!isMounted) return;
+
+      setIsAppleAuthAvailable(isAvailable);
+    })().catch(() => {
+      if (!isMounted) return;
+
+      setIsAppleAuthAvailable(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldCheckAppleAuthAvailability]);
+
   async function handleReminderToggle(nextEnabled: boolean) {
     if (isReminderDisabled) return;
 
@@ -364,6 +411,26 @@ export function SettingsScreen() {
     } catch (error) {
       console.error('Failed to sign in with Google', error);
       setAccountError(getGoogleAuthSafeErrorMessage(error));
+    } finally {
+      setIsAuthBusy(false);
+    }
+  }
+
+  async function handleAppleSignInPress() {
+    if (isAppleAuthDisabled || !shouldShowAppleAuth) return;
+
+    setIsAuthBusy(true);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      const session = await appleAuthAdapter.signIn();
+
+      if (!session) return;
+
+      await setAuthSession(session);
+    } catch (error) {
+      setAccountError(getAppleAuthSafeErrorMessage(error));
     } finally {
       setIsAuthBusy(false);
     }
@@ -642,7 +709,7 @@ export function SettingsScreen() {
 
             <Text style={styles.sectionBody}>
               {isAuthenticated
-                ? `Signed in as ${authUser.email ?? authUser.displayName ?? 'Google account'}. Local expense data stays on this device.`
+                ? `Signed in as ${getAccountDisplayName(authUser)}. Local expense data stays on this device.`
                 : 'Using local guest mode on this device.'}
             </Text>
           </View>
@@ -664,23 +731,50 @@ export function SettingsScreen() {
                 {isAuthBusy ? 'Signing Out...' : 'Sign Out'}
               </Text>
             </Pressable>
-          ) : isGoogleAuthAvailable ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={isGoogleAuthDisabled}
-              onPress={() => {
-                void handleGoogleSignInPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.googleButton,
-                isGoogleAuthDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.googleButtonText]}>
-                {isAuthBusy ? 'Opening Google...' : 'Continue with Google'}
-              </Text>
-            </Pressable>
+          ) : isGoogleAuthAvailable || shouldShowAppleAuth ? (
+            <View style={styles.authActions}>
+              {isGoogleAuthAvailable ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isGoogleAuthDisabled}
+                  onPress={() => {
+                    void handleGoogleSignInPress();
+                  }}
+                  style={[
+                    styles.dataButton,
+                    styles.googleButton,
+                    isGoogleAuthDisabled ? styles.dataButtonDisabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[styles.dataButtonText, styles.googleButtonText]}
+                  >
+                    {isAuthBusy ? 'Opening Google...' : 'Continue with Google'}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {shouldShowAppleAuth ? (
+                <AppleAuthentication.AppleAuthenticationButton
+                  accessibilityLabel="Continue with Apple"
+                  buttonStyle={
+                    AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                  }
+                  buttonType={
+                    AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+                  }
+                  cornerRadius={12}
+                  onPress={() => {
+                    void handleAppleSignInPress();
+                  }}
+                  pointerEvents={isAppleAuthDisabled ? 'none' : 'auto'}
+                  style={[
+                    styles.appleButton,
+                    isAppleAuthDisabled ? styles.dataButtonDisabled : null,
+                  ]}
+                />
+              ) : null}
+            </View>
           ) : null}
 
           {accountError ? (
@@ -998,6 +1092,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  authActions: {
+    gap: 12,
+  },
   supportActions: {
     gap: 12,
   },
@@ -1037,6 +1134,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#111827',
     backgroundColor: '#111827',
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
   },
   supportButtonText: {
     color: '#111827',

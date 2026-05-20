@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import * as React from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, Linking, Platform, Text, View } from 'react-native';
 import {
   act,
   create,
@@ -121,6 +121,7 @@ const mockSetAuthSession = jest.fn<(_session: AuthSession) => Promise<void>>();
 const mockSignOut = jest.fn<() => Promise<void>>();
 const mockClearAuthError = jest.fn();
 const mockReact = React;
+const mockText = Text;
 const mockView = View;
 
 const mockAuthSession: AuthSession = {
@@ -272,6 +273,45 @@ jest.mock('@/lib/auth/google-auth-adapter', () => ({
   },
 }));
 
+jest.mock('expo-apple-authentication', () => ({
+  AppleAuthenticationButton: ({
+    accessibilityLabel,
+    onPress,
+    style,
+  }: {
+    accessibilityLabel?: string;
+    onPress: () => void;
+    style?: React.ComponentProps<typeof View>['style'];
+  }) => {
+    return mockReact.createElement(
+      mockView as React.ComponentType<any>,
+      {
+        accessibilityLabel,
+        onPress,
+        style,
+      },
+      mockReact.createElement(mockText, null, 'Continue with Apple'),
+    );
+  },
+  AppleAuthenticationButtonStyle: {
+    BLACK: 2,
+  },
+  AppleAuthenticationButtonType: {
+    CONTINUE: 1,
+  },
+}));
+
+jest.mock('@/lib/auth/apple-auth-adapter', () => ({
+  appleAuthAdapter: {
+    provider: 'apple',
+    isEnabled: true,
+    isAvailable: jest.fn<() => Promise<boolean>>(),
+    signIn: jest.fn<() => Promise<AuthSession | null>>(),
+  },
+  getAppleAuthSafeErrorMessage: () =>
+    "Couldn't continue with Apple. Try again.",
+}));
+
 const mockGoogleAuthAdapter = (
   jest.requireMock('@/lib/auth/google-auth-adapter') as {
     googleAuthAdapter: {
@@ -280,6 +320,16 @@ const mockGoogleAuthAdapter = (
     };
   }
 ).googleAuthAdapter;
+
+const mockAppleAuthAdapter = (
+  jest.requireMock('@/lib/auth/apple-auth-adapter') as {
+    appleAuthAdapter: {
+      isEnabled: boolean;
+      isAvailable: jest.MockedFunction<() => Promise<boolean>>;
+      signIn: jest.MockedFunction<() => Promise<AuthSession | null>>;
+    };
+  }
+).appleAuthAdapter;
 
 jest.mock('@/store/auth-store', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) => {
@@ -324,6 +374,15 @@ const mutableFeatureFlags = featureFlags as {
   restoreEnabled: boolean;
   incrementalSyncEnabled: boolean;
 };
+
+const originalPlatformOS = Platform.OS;
+
+function setPlatformOS(os: typeof Platform.OS) {
+  Object.defineProperty(Platform, 'OS', {
+    configurable: true,
+    get: () => os,
+  });
+}
 
 function getNodeText(node: any): string {
   if (typeof node === 'string') return node;
@@ -432,8 +491,9 @@ async function flushAsyncWork() {
 beforeEach(() => {
   jest.clearAllMocks();
 
+  setPlatformOS('ios');
   mutableFeatureFlags.googleAuthEnabled = true;
-  mutableFeatureFlags.appleAuthEnabled = false;
+  mutableFeatureFlags.appleAuthEnabled = true;
   mutableFeatureFlags.backupEnabled = true;
   mutableFeatureFlags.restoreEnabled = true;
   mutableFeatureFlags.incrementalSyncEnabled = false;
@@ -465,6 +525,9 @@ beforeEach(() => {
   mockClearAuthError.mockImplementation(() => {});
   mockGoogleAuthAdapter.isEnabled = true;
   mockGoogleAuthAdapter.signIn.mockResolvedValue(null);
+  mockAppleAuthAdapter.isEnabled = true;
+  mockAppleAuthAdapter.isAvailable.mockResolvedValue(true);
+  mockAppleAuthAdapter.signIn.mockResolvedValue(null);
   mockAuthStoreState.status = 'guest';
   mockAuthStoreState.session = null;
   mockAuthStoreState.user = null;
@@ -473,6 +536,7 @@ beforeEach(() => {
 });
 
 afterAll(() => {
+  setPlatformOS(originalPlatformOS);
   alertSpy.mockRestore();
   consoleErrorSpy.mockRestore();
   openUrlSpy.mockRestore();
@@ -538,6 +602,7 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Account');
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).toContain('Continue with Google');
+    expect(text).toContain('Continue with Apple');
     expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('Restore from backup');
     expect(text).not.toContain('googleAuthEnabled');
@@ -545,12 +610,14 @@ describe('SettingsScreen account section', () => {
 
   it('keeps guest account copy safe when auth config is unavailable', async () => {
     mockGoogleAuthAdapter.isEnabled = false;
+    mockAppleAuthAdapter.isEnabled = false;
 
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Continue with Google');
+    expect(text).not.toContain('Continue with Apple');
     expect(text).not.toContain('Create backup now');
     expect(text).not.toContain('Restore from backup');
     expect(text).not.toContain('googleAuthEnabled');
@@ -586,10 +653,36 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Signed in as test@example.com.');
     expect(text).toContain('Sign Out');
     expect(text).not.toContain('Continue with Google');
+    expect(text).not.toContain('Continue with Apple');
     expect(text).not.toContain('googleAuthEnabled');
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('localOwnerId');
     expect(text).not.toContain('deviceId');
+  });
+
+  it('hides login buttons for authenticated Apple users', async () => {
+    const appleSession: AuthSession = {
+      ...mockAuthSession,
+      provider: 'apple',
+      user: {
+        ...mockAuthSession.user,
+        provider: 'apple',
+        email: null,
+        displayName: null,
+      },
+    };
+
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = appleSession;
+    mockAuthStoreState.user = appleSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Signed in as Apple account.');
+    expect(text).toContain('Sign Out');
+    expect(text).not.toContain('Continue with Google');
+    expect(text).not.toContain('Continue with Apple');
   });
 
   it('persists a token-free session after Google sign-in succeeds', async () => {
@@ -612,6 +705,90 @@ describe('SettingsScreen account section', () => {
 
     expect(mockGoogleAuthAdapter.signIn).toHaveBeenCalledTimes(1);
     expect(mockSetAuthSession).not.toHaveBeenCalled();
+  });
+
+  it('shows Continue with Apple on iOS when native Apple auth is available', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(mockAppleAuthAdapter.isAvailable).toHaveBeenCalledTimes(1);
+    expect(text).toContain('Continue with Apple');
+  });
+
+  it('hides Continue with Apple on non-iOS platforms', async () => {
+    setPlatformOS('android');
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Continue with Google');
+    expect(text).not.toContain('Continue with Apple');
+    expect(mockAppleAuthAdapter.isAvailable).not.toHaveBeenCalled();
+  });
+
+  it('hides Continue with Apple when native availability is false', async () => {
+    mockAppleAuthAdapter.isAvailable.mockResolvedValueOnce(false);
+
+    const renderer = await renderSettingsScreen();
+
+    expect(getNodeText(renderer.root)).not.toContain('Continue with Apple');
+  });
+
+  it('persists a token-free session after Apple sign-in succeeds', async () => {
+    const appleSession: AuthSession = {
+      ...mockAuthSession,
+      provider: 'apple',
+      user: {
+        ...mockAuthSession.user,
+        provider: 'apple',
+        email: 'relay@privaterelay.appleid.com',
+        displayName: null,
+      },
+    };
+
+    mockAppleAuthAdapter.signIn.mockResolvedValue(appleSession);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Continue with Apple');
+
+    expect(mockAppleAuthAdapter.signIn).toHaveBeenCalledTimes(1);
+    expect(mockSetAuthSession).toHaveBeenCalledWith(appleSession);
+  });
+
+  it('does not persist a session when Apple sign-in is cancelled', async () => {
+    mockAppleAuthAdapter.signIn.mockResolvedValue(null);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Continue with Apple');
+
+    expect(mockAppleAuthAdapter.signIn).toHaveBeenCalledTimes(1);
+    expect(mockSetAuthSession).not.toHaveBeenCalled();
+  });
+
+  it('shows safe Apple auth failure copy without raw values', async () => {
+    mockAppleAuthAdapter.signIn.mockRejectedValueOnce(
+      new Error(
+        'raw provider failure apple-identity-token access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL localOwnerId deviceId',
+      ),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Continue with Apple');
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't continue with Apple. Try again.");
+    expect(text).not.toContain('raw provider failure');
+    expect(text).not.toContain('apple-identity-token');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
   });
 
   it('signs out through the auth store without touching local data stores', async () => {
