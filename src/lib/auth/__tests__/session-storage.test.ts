@@ -95,6 +95,9 @@ describe('secure auth session storage', () => {
     });
     expect(storedValue).not.toContain('accessToken');
     expect(storedValue).not.toContain('refreshToken');
+    expect(storedValue).not.toContain('access_token');
+    expect(storedValue).not.toContain('refresh_token');
+    expect(storedValue).not.toContain('provider_token');
   });
 
   it('fails safely when saving without SecureStore availability', async () => {

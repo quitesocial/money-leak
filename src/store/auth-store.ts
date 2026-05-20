@@ -2,7 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
 import { createSafeAuthError } from '@/lib/auth/auth-errors';
 import type { AuthService } from '@/lib/auth/auth-service';
-import { guestAuthService } from '@/lib/auth/guest-auth-service';
+import { supabaseAuthService } from '@/lib/auth/supabase-auth-service';
 import type {
   AuthError,
   AuthSession,
@@ -29,7 +29,7 @@ export type AuthStore = {
 export type AuthStoreApi = UseBoundStore<StoreApi<AuthStore>>;
 
 export function createAuthStore({
-  authService = guestAuthService,
+  authService = supabaseAuthService,
 }: AuthStoreOptions = {}): AuthStoreApi {
   let initializePromise: Promise<void> | null = null;
 
