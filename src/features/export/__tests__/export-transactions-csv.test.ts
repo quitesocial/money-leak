@@ -5,6 +5,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { transactionsToCsv } from '@/features/export/export-transactions-csv';
 import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
+import { TRANSACTIONS_CSV_HEADER } from '@/features/export/transactions-csv-format';
 import type { TransactionInput } from '@/types/transaction';
 
 jest.mock('expo-file-system/legacy', () => ({
@@ -45,6 +46,12 @@ function readCsvFixture(fileName: string) {
 }
 
 describe('transactionsToCsv', () => {
+  it('keeps the CSV v1 header unchanged', () => {
+    expect(TRANSACTIONS_CSV_HEADER).toBe(
+      'id,amount,category,isLeak,leakReason,note,createdAt',
+    );
+  });
+
   it('returns the header only for empty transactions', () => {
     expect(transactionsToCsv([])).toBe(
       'id,amount,category,isLeak,leakReason,note,createdAt',

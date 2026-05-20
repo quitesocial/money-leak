@@ -13,6 +13,12 @@ export async function createCategory(_category: CategoryInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function restoreCategories(
+  _categories: CategoryInput[],
+): Promise<number> {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function updateCategoryName(_input: {
   id: string;
   name: string;

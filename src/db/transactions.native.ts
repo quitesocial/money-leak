@@ -4,6 +4,7 @@ import {
   type Transaction,
   type TransactionCategory,
   type TransactionInput,
+  type TransactionRestoreInput,
 } from '@/types/transaction';
 import { ensureArchivedCategoriesForIds } from '@/db/categories.native';
 
@@ -122,6 +123,62 @@ export async function importTransactions(transactions: TransactionInput[]) {
   return importedCount;
 }
 
+export async function restoreTransactions(
+  transactions: TransactionRestoreInput[],
+) {
+  if (!transactions.length) return 0;
+
+  await initDatabase();
+
+  await ensureArchivedCategoriesForIds(
+    transactions.map((transaction) => transaction.category),
+  );
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+
+  let restoredCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const transaction of transactions) {
+      const result = await transactionDatabase.runAsync(
+        `
+          INSERT OR IGNORE INTO transactions (
+            id,
+            owner_id,
+            amount,
+            category,
+            is_leak,
+            leak_reason,
+            note,
+            created_at,
+            updated_at,
+            deleted_at,
+            schema_version,
+            source_device_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        transaction.id,
+        identity.localOwnerId,
+        transaction.amount,
+        transaction.category,
+        transaction.isLeak ? 1 : 0,
+        transaction.leakReason,
+        transaction.note,
+        transaction.createdAt,
+        transaction.updatedAt,
+        null,
+        1,
+        identity.deviceId,
+      );
+
+      restoredCount += getChangedRowCount(result);
+    }
+  });
+
+  return restoredCount;
+}
+
 export async function updateTransaction(transaction: TransactionInput) {
   await initDatabase();
   await ensureArchivedCategoriesForIds([transaction.category]);
@@ -152,6 +209,12 @@ export async function updateTransaction(transaction: TransactionInput) {
     identity.deviceId,
     transaction.id,
   );
+}
+
+function getChangedRowCount(result: { changes?: unknown }) {
+  return typeof result.changes === 'number' && Number.isFinite(result.changes)
+    ? result.changes
+    : 0;
 }
 
 export async function getTransactions() {

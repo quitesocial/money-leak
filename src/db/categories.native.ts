@@ -94,6 +94,53 @@ export async function createCategory(category: CategoryInput) {
   );
 }
 
+export async function restoreCategories(categories: CategoryInput[]) {
+  if (!categories.length) return 0;
+
+  await initDatabase();
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  let restoredCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const category of categories) {
+      const result = await transactionDatabase.runAsync(
+        `
+          INSERT OR IGNORE INTO categories (
+            id,
+            owner_id,
+            name,
+            created_at,
+            updated_at,
+            is_default,
+            is_archived,
+            deleted_at,
+            schema_version,
+            source_device_id,
+            sort_order
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        category.id,
+        identity.localOwnerId,
+        category.name,
+        category.createdAt,
+        category.updatedAt,
+        category.isDefault ? 1 : 0,
+        category.isArchived ? 1 : 0,
+        null,
+        1,
+        identity.deviceId,
+        category.sortOrder,
+      );
+
+      restoredCount += getChangedRowCount(result);
+    }
+  });
+
+  return restoredCount;
+}
+
 export async function updateCategoryName({
   id,
   name,
@@ -122,6 +169,12 @@ export async function updateCategoryName({
     identity.deviceId,
     id,
   );
+}
+
+function getChangedRowCount(result: { changes?: unknown }) {
+  return typeof result.changes === 'number' && Number.isFinite(result.changes)
+    ? result.changes
+    : 0;
 }
 
 export async function archiveCategory({

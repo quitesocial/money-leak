@@ -853,6 +853,68 @@ Manual owner QA:
 - Confirm restore, sync, automatic upload, delete account, Apple Sign-In, CSV
   changes, and navigation changes are absent.
 
+## ML-66: Restore Backup MVP
+
+- `featureFlags.restoreEnabled` is enabled; `incrementalSyncEnabled` and
+  `appleAuthEnabled` remain disabled.
+- Settings shows the `Restore` card only when the user is authenticated and the
+  restore feature flag is enabled.
+- Guest/local mode remains available with no login wall and no restore action.
+- The restore button label is `Restore from backup`.
+- The running state shows `Restoring backup...`.
+- If local non-deleted transactions or categories exist, Settings shows this
+  confirmation before restore:
+  `This will merge your cloud backup into this device. Existing local data will not be deleted.`
+- Restore reads `remote_categories` and `remote_transactions` through the
+  existing Supabase anon client and current authenticated session/RLS.
+- Restore inserts remote categories first, then remote transactions.
+- Restore is merge-only: existing local rows with the same stable id are not
+  duplicated or overwritten, and local rows missing from remote remain
+  untouched.
+- Empty remote backup copy is
+  `No backup found for this account.`
+- Failure copy is generic:
+  `Couldn't restore backup. Try again.`
+- Settings never renders raw backend errors, auth tokens, public env values,
+  auth ids, owner identifiers, or device identifiers during restore.
+- Sign Out does not trigger restore and does not delete, unlink, upload, merge,
+  or mutate local transactions/categories.
+- No automatic restore on login, session restore, or app start was added.
+- No replace-local-with-cloud, destructive merge, background sync, incremental
+  sync, conflict UI, CSV v2, navigation change, visual redesign, or glass
+  styling was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- `package.json.version` is bumped intentionally to `1.14.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.14.0`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.14.0`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Log in through Google on a device/build with Supabase auth configured.
+- Create a backup from Settings if no remote backup exists.
+- On the same or another local install, tap `Restore from backup`.
+- Confirm the merge warning when prompted.
+- Verify restored categories appear before restored transactions are used.
+- Run restore twice and confirm transaction/category rows are not duplicated.
+- Create a local-only transaction, run restore, and confirm the local-only row
+  remains visible.
+- Test an account with no remote rows and confirm
+  `No backup found for this account.`
+- Sign out and confirm no restore occurs and local data remains visible.
+- Confirm guest mode has no restore action.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

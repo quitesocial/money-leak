@@ -9,6 +9,7 @@ type CategoriesModule = {
   initDatabase: () => Promise<void>;
   getCategories: () => Promise<Category[]>;
   createCategory: (category: CategoryInput) => Promise<void>;
+  restoreCategories: (categories: CategoryInput[]) => Promise<number>;
   updateCategoryName: (input: {
     id: string;
     name: string;
@@ -25,6 +26,7 @@ export const {
   initDatabase,
   getCategories,
   createCategory,
+  restoreCategories,
   updateCategoryName,
   archiveCategory,
   ensureArchivedCategoriesForIds,

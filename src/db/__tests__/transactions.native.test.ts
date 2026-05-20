@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { parseTransactionsCsv } from '@/features/export/import-transactions-csv';
-import type { TransactionInput } from '@/types/transaction';
+import type {
+  TransactionInput,
+  TransactionRestoreInput,
+} from '@/types/transaction';
 
 import {
   createTransaction,
   deleteTransaction,
   getTransactions,
   importTransactions,
+  restoreTransactions,
   updateTransaction,
 } from '../transactions.native';
 
@@ -205,6 +209,22 @@ function createTransactionInput(
   };
 }
 
+function createTransactionRestoreInput(
+  overrides: Partial<TransactionRestoreInput> &
+    Pick<TransactionRestoreInput, 'id'>,
+): TransactionRestoreInput {
+  return {
+    amount: 12.5,
+    category: 'coffee',
+    isLeak: false,
+    leakReason: null,
+    note: null,
+    createdAt: 1000,
+    updatedAt: 2000,
+    ...overrides,
+  };
+}
+
 describe('native transaction persistence', () => {
   let database: FakeTransactionsDatabase;
 
@@ -305,5 +325,92 @@ describe('native transaction persistence', () => {
       schema_version: 1,
       source_device_id: 'device_test-device',
     });
+  });
+
+  it('restores backup rows without duplicating or overwriting existing local rows', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-existing',
+        amount: 7,
+        category: 'food',
+        createdAt: 500,
+      }),
+    );
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-local-only',
+        amount: 3,
+        category: 'transport',
+        createdAt: 600,
+      }),
+    );
+
+    await expect(
+      restoreTransactions([
+        createTransactionRestoreInput({
+          id: 'txn-existing',
+          amount: 99,
+          category: 'shopping',
+          updatedAt: 9000,
+        }),
+        createTransactionRestoreInput({
+          id: 'txn-restored',
+          amount: 11,
+          category: 'coffee',
+          isLeak: true,
+          leakReason: 'impulse',
+          note: 'Remote row',
+          createdAt: 7000,
+          updatedAt: 8000,
+        }),
+      ]),
+    ).resolves.toBe(1);
+
+    await expect(
+      restoreTransactions([
+        createTransactionRestoreInput({
+          id: 'txn-restored',
+          amount: 11,
+          category: 'coffee',
+          createdAt: 7000,
+          updatedAt: 8000,
+        }),
+      ]),
+    ).resolves.toBe(0);
+
+    expect(database.transactions).toHaveLength(3);
+    expect(
+      database.transactions.find((row) => row.id === 'txn-existing'),
+    ).toMatchObject({
+      amount: 7,
+      category: 'food',
+      updated_at: 500,
+    });
+    expect(
+      database.transactions.find((row) => row.id === 'txn-local-only'),
+    ).toMatchObject({
+      amount: 3,
+      category: 'transport',
+      deleted_at: null,
+    });
+    expect(
+      database.transactions.find((row) => row.id === 'txn-restored'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      amount: 11,
+      category: 'coffee',
+      is_leak: 1,
+      leak_reason: 'impulse',
+      note: 'Remote row',
+      created_at: 7000,
+      updated_at: 8000,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+    });
+    expect(mockEnsureArchivedCategoriesForIds).toHaveBeenCalledWith([
+      'shopping',
+      'coffee',
+    ]);
   });
 });
