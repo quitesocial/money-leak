@@ -32,7 +32,6 @@ import {
 import { APP_LINKS } from '@/lib/app-links';
 import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
-import { supabaseConfigStatus } from '@/lib/supabase/supabase-config';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useTransactionsStore } from '@/store/transactions-store';
@@ -40,11 +39,6 @@ import { useTransactionsStore } from '@/store/transactions-store';
 type ImportResult = {
   importedCount: number;
   skippedCount: number;
-};
-
-type AccountDiagnosticRow = {
-  label: string;
-  value: boolean;
 };
 
 function getReminderPermissionError(
@@ -121,8 +115,6 @@ export function SettingsScreen() {
   const isAuthenticated = authStatus === 'authenticated' && authUser !== null;
   const isGoogleAuthAvailable =
     featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled;
-  const shouldShowGoogleAuthDiagnostics =
-    authStatus === 'guest' && !isGoogleAuthAvailable;
 
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
@@ -140,41 +132,6 @@ export function SettingsScreen() {
 
   const shouldShowTransactionsError =
     transactionsError !== null && transactionsError !== importError;
-
-  const googleAuthDiagnostics: AccountDiagnosticRow[] = [
-    {
-      label: 'googleAuthEnabled',
-      value: featureFlags.googleAuthEnabled,
-    },
-    {
-      label: 'hasSupabaseUrl',
-      value: supabaseConfigStatus.diagnostics.hasSupabaseUrl,
-    },
-    {
-      label: 'hasSupabaseAnonKey',
-      value: supabaseConfigStatus.diagnostics.hasSupabaseAnonKey,
-    },
-    {
-      label: 'hasRedirectScheme',
-      value: supabaseConfigStatus.diagnostics.hasRedirectScheme,
-    },
-    {
-      label: 'hasRedirectPath',
-      value: supabaseConfigStatus.diagnostics.hasRedirectPath,
-    },
-    {
-      label: 'hasIosBundleIdentifier',
-      value: supabaseConfigStatus.diagnostics.hasIosBundleIdentifier,
-    },
-    {
-      label: 'hasAndroidPackage',
-      value: supabaseConfigStatus.diagnostics.hasAndroidPackage,
-    },
-    {
-      label: 'isGoogleAuthConfigAvailable',
-      value: supabaseConfigStatus.diagnostics.isGoogleAuthConfigAvailable,
-    },
-  ];
 
   const dataStatusMessage = !isTransactionsInitialized
     ? 'Preparing your local transaction history for import and export…'
@@ -505,16 +462,6 @@ export function SettingsScreen() {
             </Pressable>
           ) : null}
 
-          {shouldShowGoogleAuthDiagnostics ? (
-            <View style={styles.accountDiagnostics}>
-              {googleAuthDiagnostics.map((item) => (
-                <Text key={item.label} style={styles.metaText}>
-                  {item.label}: {item.value ? 'true' : 'false'}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-
           {accountError ? (
             <Text style={styles.errorText}>{accountError}</Text>
           ) : null}
@@ -735,9 +682,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#4b5563',
-  },
-  accountDiagnostics: {
-    gap: 4,
   },
   dataActions: {
     flexDirection: 'row',
