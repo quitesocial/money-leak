@@ -1,0 +1,97 @@
+ML-63 Supabase Backend User Profile / RLS Foundation v1 Handoff
+
+Summary
+- Added the first Supabase backend identity foundation for Money Leak.
+- Added a remote profiles table migration with RLS policies that restrict each
+  authenticated user to their own profile row.
+- Added an app-side Supabase profile service that upserts/selects one profile
+  for the token-free authenticated Money Leak session.
+- Wired profile ensure after successful auth restore and Google login as a
+  recoverable post-auth task.
+- The app remains local-first: profile failure does not sign out the user,
+  block navigation/startup, hide local data, or start backup/sync.
+
+Migration
+- supabase/migrations/20260520000000_create_profiles.sql
+- Creates public.profiles with id, email, display_name, avatar_url, provider,
+  created_at, and updated_at.
+- Enables Row Level Security.
+- Grants authenticated select, insert, and update only through own-row policies.
+- Revokes anonymous/public table access.
+- Adds an updated_at trigger.
+- Does not create remote transaction, category, settings, backup, restore, or
+  sync tables.
+
+App changes
+- Added src/lib/supabase/supabase-profile-service.ts.
+- Added ensureUserProfile(sessionOrUser), Profile, and ProfileResult types.
+- Uses the existing Supabase anon client only; no service role key is used.
+- Stores only non-sensitive profile fields from the existing auth session:
+  email, display name, avatar URL, and provider.
+- Returns safe recoverable failure results without raw backend error details.
+- Updated src/store/auth-store.ts to inject and run profile ensure after
+  authenticated state is established.
+- Profile ensure is independent from the existing local account linking path.
+
+Tests
+- Added src/lib/supabase/__tests__/supabase-profile-service.test.ts.
+- Covered authenticated upsert/select, unauthenticated skip, unavailable client,
+  Supabase errors/throws, repeated ensure idempotent app behavior, sensitive
+  session fields not being persisted/returned, and no local data store actions.
+- Updated src/store/__tests__/auth-store.test.ts for profile ensure after
+  restore/login and recoverable profile failure behavior.
+
+Docs
+- Updated docs/mvp-qa-checklist.md with the ML-63 automated and manual QA
+  checklist.
+
+Manual Supabase steps required
+- Apply supabase/migrations/20260520000000_create_profiles.sql manually in the
+  target Supabase project before validating profile creation in an app build.
+- Log in with Google and confirm the dashboard shows exactly one profile row for
+  the authenticated account.
+- Restart the app and confirm session restore does not duplicate the profile.
+- Sign out, confirm local data remains visible, then sign in again and confirm
+  the profile row is reused/upserted.
+
+Validation
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 26 suites and 164 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.12.9.
+- git diff --check: passed.
+
+Regression checks
+- CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- No dynamic process env indexed access was found in src/app code.
+- No banned UI/glass dependencies or imports were found.
+- New profile foundation files contain no transaction/category backup or sync
+  implementation.
+- Changed lines contain no raw secret, env, token, or internal owner/device
+  value patterns.
+
+Version bump
+- package.json is the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.12.8 to 1.12.9 as a patch release because ML-63 adds
+  backend/profile foundation with no visible Account UI change.
+- package-lock.json top-level and root package version fields were updated to
+  1.12.9 for consistency.
+- app.config.js, app.json, and eas.json were not changed.
+
+Intentionally not done
+- No backup, restore, sync, upload, remote transaction/category writes, remote
+  merge, settings sync, delete account, account deletion, or Apple Sign-In.
+- No Google Auth, Supabase env/config, redirect, TestFlight visibility, or
+  Account diagnostics UI rework.
+- No login wall and no removal of guest/local mode.
+- No new dependencies.
+
+Next recommended epic
+- Add a narrow manual backup/sync design or remote data contract implementation
+  epic only after validating the profiles migration and RLS behavior in the
+  target Supabase project.

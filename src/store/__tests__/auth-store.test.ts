@@ -25,6 +25,7 @@ function createMockAuthService() {
   const restoreSession = jest.fn<() => Promise<AuthSession | null>>();
   const setSession = jest.fn<(session: AuthSession) => Promise<void>>();
   const signOut = jest.fn<() => Promise<void>>();
+  const ensureProfile = jest.fn<(_session: AuthSession) => Promise<unknown>>();
   const linkAccount = jest.fn<(_session: AuthSession) => Promise<unknown>>();
 
   const authService: AuthService = {
@@ -38,6 +39,7 @@ function createMockAuthService() {
     restoreSession,
     setSession,
     signOut,
+    ensureProfile,
     linkAccount,
   };
 }
@@ -48,17 +50,19 @@ beforeEach(() => {
 
 describe('auth store', () => {
   it('initializes guest mode when restore returns null', async () => {
-    const { authService, linkAccount, restoreSession } =
+    const { authService, ensureProfile, linkAccount, restoreSession } =
       createMockAuthService();
 
     restoreSession.mockResolvedValue(null);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
 
     expect(restoreSession).toHaveBeenCalledTimes(1);
+    expect(ensureProfile).not.toHaveBeenCalled();
     expect(linkAccount).not.toHaveBeenCalled();
     expect(store.getState()).toMatchObject({
       status: 'guest',
@@ -70,17 +74,19 @@ describe('auth store', () => {
   });
 
   it('initializes authenticated mode when restore returns a session', async () => {
-    const { authService, linkAccount, restoreSession } =
+    const { authService, ensureProfile, linkAccount, restoreSession } =
       createMockAuthService();
 
     restoreSession.mockResolvedValue(TEST_SESSION);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
 
     expect(linkAccount).toHaveBeenCalledWith(TEST_SESSION);
+    expect(ensureProfile).toHaveBeenCalledWith(TEST_SESSION);
     expect(store.getState()).toMatchObject({
       status: 'authenticated',
       session: TEST_SESSION,
@@ -91,17 +97,19 @@ describe('auth store', () => {
   });
 
   it('falls back to guest mode with a safe error when restore throws', async () => {
-    const { authService, linkAccount, restoreSession } =
+    const { authService, ensureProfile, linkAccount, restoreSession } =
       createMockAuthService();
 
     restoreSession.mockRejectedValue(new Error('provider credential failure'));
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
 
     expect(linkAccount).not.toHaveBeenCalled();
+    expect(ensureProfile).not.toHaveBeenCalled();
     expect(store.getState()).toMatchObject({
       status: 'guest',
       session: null,
@@ -118,13 +126,14 @@ describe('auth store', () => {
   });
 
   it('keeps authenticated mode with a safe error when account linking fails after restore', async () => {
-    const { authService, linkAccount, restoreSession } =
+    const { authService, ensureProfile, linkAccount, restoreSession } =
       createMockAuthService();
 
     restoreSession.mockResolvedValue(TEST_SESSION);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockRejectedValue(new Error('raw owner relink failure'));
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
     await Promise.resolve();
@@ -146,21 +155,24 @@ describe('auth store', () => {
   });
 
   it('signs out by clearing the service session and returning to guest mode', async () => {
-    const { authService, linkAccount, restoreSession, signOut } =
+    const { authService, ensureProfile, linkAccount, restoreSession, signOut } =
       createMockAuthService();
 
     restoreSession.mockResolvedValue(TEST_SESSION);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
     signOut.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
+    ensureProfile.mockClear();
     linkAccount.mockClear();
 
     await store.getState().signOut();
 
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(ensureProfile).not.toHaveBeenCalled();
     expect(linkAccount).not.toHaveBeenCalled();
     expect(store.getState()).toMatchObject({
       status: 'guest',
@@ -172,17 +184,20 @@ describe('auth store', () => {
   });
 
   it('sets a session through the auth service', async () => {
-    const { authService, linkAccount, setSession } = createMockAuthService();
+    const { authService, ensureProfile, linkAccount, setSession } =
+      createMockAuthService();
 
     setSession.mockResolvedValue(undefined);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().setSession(TEST_SESSION);
 
     expect(setSession).toHaveBeenCalledWith(TEST_SESSION);
     expect(linkAccount).toHaveBeenCalledWith(TEST_SESSION);
+    expect(ensureProfile).toHaveBeenCalledWith(TEST_SESSION);
     expect(store.getState()).toMatchObject({
       status: 'authenticated',
       session: TEST_SESSION,
@@ -193,12 +208,14 @@ describe('auth store', () => {
   });
 
   it('keeps authenticated mode with a safe error when account linking fails after login', async () => {
-    const { authService, linkAccount, setSession } = createMockAuthService();
+    const { authService, ensureProfile, linkAccount, setSession } =
+      createMockAuthService();
 
     setSession.mockResolvedValue(undefined);
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockRejectedValue(new Error('raw local owner id failure'));
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().setSession(TEST_SESSION);
     await Promise.resolve();
@@ -219,14 +236,73 @@ describe('auth store', () => {
     expect(store.getState().error?.message).not.toContain('local owner');
   });
 
+  it('keeps authenticated mode when profile ensure fails after restore', async () => {
+    const { authService, ensureProfile, linkAccount, restoreSession, signOut } =
+      createMockAuthService();
+
+    restoreSession.mockResolvedValue(TEST_SESSION);
+    ensureProfile.mockRejectedValue(
+      new Error('raw backend failure with sensitive-value-redacted'),
+    );
+    linkAccount.mockResolvedValue(undefined);
+
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
+
+    await store.getState().initializeAuth();
+    await Promise.resolve();
+
+    expect(ensureProfile).toHaveBeenCalledWith(TEST_SESSION);
+    expect(signOut).not.toHaveBeenCalled();
+    expect(store.getState()).toMatchObject({
+      status: 'authenticated',
+      session: TEST_SESSION,
+      user: TEST_SESSION.user,
+      error: null,
+      isInitialized: true,
+    });
+    expect(JSON.stringify(store.getState())).not.toContain(
+      'sensitive-value-redacted',
+    );
+  });
+
+  it('keeps authenticated mode when profile ensure fails after login', async () => {
+    const { authService, ensureProfile, linkAccount, setSession, signOut } =
+      createMockAuthService();
+
+    setSession.mockResolvedValue(undefined);
+    ensureProfile.mockRejectedValue(
+      new Error('raw backend failure with sensitive-value-redacted'),
+    );
+    linkAccount.mockResolvedValue(undefined);
+
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
+
+    await store.getState().setSession(TEST_SESSION);
+    await Promise.resolve();
+
+    expect(ensureProfile).toHaveBeenCalledWith(TEST_SESSION);
+    expect(signOut).not.toHaveBeenCalled();
+    expect(store.getState()).toMatchObject({
+      status: 'authenticated',
+      session: TEST_SESSION,
+      user: TEST_SESSION.user,
+      error: null,
+      isInitialized: true,
+    });
+    expect(JSON.stringify(store.getState())).not.toContain(
+      'sensitive-value-redacted',
+    );
+  });
+
   it('clears auth errors without changing the current auth mode', async () => {
-    const { authService, linkAccount, restoreSession } =
+    const { authService, ensureProfile, linkAccount, restoreSession } =
       createMockAuthService();
 
     restoreSession.mockRejectedValue(new Error('restore failed'));
+    ensureProfile.mockResolvedValue(undefined);
     linkAccount.mockResolvedValue(undefined);
 
-    const store = createAuthStore({ authService, linkAccount });
+    const store = createAuthStore({ authService, ensureProfile, linkAccount });
 
     await store.getState().initializeAuth();
 

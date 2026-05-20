@@ -4,6 +4,7 @@ import { linkLocalAccount } from '@/db/account-linking';
 import { createSafeAuthError } from '@/lib/auth/auth-errors';
 import type { AuthService } from '@/lib/auth/auth-service';
 import { supabaseAuthService } from '@/lib/auth/supabase-auth-service';
+import { ensureUserProfile } from '@/lib/supabase/supabase-profile-service';
 import type {
   AuthError,
   AuthSession,
@@ -13,6 +14,7 @@ import type {
 
 type AuthStoreOptions = {
   authService?: AuthService;
+  ensureProfile?: (session: AuthSession) => Promise<unknown>;
   linkAccount?: (session: AuthSession) => Promise<unknown>;
 };
 
@@ -32,6 +34,7 @@ export type AuthStoreApi = UseBoundStore<StoreApi<AuthStore>>;
 
 export function createAuthStore({
   authService = supabaseAuthService,
+  ensureProfile = ensureUserProfile,
   linkAccount = linkLocalAccount,
 }: AuthStoreOptions = {}): AuthStoreApi {
   let initializePromise: Promise<void> | null = null;
@@ -43,8 +46,8 @@ export function createAuthStore({
     error: null,
     isInitialized: false,
 
-    // Linking is intentionally post-auth and recoverable. Local app usage and
-    // the authenticated display state must not depend on this finishing.
+    // Post-auth work is intentionally recoverable. Local app usage and the
+    // authenticated display state must not depend on this finishing.
     async initializeAuth() {
       if (get().isInitialized) return;
       if (initializePromise) return initializePromise;
@@ -80,6 +83,11 @@ export function createAuthStore({
             linkAccount,
             session,
             set,
+          });
+
+          void ensureAuthenticatedProfile({
+            ensureProfile,
+            session,
           });
         } catch {
           set({
@@ -119,6 +127,11 @@ export function createAuthStore({
           linkAccount,
           session,
           set,
+        });
+
+        void ensureAuthenticatedProfile({
+          ensureProfile,
+          session,
         });
       } catch {
         set({
@@ -166,6 +179,21 @@ export function createAuthStore({
 }
 
 export const useAuthStore = createAuthStore();
+
+async function ensureAuthenticatedProfile({
+  ensureProfile,
+  session,
+}: {
+  ensureProfile: (session: AuthSession) => Promise<unknown>;
+  session: AuthSession;
+}) {
+  try {
+    await ensureProfile(session);
+  } catch {
+    // Profile creation is a backend convenience for future sync. It must never
+    // make local-first authenticated usage fail.
+  }
+}
 
 async function linkAuthenticatedLocalData({
   get,

@@ -675,6 +675,64 @@ Google` is visible, Google login works, authenticated state/email/user info
 - Verify no diagnostics UI, raw ids, env values, URLs, anon keys, tokens, OAuth
   secrets, provider secrets, or raw `EXPO_PUBLIC_*` values are visible.
 
+## ML-63: Supabase Backend User Profile / RLS Foundation v1
+
+- `supabase/migrations/20260520000000_create_profiles.sql` exists and creates
+  only the remote `profiles` identity table.
+- The `profiles` table has Row Level Security enabled.
+- Authenticated users can select, insert, and update only their own profile.
+- Anonymous users cannot read or write profiles.
+- Profile creation uses the existing Supabase anon client and never uses a
+  service role key in the mobile app.
+- Successful auth restore ensures a remote profile without blocking app
+  startup, navigation, SQLite initialization, or local-first usage.
+- Successful Google login ensures a remote profile without blocking account
+  display state.
+- Profile ensure failure is recoverable: the user remains authenticated locally
+  and local data stays visible.
+- Profile ensure does not delete, hide, upload, restore, back up, sync, or merge
+  transactions or categories.
+- `Sign Out` remains auth-only and keeps local transactions/categories.
+- No remote transactions, categories, settings, backup, restore, sync, upload,
+  remote merge, Apple Sign-In, delete account, or account deletion was added.
+- No Account diagnostics UI or visible profile management UI was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
+  Liquid Glass imitation was added.
+- `package.json.version` is bumped intentionally to `1.12.9`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.9`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.9`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Apply `supabase/migrations/20260520000000_create_profiles.sql` manually in the
+  target Supabase project before testing the app build.
+- Log in through Google and verify the Supabase dashboard shows exactly one
+  profile row for that authenticated account.
+- Restart the app and verify session restore does not create a duplicate
+  profile row.
+- Sign out from Settings and verify local transactions/categories remain
+  visible in guest/local mode.
+- Log in again with the same Google account and verify the existing profile row
+  is reused/upserted instead of duplicated.
+- Verify local transactions/categories remain visible after login, restart,
+  sign out, and repeat login.
+- Verify no backup/sync UI or remote transaction/category data appears.
+- Verify no raw config values, secrets, tokens, account identifiers, or device
+  identifiers are visible in the app, logs, tests, or docs.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
