@@ -977,6 +977,80 @@ Manual owner QA:
 - Sign out and confirm no backup/restore runs and local data remains visible.
 - Confirm guest mode has no backup or restore action.
 
+## ML-68: Native Apple Sign-In v1
+
+- `featureFlags.appleAuthEnabled` is enabled only with native iOS availability
+  gating.
+- Settings Account shows `Continue with Apple` only in guest mode on iOS when
+  the native Apple Sign-In adapter is available.
+- Settings Account keeps `Continue with Apple` hidden on Android, web,
+  unavailable native/config paths, and authenticated account state.
+- Apple login uses `expo-apple-authentication` native credentials and
+  `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })`.
+- Apple login does not use Supabase Apple OAuth browser redirect flow,
+  `signInWithOAuth({ provider: 'apple' })`, Services ID, `.p8` key, or Apple
+  OAuth client secret assumptions.
+- Apple login cancel returns quietly without saving a session or showing an
+  error.
+- Missing identity token, revoked credential, failed provider, or Supabase token
+  exchange failure shows generic safe copy only.
+- Apple private relay email, null email, and null full name are accepted.
+- Apple provider sessions normalize as provider `apple`; Google provider
+  sessions continue to normalize as provider `google`.
+- The app does not call `linkIdentity`, does not unlink identities, and does
+  not match Google and Apple accounts by email in app code. Supabase may still
+  automatically link OAuth identities with the same verified email on the
+  backend, so same-email Google/Apple behavior requires manual QA in Supabase.
+- Successful Apple login uses the existing auth store `setSession` path so
+  local account linking and profile ensure are not duplicated.
+- Sign Out does not delete, unlink, upload, backup, restore, sync, or mutate
+  local transactions/categories.
+- Guest/local mode remains available with no login wall.
+- No automatic backup/restore after Apple login was added.
+- No remote schema migrations, RLS changes, provider account-linking UI,
+  incremental sync, CSV v2, navigation change, visual redesign, or glass
+  styling was added.
+- Settings never renders raw env values, Supabase URL, anon key, OAuth secrets,
+  provider secrets, access tokens, refresh tokens, provider tokens, Apple
+  identity tokens, local owner IDs, device IDs, or auth owner IDs.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- `package.json.version` is bumped intentionally to `1.15.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.15.0`.
+- `app.config.js` and `eas.json` are unchanged.
+- `app.json` changes only to add the `expo-apple-authentication` config plugin.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.15.0`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Test on a real iPhone or TestFlight build with the Apple capability enabled.
+- In guest mode, open Settings and confirm `Continue with Apple` appears next
+  to `Continue with Google`.
+- Tap `Continue with Apple`, cancel the native sheet, and confirm Settings
+  returns quietly with no saved session.
+- Complete Apple login and confirm Settings shows authenticated account state
+  and no login buttons.
+- Test first Apple login where Apple returns full name/email, and repeat login
+  where full name and email may be null.
+- Test Hide My Email/private relay and confirm login still succeeds.
+- Restart the app after Apple login and confirm authenticated state restores.
+- Sign out and confirm local transactions/categories remain visible and are not
+  backed up, restored, deleted, unlinked, or synced.
+- Sign in with Google and Apple accounts that share an email and confirm the
+  actual Supabase same-email identity behavior matches the intended product
+  decision before release.
+- Confirm guest mode still works after signing out.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
