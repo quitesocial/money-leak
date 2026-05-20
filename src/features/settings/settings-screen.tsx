@@ -31,6 +31,7 @@ import {
   appleAuthAdapter,
   getAppleAuthSafeErrorMessage,
 } from '@/lib/auth/apple-auth-adapter';
+import { deleteAccountService } from '@/lib/account/delete-account-service';
 import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
@@ -170,7 +171,11 @@ export function SettingsScreen() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+    null,
+  );
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -211,7 +216,10 @@ export function SettingsScreen() {
   const isRestoreDisabled = isRestoring || !shouldShowRestore;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isAppleAuthDisabled = isAuthBusy || authStatus === 'loading';
-  const isSignOutDisabled = isAuthBusy || authStatus === 'loading';
+  const isSignOutDisabled =
+    isAuthBusy || isDeletingAccount || authStatus === 'loading';
+  const isDeleteAccountDisabled =
+    isDeletingAccount || isAuthBusy || authStatus === 'loading';
 
   const isDataPreparing =
     !isTransactionsInitialized || isTransactionsLoading || isDataActionBusy;
@@ -576,6 +584,59 @@ export function SettingsScreen() {
     }
   }
 
+  function handleDeleteAccountPress() {
+    if (isDeleteAccountDisabled || !isAuthenticated) return;
+
+    Alert.alert(
+      'Delete account data?',
+      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions and categories on this device will stay here.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => {
+            void handleConfirmedDeleteAccount();
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleConfirmedDeleteAccount() {
+    if (isDeleteAccountDisabled || !isAuthenticated) return;
+
+    setIsDeletingAccount(true);
+    setDeleteAccountError(null);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      const result = await deleteAccountService.runDeleteAccount({
+        auth: {
+          status: authStatus,
+          userId: authUser.id,
+        },
+      });
+
+      if (result.status !== 'succeeded') {
+        setDeleteAccountError("Couldn't delete account. Try again.");
+
+        return;
+      }
+
+      await signOut();
+    } catch (error) {
+      console.error('Failed to delete account data', error);
+      setDeleteAccountError("Couldn't delete account. Try again.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
   async function handleImportPress() {
     if (isImportDisabled) return;
 
@@ -785,6 +846,40 @@ export function SettingsScreen() {
             <Text style={styles.errorText}>{authError.message}</Text>
           ) : null}
         </View>
+
+        {isAuthenticated ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Privacy</Text>
+
+              <Text style={styles.sectionBody}>
+                Delete cloud account data and backups for this account. Local
+                transactions and categories on this device will stay here.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isDeleteAccountDisabled}
+              onPress={handleDeleteAccountPress}
+              style={[
+                styles.dataButton,
+                styles.destructiveButton,
+                isDeleteAccountDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text
+                style={[styles.dataButtonText, styles.destructiveButtonText]}
+              >
+                {isDeletingAccount ? 'Deleting account...' : 'Delete Account'}
+              </Text>
+            </Pressable>
+
+            {deleteAccountError ? (
+              <Text style={styles.errorText}>{deleteAccountError}</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionCopy}>
@@ -1118,6 +1213,9 @@ const styles = StyleSheet.create({
   exportButton: {
     backgroundColor: '#111827',
   },
+  destructiveButton: {
+    backgroundColor: '#b91c1c',
+  },
   dataButtonText: {
     fontSize: 15,
     fontWeight: '700',
@@ -1146,6 +1244,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   exportButtonText: {
+    color: '#ffffff',
+  },
+  destructiveButtonText: {
     color: '#ffffff',
   },
   errorText: {
