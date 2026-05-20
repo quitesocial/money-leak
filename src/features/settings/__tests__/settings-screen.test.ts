@@ -380,9 +380,15 @@ describe('SettingsScreen account section', () => {
     expect(text).not.toContain('isGoogleAuthConfigAvailable');
     expect(text).not.toContain('https://');
     expect(text).not.toContain('ey-public-anon-key');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
     expect(text).not.toContain('auth/callback');
     expect(text).not.toContain('com.quitesocialorg.moneyleak');
     expect(text).not.toContain('EXPO_PUBLIC_');
+    expect(text).not.toContain('ownerId');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
   });
 
   it('does not show diagnostics for authenticated users', async () => {
@@ -398,6 +404,9 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Sign Out');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('googleAuthEnabled');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
   });
 
   it('persists a token-free session after Google sign-in succeeds', async () => {
