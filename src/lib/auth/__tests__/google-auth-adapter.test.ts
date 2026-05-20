@@ -38,8 +38,8 @@ const TEST_CONFIG: SupabaseClientConfig = {
 };
 
 const TEST_SUPABASE_SESSION = {
-  access_token: 'raw-access-token',
-  refresh_token: 'raw-refresh-token',
+  access_token: 'sample-access-credential',
+  refresh_token: 'sample-refresh-credential',
   expires_at: 1760003600,
   expires_in: 3600,
   token_type: 'bearer',
@@ -128,8 +128,8 @@ describe('Google auth adapter', () => {
       },
     });
 
-    expect(JSON.stringify(session)).not.toContain('raw-access-token');
-    expect(JSON.stringify(session)).not.toContain('raw-refresh-token');
+    expect(JSON.stringify(session)).not.toContain('sample-access-credential');
+    expect(JSON.stringify(session)).not.toContain('sample-refresh-credential');
   });
 
   it('returns null for a cancelled Google auth browser session', async () => {
@@ -168,7 +168,7 @@ describe('Google auth adapter', () => {
   it('uses a safe generic error for provider and network failures', async () => {
     mockSignInWithOAuth.mockResolvedValueOnce({
       data: { url: null },
-      error: new Error('raw provider token failure'),
+      error: new Error('provider credential failure'),
     });
 
     const providerAdapter = createGoogleAuthAdapter({
@@ -186,7 +186,7 @@ describe('Google auth adapter', () => {
     });
 
     mockOpenAuthSessionAsync.mockRejectedValueOnce(
-      new Error('raw network secret'),
+      new Error('network credential failure'),
     );
 
     const networkAdapter = createGoogleAuthAdapter({
@@ -200,7 +200,7 @@ describe('Google auth adapter', () => {
       expect(getGoogleAuthSafeErrorMessage(error)).toBe(
         GOOGLE_AUTH_ERROR_MESSAGE,
       );
-      expect(String(error)).not.toContain('secret');
+      expect(String(error)).not.toContain('credential');
     });
   });
 });

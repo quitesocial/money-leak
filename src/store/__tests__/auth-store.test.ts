@@ -81,7 +81,7 @@ describe('auth store', () => {
   it('falls back to guest mode with a safe error when restore throws', async () => {
     const { authService, restoreSession } = createMockAuthService();
 
-    restoreSession.mockRejectedValue(new Error('raw provider token failure'));
+    restoreSession.mockRejectedValue(new Error('provider credential failure'));
 
     const store = createAuthStore({ authService });
 
@@ -99,7 +99,7 @@ describe('auth store', () => {
       isInitialized: true,
     });
 
-    expect(store.getState().error?.message).not.toContain('token');
+    expect(store.getState().error?.message).not.toContain('credential');
   });
 
   it('signs out by clearing the service session and returning to guest mode', async () => {

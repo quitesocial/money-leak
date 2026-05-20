@@ -527,6 +527,79 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.6`.
 - `git diff --check` passes.
 
+## ML-61: Supabase Session Restore And Auth Bootstrap Hardening
+
+- Supabase Auth session restores on app restart when the stored Supabase session
+  is valid.
+- A missing Supabase session starts in guest/local mode and clears stale
+  token-free account display state.
+- An expired, revoked, corrupted, or failed Supabase restore falls back safely
+  to guest/local mode with recoverable copy and no crash.
+- Offline startup keeps the app usable locally and does not block onboarding,
+  navigation, transactions, categories, import, or export.
+- Google login still succeeds through Settings when the Expo production
+  environment contains the required public auth values.
+- `Continue with Google` remains visible when Google auth is enabled and config
+  is valid.
+- `Continue with Google` remains hidden when config is unavailable, without
+  showing diagnostics labels or raw config values.
+- Restart after Google login keeps the authenticated Account state when the
+  Supabase session is valid.
+- Cold start after Google login keeps the authenticated Account state when the
+  Supabase session is valid.
+- `Sign Out` clears Supabase auth state and Money Leak account display state.
+- `Sign Out` does not delete, archive, relink, upload, merge, back up, restore,
+  sync, or mutate local transactions/categories.
+- Local transactions and categories remain visible after login, logout,
+  restart, cold start, and offline startup.
+- `ownerId`, `localOwnerId`, and device-local identity remain unchanged by auth
+  restore and sign out.
+- Settings Account does not show diagnostic booleans such as
+  `googleAuthEnabled`, `hasSupabaseUrl`, `hasSupabaseAnonKey`,
+  `hasRedirectScheme`, `hasRedirectPath`, `hasIosBundleIdentifier`,
+  `hasAndroidPackage`, or `isGoogleAuthConfigAvailable`.
+- No raw env values, Supabase URL, anon key, OAuth secrets, provider secrets,
+  access tokens, refresh tokens, provider tokens, or raw `EXPO_PUBLIC_*` values
+  are visible in UI, logs, tests, or docs.
+- No Apple Sign-In, backup, restore, sync, Supabase database tables, RLS,
+  backend profile logic, account linking, or delete account was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
+  Liquid Glass imitation was added.
+- `package.json.version` is bumped intentionally to `1.12.7`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.12.7`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.7`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Log in through Google from Settings.
+- Restart the app after login and verify Account still shows authenticated
+  state.
+- Cold start the app after login and verify Account still shows authenticated
+  state.
+- Start the app offline and verify local Home, Analytics, Settings,
+  transactions, categories, import, and export remain usable.
+- Sign out from Settings and verify Account returns to guest/local mode.
+- Verify local transactions/categories are preserved after login, logout,
+  restart, cold start, and offline startup.
+- Verify `Continue with Google` remains visible when the build has valid auth
+  config.
+- Verify no diagnostics UI is shown.
+- Verify no raw env values, URLs, anon keys, tokens, OAuth secrets, provider
+  secrets, or raw `EXPO_PUBLIC_*` values are visible.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

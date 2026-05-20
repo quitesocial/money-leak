@@ -6,7 +6,10 @@ import {
   supabaseConfigStatus,
   type SupabaseClientConfig,
 } from '@/lib/supabase/supabase-config';
-import { supabaseSecureAuthStorage } from '@/lib/supabase/supabase-secure-storage';
+import {
+  SUPABASE_AUTH_STORAGE_KEY,
+  supabaseSecureAuthStorage,
+} from '@/lib/supabase/supabase-secure-storage';
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -16,8 +19,10 @@ export function createSupabaseClient(config: SupabaseClientConfig) {
       autoRefreshToken: false,
       detectSessionInUrl: false,
       flowType: 'pkce',
-      persistSession: false,
+      persistSession: true,
+      skipAutoInitialize: true,
       storage: supabaseSecureAuthStorage,
+      storageKey: SUPABASE_AUTH_STORAGE_KEY,
     },
   });
 }
