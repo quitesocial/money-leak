@@ -33,6 +33,10 @@ export type TransactionInput = {
   createdAt: number;
 };
 
+export type TransactionRestoreInput = TransactionInput & {
+  updatedAt: number;
+};
+
 export type Transaction = TransactionInput & {
   ownerId: string;
   updatedAt: number;

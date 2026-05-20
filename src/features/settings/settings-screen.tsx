@@ -38,8 +38,10 @@ import { getValidDate } from '@/lib/date-utils';
 import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { manualBackupService } from '@/lib/sync/manual-backup-service';
+import { manualRestoreService } from '@/lib/sync/manual-restore-service';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
+import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 type ImportResult = {
@@ -50,6 +52,11 @@ type ImportResult = {
 type BackupResult = {
   uploadedTransactionsCount: number;
   uploadedCategoriesCount: number;
+};
+
+type RestoreUiResult = {
+  restoredTransactionsCount: number;
+  restoredCategoriesCount: number;
 };
 
 const lastBackupFormatter = new Intl.DateTimeFormat(undefined, {
@@ -92,6 +99,13 @@ function formatBackupResult({
   return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')} and ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')} saved.`;
 }
 
+function formatRestoreResult({
+  restoredCategoriesCount,
+  restoredTransactionsCount,
+}: RestoreUiResult) {
+  return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')} and ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')} restored.`;
+}
+
 function formatLastBackup(timestamp: number) {
   const date = getValidDate(timestamp);
 
@@ -124,6 +138,8 @@ export function SettingsScreen() {
     (state) => state.loadTransactions,
   );
 
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+
   const importTransactions = useTransactionsStore(
     (state) => state.importTransactions,
   );
@@ -137,11 +153,17 @@ export function SettingsScreen() {
   const [isReminderBusy, setIsReminderBusy] = useState(false);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreResult, setRestoreResult] = useState<RestoreUiResult | null>(
+    null,
+  );
+  const [isRestoreEmpty, setIsRestoreEmpty] = useState(false);
   const [lastSuccessfulBackupAt, setLastSuccessfulBackupAtState] = useState<
     number | null
   >(null);
@@ -159,12 +181,14 @@ export function SettingsScreen() {
   const isGoogleAuthAvailable =
     featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled;
   const shouldShowBackup = featureFlags.backupEnabled && isAuthenticated;
+  const shouldShowRestore = featureFlags.restoreEnabled && isAuthenticated;
 
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
 
   const isDataActionBusy = isExporting || isImporting;
   const isBackupDisabled = isBackingUp || !shouldShowBackup;
+  const isRestoreDisabled = isRestoring || !shouldShowRestore;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isSignOutDisabled = isAuthBusy || authStatus === 'loading';
 
@@ -383,6 +407,88 @@ export function SettingsScreen() {
       setBackupError("Couldn't create backup. Try again.");
     } finally {
       setIsBackingUp(false);
+    }
+  }
+
+  async function confirmRestoreIfLocalDataExists() {
+    const hasLocalData = await manualRestoreService.hasLocalData();
+
+    if (!hasLocalData) return true;
+
+    return new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Restore from backup?',
+        'This will merge your cloud backup into this device. Existing local data will not be deleted.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              resolve(false);
+            },
+          },
+          {
+            text: 'Restore',
+            onPress: () => {
+              resolve(true);
+            },
+          },
+        ],
+      );
+    });
+  }
+
+  async function handleRestorePress() {
+    if (isRestoreDisabled) return;
+
+    setRestoreError(null);
+    setRestoreResult(null);
+    setIsRestoreEmpty(false);
+
+    let shouldRestore = false;
+
+    try {
+      shouldRestore = await confirmRestoreIfLocalDataExists();
+    } catch {
+      setRestoreError("Couldn't restore backup. Try again.");
+
+      return;
+    }
+
+    if (!shouldRestore) return;
+
+    setIsRestoring(true);
+
+    try {
+      const result = await manualRestoreService.runRestore({
+        auth: {
+          status: authStatus,
+          userId: authUser?.id,
+        },
+      });
+
+      if (result.status === 'empty') {
+        setIsRestoreEmpty(true);
+
+        return;
+      }
+
+      if (result.status !== 'succeeded') {
+        setRestoreError("Couldn't restore backup. Try again.");
+
+        return;
+      }
+
+      setRestoreResult({
+        restoredTransactionsCount: result.restoredTransactionsCount,
+        restoredCategoriesCount: result.restoredCategoriesCount,
+      });
+
+      await Promise.all([loadTransactions(), loadCategories()]);
+    } catch {
+      setRestoreError("Couldn't restore backup. Try again.");
+    } finally {
+      setIsRestoring(false);
     }
   }
 
@@ -726,6 +832,52 @@ export function SettingsScreen() {
 
             {backupError ? (
               <Text style={styles.errorText}>{backupError}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {shouldShowRestore ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Restore</Text>
+
+              <Text style={styles.sectionBody}>
+                Merge the cloud backup for this account into this device.
+                Existing local data will not be deleted.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isRestoreDisabled}
+              onPress={() => {
+                void handleRestorePress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.exportButton,
+                isRestoreDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
+                {isRestoring ? 'Restoring backup...' : 'Restore from backup'}
+              </Text>
+            </Pressable>
+
+            {restoreResult ? (
+              <Text style={styles.infoText}>
+                {formatRestoreResult(restoreResult)}
+              </Text>
+            ) : null}
+
+            {isRestoreEmpty ? (
+              <Text style={styles.infoText}>
+                No backup found for this account.
+              </Text>
+            ) : null}
+
+            {restoreError ? (
+              <Text style={styles.errorText}>{restoreError}</Text>
             ) : null}
           </View>
         ) : null}

@@ -1,0 +1,99 @@
+ML-66 Restore Backup MVP Handoff
+
+Summary
+- Added authenticated, manual, Settings-triggered restore from remote backup.
+- Restore remains local-first and merge-only: it inserts missing rows and never
+  deletes, replaces, or silently overwrites local data.
+- Guest/local mode remains permanent. There is no login wall.
+- No automatic restore on login, session restore, app start, or sign out.
+- No background sync, incremental sync, conflict UI, CSV v2, navigation change,
+  visual redesign, delete account, or Apple Sign-In was added.
+
+App changes
+- Added src/lib/sync/supabase-remote-restore-adapter.ts.
+- Added src/lib/sync/local-restore-data-target.ts.
+- Added src/lib/sync/restore-service.ts.
+- Added src/lib/sync/manual-restore-service.ts.
+- Replaced the restore placeholder in src/lib/sync/sync-types.ts with narrow
+  restore payload, adapter, target, service result, skipped, and failure types.
+- Added narrow category and transaction restore helpers in the DB boundaries.
+- Enabled featureFlags.restoreEnabled.
+- Kept incrementalSyncEnabled and appleAuthEnabled disabled.
+- Settings now shows a Restore card only for authenticated users when restore
+  is enabled.
+- Restore button label is "Restore from backup" and loading text is
+  "Restoring backup...".
+- Empty remote backup copy is "No backup found for this account."
+- Failure copy is always "Couldn't restore backup. Try again."
+- Success copy reports restored transaction and category counts.
+- If local non-deleted rows exist, Settings confirms that cloud backup will be
+  merged into the device and local data will not be deleted.
+
+Restore behavior
+- Uses the existing Supabase anon client and current authenticated session/RLS.
+- Does not use a service role key or service role client.
+- Reads remote_categories and remote_transactions with explicit columns and a
+  user-owned row filter.
+- Restores categories before transactions.
+- Maps remote transaction category_id back to the local transaction category
+  field.
+- Filters remote tombstones out of restore v1.
+- Local writes use INSERT OR IGNORE, so repeated restore does not duplicate
+  rows and existing local ids are not overwritten.
+- Local rows missing from remote remain untouched.
+- Settings/UI does not render raw backend errors, public env values, account
+  identifiers, owner identifiers, device identifiers, tokens, or provider
+  secrets.
+
+Tests
+- Added src/lib/sync/__tests__/restore-service.test.ts.
+- Added src/lib/sync/__tests__/local-restore-data-target.test.ts.
+- Added src/lib/sync/__tests__/supabase-remote-restore-adapter.test.ts.
+- Updated native category and transaction DB tests for idempotent restore
+  helpers.
+- Updated Settings tests for authenticated-only restore UI, disabled flag,
+  guest no-op behavior, loading/success/empty/failure states, confirmation
+  before non-empty local restore, safe copy, and Sign Out no-restore behavior.
+- Added explicit CSV v1 header regression coverage.
+
+Manual QA
+- Log in through Google on a configured native build.
+- Create a backup if the account has no remote backup yet.
+- Tap Restore from backup in Settings.
+- Confirm the merge warning when prompted.
+- Verify restored categories and transactions appear locally.
+- Run restore twice and confirm no duplicate transaction/category rows appear.
+- Create a local-only transaction, run restore, and confirm it remains visible.
+- Test an account with no remote rows and confirm the empty-backup copy.
+- Sign out and confirm no restore runs and local data remains visible.
+- Confirm guest mode has no restore card or action.
+
+Validation
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 31 suites and 212 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.14.0.
+- git diff --check: passed.
+
+Regression checks
+- CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No service-role usage was found in mobile app code.
+- No raw env/token/provider secret exposure was found in production Settings UI
+  or sync production code.
+- No dynamic process.env[...] access was found in src or app.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling references were added in src, app, or app/package files.
+
+Version bump
+- package.json is the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.13.0 to 1.14.0 as a minor release because ML-66 adds
+  user-facing manual restore functionality.
+- package-lock.json top-level and root package version fields were updated to
+  1.14.0.
+- app.config.js, app.json, and eas.json were not changed.

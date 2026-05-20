@@ -53,6 +53,32 @@ type MockBackupRunResult =
       isRecoverable: true;
     };
 
+type MockRestoreRunResult =
+  | {
+      status: 'succeeded';
+      restoredTransactionsCount: number;
+      restoredCategoriesCount: number;
+    }
+  | {
+      status: 'empty';
+      restoredTransactionsCount: 0;
+      restoredCategoriesCount: 0;
+      isRecoverable: true;
+    }
+  | {
+      status: 'failed';
+      error: {
+        code: string;
+        isRecoverable: true;
+        message: string;
+      };
+    }
+  | {
+      status: 'skipped';
+      skippedReason: string;
+      isRecoverable: true;
+    };
+
 const mockExportTransactionsCsv =
   jest.fn<(_transactions: unknown[]) => Promise<void>>();
 
@@ -70,6 +96,11 @@ const mockSetReminderEnabled = jest.fn<(_enabled: boolean) => Promise<void>>();
 const mockRunManualBackup =
   jest.fn<(_input: unknown) => Promise<MockBackupRunResult>>();
 
+const mockRunManualRestore =
+  jest.fn<(_input: unknown) => Promise<MockRestoreRunResult>>();
+
+const mockHasLocalRestoreData = jest.fn<() => Promise<boolean>>();
+
 const mockGetReminderPermissionStatus =
   jest.fn<() => Promise<MockReminderPermissionStatus>>();
 
@@ -79,6 +110,7 @@ const mockRequestReminderPermissions =
 const mockScheduleDailyCheckInReminder = jest.fn<() => Promise<void>>();
 const mockCancelDailyCheckInReminder = jest.fn<() => Promise<void>>();
 const mockLoadTransactions = jest.fn<() => Promise<void>>();
+const mockLoadCategories = jest.fn<() => Promise<void>>();
 
 const mockImportTransactions =
   jest.fn<(_transactions: unknown[]) => Promise<number>>();
@@ -134,9 +166,19 @@ const mockTransactionsStoreState = {
   clearError: mockClearError,
 };
 
+const mockCategoriesStoreState = {
+  loadCategories: mockLoadCategories,
+};
+
 const mockUseTransactionsStore = jest.fn(
   (selector: (state: typeof mockTransactionsStoreState) => unknown) => {
     return selector(mockTransactionsStoreState);
+  },
+);
+
+const mockUseCategoriesStore = jest.fn(
+  (selector: (state: typeof mockCategoriesStoreState) => unknown) => {
+    return selector(mockCategoriesStoreState);
   },
 );
 
@@ -181,6 +223,17 @@ jest.mock('@/lib/sync/manual-backup-service', () => ({
   manualBackupService: {
     runBackup: (input: unknown) => {
       return mockRunManualBackup(input);
+    },
+  },
+}));
+
+jest.mock('@/lib/sync/manual-restore-service', () => ({
+  manualRestoreService: {
+    hasLocalData: () => {
+      return mockHasLocalRestoreData();
+    },
+    runRestore: (input: unknown) => {
+      return mockRunManualRestore(input);
     },
   },
 }));
@@ -243,6 +296,14 @@ jest.mock('@/store/transactions-store', () => ({
       getState: () => mockGetTransactionsStoreState(),
     },
   ),
+}));
+
+jest.mock('@/store/categories-store', () => ({
+  useCategoriesStore: (
+    selector: (state: typeof mockCategoriesStoreState) => unknown,
+  ) => {
+    return mockUseCategoriesStore(selector);
+  },
 }));
 
 const openUrlSpy = jest.spyOn(Linking, 'openURL');
@@ -347,6 +408,20 @@ function createSucceededBackupResult({
   };
 }
 
+function createSucceededRestoreResult({
+  restoredCategoriesCount = 2,
+  restoredTransactionsCount = 3,
+}: {
+  restoredCategoriesCount?: number;
+  restoredTransactionsCount?: number;
+} = {}): MockRestoreRunResult {
+  return {
+    status: 'succeeded',
+    restoredTransactionsCount,
+    restoredCategoriesCount,
+  };
+}
+
 async function flushAsyncWork() {
   await act(async () => {
     await Promise.resolve();
@@ -360,7 +435,7 @@ beforeEach(() => {
   mutableFeatureFlags.googleAuthEnabled = true;
   mutableFeatureFlags.appleAuthEnabled = false;
   mutableFeatureFlags.backupEnabled = true;
-  mutableFeatureFlags.restoreEnabled = false;
+  mutableFeatureFlags.restoreEnabled = true;
   mutableFeatureFlags.incrementalSyncEnabled = false;
 
   mutableAppLinks.PRIVACY_POLICY =
@@ -368,6 +443,7 @@ beforeEach(() => {
   mutableAppLinks.SUPPORT_EMAIL = 'mailto:asrazdorskiy@gmail.com';
 
   mockLoadTransactions.mockResolvedValue(undefined);
+  mockLoadCategories.mockResolvedValue(undefined);
   mockImportTransactions.mockResolvedValue(0);
   mockClearError.mockImplementation(() => {});
   mockExportTransactionsCsv.mockResolvedValue(undefined);
@@ -375,6 +451,8 @@ beforeEach(() => {
   mockGetLastSuccessfulBackupAt.mockResolvedValue(null);
   mockSetLastSuccessfulBackupAt.mockResolvedValue(undefined);
   mockRunManualBackup.mockResolvedValue(createSucceededBackupResult());
+  mockRunManualRestore.mockResolvedValue(createSucceededRestoreResult());
+  mockHasLocalRestoreData.mockResolvedValue(false);
   mockGetReminderEnabled.mockResolvedValue(false);
   mockSetReminderEnabled.mockResolvedValue(undefined);
   mockGetReminderPermissionStatus.mockResolvedValue('granted');
@@ -461,6 +539,7 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).toContain('Continue with Google');
     expect(text).not.toContain('Create backup now');
+    expect(text).not.toContain('Restore from backup');
     expect(text).not.toContain('googleAuthEnabled');
   });
 
@@ -473,6 +552,7 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Create backup now');
+    expect(text).not.toContain('Restore from backup');
     expect(text).not.toContain('googleAuthEnabled');
     expect(text).not.toContain('hasSupabaseUrl');
     expect(text).not.toContain('hasSupabaseAnonKey');
@@ -545,6 +625,8 @@ describe('SettingsScreen account section', () => {
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockRunManualBackup).not.toHaveBeenCalled();
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
+    expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
     expect(mockImportTransactions).not.toHaveBeenCalled();
     expect(mockExportTransactionsCsv).not.toHaveBeenCalled();
@@ -586,7 +668,9 @@ describe('SettingsScreen backup section', () => {
 
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Create backup now');
+    expect(text).not.toContain('Restore from backup');
     expect(mockRunManualBackup).not.toHaveBeenCalled();
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
   });
 
   it('shows loading and success states for manual backup', async () => {
@@ -692,5 +776,191 @@ describe('SettingsScreen backup section', () => {
       "Couldn't create backup. Try again.",
     );
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsScreen restore section', () => {
+  it('renders restore UI only for authenticated users when restore is enabled', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Restore');
+    expect(text).toContain('Restore from backup');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+  });
+
+  it('hides restore UI when the feature flag is disabled', async () => {
+    mutableFeatureFlags.restoreEnabled = false;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).not.toContain('Restore from backup');
+    expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
+  });
+
+  it('does not let guest mode trigger restore', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Using local guest mode on this device.');
+    expect(text).not.toContain('Restore from backup');
+    expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
+  });
+
+  it('shows loading and success states for manual restore', async () => {
+    const deferred = createDeferred<MockRestoreRunResult>();
+
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockHasLocalRestoreData.mockResolvedValueOnce(false);
+    mockRunManualRestore.mockReturnValueOnce(deferred.promise);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Restore from backup');
+
+    expect(mockHasLocalRestoreData).toHaveBeenCalledTimes(1);
+    expect(getNodeText(renderer.root)).toContain('Restoring backup...');
+    expect(mockRunManualRestore).toHaveBeenCalledWith({
+      auth: {
+        status: 'authenticated',
+        userId: 'auth-user-test',
+      },
+    });
+
+    await act(async () => {
+      deferred.resolve(
+        createSucceededRestoreResult({
+          restoredCategoriesCount: 4,
+          restoredTransactionsCount: 2,
+        }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain(
+      'Backup restored. 2 transactions and 4 categories restored.',
+    );
+    expect(text).toContain('Restore from backup');
+    expect(mockLoadTransactions).toHaveBeenCalled();
+    expect(mockLoadCategories).toHaveBeenCalled();
+  });
+
+  it('shows safe empty backup copy', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualRestore.mockResolvedValueOnce({
+      status: 'empty',
+      restoredTransactionsCount: 0,
+      restoredCategoriesCount: 0,
+      isRecoverable: true,
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Restore from backup');
+
+    expect(getNodeText(renderer.root)).toContain(
+      'No backup found for this account.',
+    );
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
+  });
+
+  it('shows generic restore failure copy without raw backend values', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualRestore.mockRejectedValueOnce(
+      new Error(
+        'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+      ),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Restore from backup');
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't restore backup. Try again.");
+    expect(text).not.toContain('raw backend failure');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+  });
+
+  it('shows generic restore failure copy for skipped service results', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualRestore.mockResolvedValueOnce({
+      status: 'skipped',
+      skippedReason: 'missing_user_id',
+      isRecoverable: true,
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Restore from backup');
+
+    expect(getNodeText(renderer.root)).toContain(
+      "Couldn't restore backup. Try again.",
+    );
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation before restoring into non-empty local data', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockHasLocalRestoreData.mockResolvedValueOnce(true);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Restore from backup');
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Restore from backup?',
+      'This will merge your cloud backup into this device. Existing local data will not be deleted.',
+      expect.any(Array),
+    );
+    expect(mockRunManualRestore).not.toHaveBeenCalled();
+
+    const alertButtons = alertSpy.mock.calls.at(-1)?.[2];
+
+    if (!Array.isArray(alertButtons)) {
+      throw new Error('Restore confirmation buttons were not rendered.');
+    }
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRunManualRestore).toHaveBeenCalledTimes(1);
   });
 });

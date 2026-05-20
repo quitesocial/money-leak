@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { getActiveCategories } from '@/lib/category-utils';
 
-import { archiveCategory, getCategories } from '../categories.native';
+import {
+  archiveCategory,
+  getCategories,
+  restoreCategories,
+} from '../categories.native';
 
 const mockInitDatabase = jest.fn<() => Promise<void>>();
 const mockGetDatabase = jest.fn<() => Promise<FakeCategoriesDatabase>>();
@@ -63,6 +67,10 @@ class FakeCategoriesDatabase {
   ];
 
   async runAsync(source: string, ...params: unknown[]) {
+    if (source.includes('INSERT OR IGNORE INTO categories')) {
+      return { changes: this.insertCategory(params) ? 1 : 0 };
+    }
+
     if (!source.includes('is_archived = 1')) return { changes: 0 };
 
     const [updatedAt, sourceDeviceId, id] = params;
@@ -78,6 +86,12 @@ class FakeCategoriesDatabase {
     category.source_device_id = sourceDeviceId as string;
 
     return { changes: 1 };
+  }
+
+  async withExclusiveTransactionAsync(
+    callback: (transactionDatabase: FakeCategoriesDatabase) => Promise<void>,
+  ) {
+    await callback(this);
   }
 
   async getAllAsync<T>(source: string): Promise<T[]> {
@@ -96,6 +110,59 @@ class FakeCategoriesDatabase {
 
         return firstCategory.id.localeCompare(secondCategory.id);
       }) as T[];
+  }
+
+  private insertCategory(params: unknown[]) {
+    const [
+      id,
+      ownerId,
+      name,
+      createdAt,
+      updatedAt,
+      isDefault,
+      isArchived,
+      deletedAt,
+      schemaVersion,
+      sourceDeviceId,
+      sortOrder,
+    ] = params;
+
+    if (
+      typeof id !== 'string' ||
+      typeof ownerId !== 'string' ||
+      typeof name !== 'string' ||
+      typeof createdAt !== 'number' ||
+      typeof updatedAt !== 'number' ||
+      typeof isDefault !== 'number' ||
+      typeof isArchived !== 'number' ||
+      typeof schemaVersion !== 'number' ||
+      typeof sourceDeviceId !== 'string' ||
+      typeof sortOrder !== 'number'
+    ) {
+      throw new Error('Invalid category insert params.');
+    }
+
+    const hasDuplicateId = this.categories.some(
+      (category) => category.id === id,
+    );
+
+    if (hasDuplicateId) return false;
+
+    this.categories.push({
+      id,
+      owner_id: ownerId,
+      name,
+      created_at: createdAt,
+      updated_at: updatedAt,
+      is_default: isDefault,
+      is_archived: isArchived,
+      deleted_at: typeof deletedAt === 'number' ? deletedAt : null,
+      schema_version: schemaVersion,
+      source_device_id: sourceDeviceId,
+      sort_order: sortOrder,
+    });
+
+    return true;
   }
 }
 
@@ -135,5 +202,67 @@ describe('native category persistence', () => {
     expect(
       getActiveCategories(categories).map((category) => category.id),
     ).toEqual(['food']);
+  });
+
+  it('restores backup categories without duplicating or overwriting local rows', async () => {
+    await expect(
+      restoreCategories([
+        {
+          id: 'coffee',
+          name: 'Remote Coffee',
+          createdAt: 5000,
+          updatedAt: 6000,
+          isDefault: false,
+          isArchived: true,
+          sortOrder: 99,
+        },
+        {
+          id: 'snacks',
+          name: 'Snacks',
+          createdAt: 7000,
+          updatedAt: 8000,
+          isDefault: false,
+          isArchived: false,
+          sortOrder: 11,
+        },
+      ]),
+    ).resolves.toBe(1);
+
+    await expect(
+      restoreCategories([
+        {
+          id: 'snacks',
+          name: 'Snacks',
+          createdAt: 7000,
+          updatedAt: 8000,
+          isDefault: false,
+          isArchived: false,
+          sortOrder: 11,
+        },
+      ]),
+    ).resolves.toBe(0);
+
+    expect(database.categories).toHaveLength(3);
+    expect(
+      database.categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      name: 'Coffee',
+      is_archived: 0,
+      sort_order: 10,
+    });
+    expect(
+      database.categories.find((category) => category.id === 'snacks'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      name: 'Snacks',
+      created_at: 7000,
+      updated_at: 8000,
+      is_default: 0,
+      is_archived: 0,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+      sort_order: 11,
+    });
   });
 });
