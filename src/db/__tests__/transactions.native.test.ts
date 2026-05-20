@@ -10,7 +10,9 @@ import {
   createTransaction,
   deleteTransaction,
   getTransactions,
+  getTransactionsForBackup,
   importTransactions,
+  restoreTransactionTombstones,
   restoreTransactions,
   updateTransaction,
 } from '../transactions.native';
@@ -71,8 +73,7 @@ class FakeTransactionsDatabase {
     }
 
     if (source.includes('deleted_at = ?')) {
-      this.softDeleteTransaction(params);
-      return { changes: 1 };
+      return { changes: this.softDeleteTransaction(params) ? 1 : 0 };
     }
 
     return { changes: 0 };
@@ -81,8 +82,13 @@ class FakeTransactionsDatabase {
   async getAllAsync<T>(source: string): Promise<T[]> {
     if (!source.includes('FROM transactions')) return [];
 
+    const shouldFilterDeleted = source.includes('WHERE deleted_at IS NULL');
+
     return this.transactions
-      .filter((transaction) => transaction.deleted_at === null)
+      .filter(
+        (transaction) =>
+          !shouldFilterDeleted || transaction.deleted_at === null,
+      )
       .sort((firstTransaction, secondTransaction) => {
         if (secondTransaction.created_at !== firstTransaction.created_at) {
           return secondTransaction.created_at - firstTransaction.created_at;
@@ -187,11 +193,13 @@ class FakeTransactionsDatabase {
         currentTransaction.id === id && currentTransaction.deleted_at === null,
     );
 
-    if (!transaction) return;
+    if (!transaction) return false;
 
     transaction.deleted_at = deletedAt as number;
     transaction.updated_at = updatedAt as number;
     transaction.source_device_id = sourceDeviceId as string;
+
+    return true;
   }
 }
 
@@ -297,6 +305,10 @@ describe('native transaction persistence', () => {
 
     expect(await getTransactions()).toHaveLength(1);
     expect((await getTransactions())[0].id).toBe('txn-visible');
+    expect((await getTransactionsForBackup()).map((row) => row.id)).toEqual([
+      'txn-visible',
+      'txn-deleted',
+    ]);
     expect(
       database.transactions.find((row) => row.id === 'txn-deleted'),
     ).toMatchObject({
@@ -412,5 +424,73 @@ describe('native transaction persistence', () => {
       'shopping',
       'coffee',
     ]);
+  });
+
+  it('restores transaction tombstones only for matching active local rows', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-delete-me',
+        amount: 7,
+        category: 'food',
+        createdAt: 500,
+      }),
+    );
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-local-only',
+        amount: 3,
+        category: 'transport',
+        createdAt: 600,
+      }),
+    );
+
+    await expect(
+      restoreTransactionTombstones([
+        {
+          id: 'txn-delete-me',
+          updatedAt: 9000,
+          deletedAt: 9000,
+        },
+        {
+          id: 'txn-missing',
+          updatedAt: 9100,
+          deletedAt: 9100,
+        },
+      ]),
+    ).resolves.toBe(1);
+
+    await expect(
+      restoreTransactionTombstones([
+        {
+          id: 'txn-delete-me',
+          updatedAt: 9000,
+          deletedAt: 9000,
+        },
+      ]),
+    ).resolves.toBe(0);
+
+    expect(await getTransactions()).toEqual([
+      expect.objectContaining({
+        id: 'txn-local-only',
+        deletedAt: null,
+      }),
+    ]);
+    expect(
+      database.transactions.find((row) => row.id === 'txn-delete-me'),
+    ).toMatchObject({
+      deleted_at: 9000,
+      updated_at: 9000,
+      source_device_id: 'device_test-device',
+    });
+    expect(
+      database.transactions.find((row) => row.id === 'txn-local-only'),
+    ).toMatchObject({
+      amount: 3,
+      category: 'transport',
+      deleted_at: null,
+    });
+    expect(database.transactions.some((row) => row.id === 'txn-missing')).toBe(
+      false,
+    );
   });
 });

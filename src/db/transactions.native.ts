@@ -5,6 +5,7 @@ import {
   type TransactionCategory,
   type TransactionInput,
   type TransactionRestoreInput,
+  type TransactionTombstoneRestoreInput,
 } from '@/types/transaction';
 import { ensureArchivedCategoriesForIds } from '@/db/categories.native';
 
@@ -179,6 +180,42 @@ export async function restoreTransactions(
   return restoredCount;
 }
 
+export async function restoreTransactionTombstones(
+  tombstones: TransactionTombstoneRestoreInput[],
+) {
+  if (!tombstones.length) return 0;
+
+  await initDatabase();
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+
+  let restoredCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const tombstone of tombstones) {
+      const result = await transactionDatabase.runAsync(
+        `
+          UPDATE transactions
+          SET
+            deleted_at = ?,
+            updated_at = ?,
+            source_device_id = ?
+          WHERE id = ? AND deleted_at IS NULL
+        `,
+        tombstone.deletedAt,
+        tombstone.updatedAt,
+        identity.deviceId,
+        tombstone.id,
+      );
+
+      restoredCount += getChangedRowCount(result);
+    }
+  });
+
+  return restoredCount;
+}
+
 export async function updateTransaction(transaction: TransactionInput) {
   await initDatabase();
   await ensureArchivedCategoriesForIds([transaction.category]);
@@ -238,6 +275,33 @@ export async function getTransactions() {
         source_device_id
       FROM transactions
       WHERE deleted_at IS NULL
+      ORDER BY created_at DESC, id DESC
+    `,
+  );
+
+  return rows.map(mapTransactionRow);
+}
+
+export async function getTransactionsForBackup() {
+  await initDatabase();
+
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<TransactionRow>(
+    `
+      SELECT
+        id,
+        owner_id,
+        amount,
+        category,
+        is_leak,
+        leak_reason,
+        note,
+        created_at,
+        updated_at,
+        deleted_at,
+        schema_version,
+        source_device_id
+      FROM transactions
       ORDER BY created_at DESC, id DESC
     `,
   );

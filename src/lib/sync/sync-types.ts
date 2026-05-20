@@ -36,7 +36,7 @@ export type BackupPayload = {
   userId: string;
   schemaVersion: typeof BACKUP_PAYLOAD_SCHEMA_VERSION;
   createdAt: string;
-  includesTombstones: false;
+  includesTombstones: boolean;
   transactions: RemoteTransaction[];
   categories: RemoteCategory[];
 };

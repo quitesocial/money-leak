@@ -190,7 +190,7 @@ describe('restore service', () => {
     expect(dataTarget.restoreBackup).not.toHaveBeenCalled();
   });
 
-  it('returns an empty state when the remote backup has no active rows', async () => {
+  it('returns an empty state when the remote backup has no rows', async () => {
     const adapter = createAdapter({
       payload: createPayload({
         categories: [],
@@ -220,6 +220,45 @@ describe('restore service', () => {
 
     expect(adapter.readBackup).toHaveBeenCalledWith({ userId: TEST_USER_ID });
     expect(dataTarget.restoreBackup).not.toHaveBeenCalled();
+  });
+
+  it('runs restore when the remote backup only has transaction tombstones', async () => {
+    const payload = createPayload({
+      categories: [],
+      transactions: [
+        {
+          ...createPayload().transactions[0],
+          id: 'txn-deleted',
+          updatedAt: '2026-05-20T08:00:00.000Z',
+          deletedAt: '2026-05-20T08:00:00.000Z',
+        },
+      ],
+    });
+    const adapter = createAdapter({ payload });
+    const dataTarget = createDataTarget({
+      restoredCategoriesCount: 0,
+      restoredTransactionsCount: 1,
+    });
+    const service = createRestoreService({
+      adapter,
+      dataTarget,
+      isRestoreEnabled: true,
+    });
+
+    await expect(
+      service.runRestore({
+        auth: {
+          status: 'authenticated',
+          userId: TEST_USER_ID,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 'succeeded',
+      restoredTransactionsCount: 1,
+      restoredCategoriesCount: 0,
+    });
+
+    expect(dataTarget.restoreBackup).toHaveBeenCalledWith(payload);
   });
 
   it('returns restored counts after a successful merge-only restore', async () => {

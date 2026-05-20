@@ -8,10 +8,13 @@ import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 const mockGetTransactions = jest.fn();
+const mockGetTransactionsForBackup = jest.fn();
 const mockGetCategories = jest.fn();
 
 jest.mock('@/db/transactions', () => ({
   getTransactions: (...args: unknown[]) => mockGetTransactions(...args),
+  getTransactionsForBackup: (...args: unknown[]) =>
+    mockGetTransactionsForBackup(...args),
 }));
 
 jest.mock('@/db/categories', () => ({
@@ -85,7 +88,7 @@ function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
     userId: TEST_USER_ID,
     schemaVersion: 1,
     createdAt: '2026-05-20T12:00:00.000Z',
-    includesTombstones: false,
+    includesTombstones: true,
     transactions: [
       {
         id: 'txn-1',
@@ -254,6 +257,35 @@ describe('Supabase remote backup adapter', () => {
       expect.objectContaining({
         user_id: TEST_USER_ID,
         id: 'txn-1',
+      }),
+    ]);
+  });
+
+  it('upserts transaction tombstones with deleted_at', async () => {
+    const { client, getRows } = createMockRemoteBackupClient();
+    const adapter = createSupabaseRemoteBackupAdapter({
+      getClient: () => client as never,
+    });
+
+    await adapter.writeBackup(
+      createPayload({
+        transactions: [
+          {
+            ...createPayload().transactions[0],
+            id: 'txn-deleted',
+            updatedAt: '2026-05-20T08:00:00.000Z',
+            deletedAt: '2026-05-20T08:00:00.000Z',
+          },
+        ],
+      }),
+    );
+
+    expect(getRows('remote_transactions')).toEqual([
+      expect.objectContaining({
+        user_id: TEST_USER_ID,
+        id: 'txn-deleted',
+        updated_at: '2026-05-20T08:00:00.000Z',
+        deleted_at: '2026-05-20T08:00:00.000Z',
       }),
     ]);
   });
