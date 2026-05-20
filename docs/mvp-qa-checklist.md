@@ -483,22 +483,49 @@ Manual owner QA:
 - `npx expo config --json` resolves Expo version as `1.12.3`.
 - `git diff --check` passes.
 
-## ML-60: Static Expo Auth Env Read Hotfix
+## ML-60: Remove TestFlight Google Auth Diagnostics
 
 - Auth config reads the required Expo public values through static
   `process.env.EXPO_PUBLIC_*` property access. Do not use dynamic lookup such
   as `process.env[key]`, key reducers, or generic `getEnv(key)` helpers for
   these values because Expo/Metro may not inline them into production JS
   bundles.
-- Settings Account diagnostics remain in this TestFlight build and show
-  booleans only, never raw URLs, keys, tokens, provider secrets, or
-  `EXPO_PUBLIC_*` values.
-- `package.json.version` is bumped intentionally to `1.12.5`.
+- Settings Account does not show diagnostic booleans such as
+  `googleAuthEnabled`, `hasSupabaseUrl`, `hasSupabaseAnonKey`,
+  `hasRedirectScheme`, `hasRedirectPath`, `hasIosBundleIdentifier`,
+  `hasAndroidPackage`, or `isGoogleAuthConfigAvailable` in production UI.
+- Continue with Google appears when Google auth is enabled and the required
+  Supabase/Auth config is available.
+- Guest/local mode still works when Supabase/Auth config is unavailable.
+- Canceling or failing Google login returns safe user-facing copy without raw
+  URLs, keys, tokens, OAuth secrets, provider secrets, or `EXPO_PUBLIC_*`
+  values.
+- Signing out does not delete local transactions or categories.
+- No raw env values or secrets appear in Settings UI.
+- `package.json.version` is bumped intentionally to `1.12.6`.
 - `package-lock.json` top-level and root package version fields are bumped
-  intentionally to `1.12.5`.
-- A new TestFlight build appears as version `1.12.5`.
+  intentionally to `1.12.6`.
+- A new TestFlight build appears as version `1.12.6`.
 - Real device TestFlight update shows `Continue with Google` when the Expo
   production environment contains all required public auth values.
+- Local transactions and categories remain visible after Google login and
+  logout.
+- No Apple Sign-In, backup, restore, sync, Supabase database tables, RLS,
+  backend profile logic, account linking, or delete account was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
+  Liquid Glass imitation was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.12.6`.
+- `git diff --check` passes.
 
 ## App Boot And Empty State
 
