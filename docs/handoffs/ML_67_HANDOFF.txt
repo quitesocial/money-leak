@@ -1,0 +1,99 @@
+ML-67 Delete Tombstone Backup/Restore MVP Handoff
+
+Summary
+- Manual backup now includes deleted transaction tombstones in addition to
+  active transactions.
+- Manual restore now applies remote transaction tombstones by stable local id so
+  deleted transactions do not reappear after backup and restore.
+- Restore remains merge-only: active remote rows can insert missing local rows,
+  tombstones can soft-delete matching local rows, and unrelated local rows are
+  preserved.
+- Guest/local mode remains permanent. There is no login wall.
+- No automatic backup or restore on login, session restore, app start, or sign
+  out.
+- No background sync, incremental sync, conflict UI, replace-local-with-cloud,
+  destructive merge, CSV v2, navigation change, delete account, or Apple
+  Sign-In was added.
+
+App changes
+- Added getTransactionsForBackup() so backup can read active transactions plus
+  deleted transaction tombstones without changing normal UI reads.
+- Added restoreTransactionTombstones() so restore can apply remote tombstones to
+  matching active local transactions without creating visible rows.
+- Backup payloads now set includesTombstones to true.
+- Manual backup still filters category tombstones out and continues to include
+  archived categories as normal category records.
+- Manual restore writes categories first, then active transactions, then
+  transaction tombstones.
+- Restore treats transaction tombstone-only remote payloads as restorable
+  payloads rather than empty backups.
+- Settings UI behavior is unchanged.
+
+Tombstone behavior
+- A local transaction delete writes deletedAt locally as before.
+- Manual backup maps local epoch millisecond deletedAt and updatedAt values to
+  remote ISO timestamptz strings and upserts them into
+  public.remote_transactions.deleted_at.
+- Manual restore maps remote deleted_at ISO strings back to local epoch
+  milliseconds.
+- If a remote transaction tombstone id matches an active local transaction,
+  restore sets local deleted_at and updated_at and the transaction is hidden
+  from normal reads.
+- If a remote transaction tombstone id has no local match, restore ignores it
+  and does not create a visible transaction.
+- Repeated backup remains idempotent through remote upsert by (user_id, id).
+- Repeated restore remains idempotent because active rows use INSERT OR IGNORE
+  and tombstones only update active matching rows.
+
+Category tombstone decision
+- Category tombstones are out of scope for ML-67.
+- Current category deletion behavior is archive, not tombstone delete.
+- Archived categories continue to back up and restore as category records with
+  is_archived / isArchived preserved.
+- Remote category rows with deleted_at are still ignored by local restore.
+
+Validation
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 31 suites and 217 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.14.1.
+- git diff --check: passed.
+
+Manual QA required
+- Log in through Google on a configured native build.
+- Create a transaction and run Create backup now in Settings.
+- Delete that transaction locally.
+- Run Create backup now again and confirm the matching remote_transactions row
+  has deleted_at set.
+- Restore the same account on the same or another install and confirm the
+  deleted transaction does not reappear.
+- Run restore twice and confirm no duplicates appear.
+- Create an unrelated local-only transaction, run restore, and confirm it
+  remains visible.
+- Confirm a remote tombstone with no local matching id does not create a visible
+  transaction.
+- Archive a category and confirm archived category backup/restore still works.
+- Confirm guest mode has no backup or restore action.
+
+Regression checks
+- CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No service-role usage was added in mobile app code.
+- No raw env/token/provider secret exposure was added in production Settings UI
+  or sync production code.
+- No dynamic process.env[...] access was added in src or app.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling references were added.
+
+Version bump
+- package.json is the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.14.0 to 1.14.1 as a patch release because ML-67 is a
+  backup/restore correctness fix, not a new user-facing feature.
+- package-lock.json top-level and root package version fields were updated to
+  1.14.1.
+- app.config.js, app.json, and eas.json were not changed.

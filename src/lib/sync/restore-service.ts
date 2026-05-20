@@ -45,7 +45,7 @@ export function createRestoreService({
         return createFailedResult('remote_read_failed');
       }
 
-      if (!hasActiveRemoteRows(payload)) {
+      if (!hasRestorableRemoteRows(payload)) {
         return {
           status: 'empty',
           restoredTransactionsCount: 0,
@@ -69,10 +69,10 @@ export function createRestoreService({
   };
 }
 
-function hasActiveRemoteRows(payload: RestorePayload) {
+function hasRestorableRemoteRows(payload: RestorePayload) {
   return (
     payload.categories.some((category) => category.deletedAt === null) ||
-    payload.transactions.some((transaction) => transaction.deletedAt === null)
+    payload.transactions.length > 0
   );
 }
 

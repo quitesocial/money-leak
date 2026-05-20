@@ -218,6 +218,33 @@ describe('Supabase remote restore adapter', () => {
     );
   });
 
+  it('maps remote transaction deleted_at tombstones', async () => {
+    const { client } = createMockRemoteRestoreClient({
+      remoteTransactions: [
+        createTransactionRow({
+          id: 'txn-deleted',
+          updated_at: '2026-05-20T08:00:00.000Z',
+          deleted_at: '2026-05-20T08:00:00.000Z',
+        }),
+      ],
+    });
+    const adapter = createSupabaseRemoteRestoreAdapter({
+      getClient: () => client as never,
+    });
+
+    await expect(adapter.readBackup({ userId: TEST_USER_ID })).resolves.toEqual(
+      expect.objectContaining({
+        transactions: [
+          expect.objectContaining({
+            id: 'txn-deleted',
+            updatedAt: '2026-05-20T08:00:00.000Z',
+            deletedAt: '2026-05-20T08:00:00.000Z',
+          }),
+        ],
+      }),
+    );
+  });
+
   it('returns a safe recoverable service failure when the Supabase client is unavailable', async () => {
     const adapter = createSupabaseRemoteRestoreAdapter({
       getClient: () => null,

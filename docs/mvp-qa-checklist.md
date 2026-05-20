@@ -915,6 +915,68 @@ Manual owner QA:
 - Sign out and confirm no restore occurs and local data remains visible.
 - Confirm guest mode has no restore action.
 
+## ML-67: Delete Tombstone Backup/Restore MVP
+
+- Manual backup uploads active transactions and deleted transaction tombstones
+  to `remote_transactions`.
+- Manual backup remains idempotent by upserting remote transaction rows with
+  `(user_id, id)`.
+- Manual restore applies remote transaction tombstones only when a matching
+  local transaction ID already exists.
+- A restored transaction tombstone hides the matching local transaction from
+  normal Home, Analytics, and export/UI reads.
+- A remote transaction tombstone with no matching local transaction does not
+  create a visible local transaction.
+- Manual restore preserves unrelated local-only transactions.
+- Re-running restore does not duplicate active rows and does not re-count an
+  already-applied tombstone.
+- Active remote transaction restore still works.
+- Category tombstones are out of scope for ML-67. Archived categories continue
+  to back up and restore as archived category records.
+- Guest/local mode remains available with no login wall and no backup/restore
+  action.
+- Settings backup/restore copy remains generic and does not expose raw backend
+  errors, auth tokens, public env values, auth IDs, owner identifiers, or device
+  identifiers.
+- No full incremental sync, background sync, automatic backup/restore,
+  replace-local-with-cloud, destructive merge, conflict UI, Apple Sign-In,
+  Delete Account, CSV v2, navigation change, visual redesign, or glass styling
+  was added.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- `package.json.version` is bumped intentionally to `1.14.1`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.14.1`.
+- `app.config.js`, `app.json`, and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.14.1`.
+- `git diff --check` passes.
+
+Manual owner QA:
+
+- Log in through Google on a device/build with Supabase auth configured.
+- Create a transaction, back it up from Settings, then delete it locally.
+- Run `Create backup now` again and confirm the corresponding
+  `remote_transactions` row has `deleted_at` set instead of staying active.
+- Restore the same account on the same or another local install and confirm the
+  deleted transaction does not reappear.
+- Run restore twice and confirm no duplicate transaction/category rows appear.
+- Create an unrelated local-only transaction, run restore, and confirm it
+  remains visible.
+- Confirm a remote tombstone for an ID not present locally does not create a
+  visible transaction.
+- Archive a category and confirm archived category backup/restore behavior still
+  works.
+- Sign out and confirm no backup/restore runs and local data remains visible.
+- Confirm guest mode has no backup or restore action.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

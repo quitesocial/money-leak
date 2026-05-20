@@ -37,6 +37,12 @@ export type TransactionRestoreInput = TransactionInput & {
   updatedAt: number;
 };
 
+export type TransactionTombstoneRestoreInput = {
+  id: string;
+  updatedAt: number;
+  deletedAt: number;
+};
+
 export type Transaction = TransactionInput & {
   ownerId: string;
   updatedAt: number;

@@ -41,10 +41,6 @@ export function createBackupService({
 
     const localData = await dataSource.getBackupData();
 
-    const activeTransactions = localData.transactions.filter(
-      (transaction) => transaction.deletedAt === null,
-    );
-
     const nonDeletedCategories = localData.categories.filter(
       (category) => category.deletedAt === null,
     );
@@ -53,8 +49,8 @@ export function createBackupService({
       userId: normalizedUserId,
       schemaVersion: BACKUP_PAYLOAD_SCHEMA_VERSION,
       createdAt: toRemoteTimestamp(now()),
-      includesTombstones: false,
-      transactions: activeTransactions.map((transaction) =>
+      includesTombstones: true,
+      transactions: localData.transactions.map((transaction) =>
         mapTransactionToRemote({
           transaction,
           userId: normalizedUserId,

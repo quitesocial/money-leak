@@ -11,10 +11,13 @@ import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 const mockGetTransactions = jest.fn();
+const mockGetTransactionsForBackup = jest.fn();
 const mockGetCategories = jest.fn();
 
 jest.mock('@/db/transactions', () => ({
   getTransactions: (...args: unknown[]) => mockGetTransactions(...args),
+  getTransactionsForBackup: (...args: unknown[]) =>
+    mockGetTransactionsForBackup(...args),
 }));
 
 jest.mock('@/db/categories', () => ({
@@ -79,7 +82,7 @@ function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
     userId: TEST_USER_ID,
     schemaVersion: 1,
     createdAt: new Date(TEST_NOW).toISOString(),
-    includesTombstones: false,
+    includesTombstones: true,
     transactions: [],
     categories: [],
     ...overrides,
@@ -87,7 +90,7 @@ function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
 }
 
 describe('backup service foundation', () => {
-  it('local backup data source reads configured boundaries without tombstones', async () => {
+  it('local backup data source includes transaction tombstones and filters category tombstones', async () => {
     const readTransactions = jest.fn(async () => [
       createTransaction({ id: 'txn-active' }),
       createTransaction({
@@ -110,7 +113,13 @@ describe('backup service foundation', () => {
     });
 
     await expect(dataSource.getBackupData()).resolves.toEqual({
-      transactions: [expect.objectContaining({ id: 'txn-active' })],
+      transactions: [
+        expect.objectContaining({ id: 'txn-active' }),
+        expect.objectContaining({
+          id: 'txn-deleted',
+          deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+        }),
+      ],
       categories: [
         expect.objectContaining({
           id: 'coffee',
@@ -139,7 +148,7 @@ describe('backup service foundation', () => {
       userId: TEST_USER_ID,
       schemaVersion: 1,
       createdAt: '2026-05-20T12:00:00.000Z',
-      includesTombstones: false,
+      includesTombstones: true,
       transactions: [
         {
           id: 'txn-1',
@@ -280,7 +289,7 @@ describe('backup service foundation', () => {
     expect(JSON.stringify({ transactions, categories })).toBe(before);
   });
 
-  it('excludes deleted rows and includes archived categories explicitly', async () => {
+  it('includes deleted transaction tombstones and archived categories explicitly', async () => {
     const adapter = createFakeRemoteBackupAdapter();
     const service = createBackupService({
       adapter,
@@ -308,15 +317,58 @@ describe('backup service foundation', () => {
       userId: TEST_USER_ID,
     });
 
-    expect(payload.includesTombstones).toBe(false);
+    expect(payload.includesTombstones).toBe(true);
     expect(payload.transactions.map((transaction) => transaction.id)).toEqual([
       'txn-active',
+      'txn-deleted',
+    ]);
+    expect(payload.transactions).toEqual([
+      expect.objectContaining({
+        id: 'txn-active',
+        deletedAt: null,
+      }),
+      expect.objectContaining({
+        id: 'txn-deleted',
+        deletedAt: '2026-05-20T08:00:00.000Z',
+      }),
     ]);
     expect(payload.categories).toEqual([
       expect.objectContaining({
         id: 'coffee',
         isArchived: true,
         deletedAt: null,
+      }),
+    ]);
+  });
+
+  it('sends transaction tombstones to the remote adapter', async () => {
+    const adapter = createFakeRemoteBackupAdapter();
+    const service = createBackupService({
+      adapter,
+      dataSource: createDataSource({
+        transactions: [
+          createTransaction({
+            id: 'txn-deleted',
+            deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+            updatedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+          }),
+        ],
+      }),
+      isBackupEnabled: true,
+      now: () => TEST_NOW,
+    });
+
+    await service.runBackup({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(adapter.getTransactions()).toEqual([
+      expect.objectContaining({
+        id: 'txn-deleted',
+        deletedAt: '2026-05-20T08:00:00.000Z',
       }),
     ]);
   });

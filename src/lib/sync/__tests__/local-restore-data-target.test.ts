@@ -3,12 +3,16 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { createLocalRestoreDataTarget } from '@/lib/sync/local-restore-data-target';
 import type { RestorePayload } from '@/lib/sync/sync-types';
 import type { CategoryInput } from '@/types/category';
-import type { TransactionRestoreInput } from '@/types/transaction';
+import type {
+  TransactionRestoreInput,
+  TransactionTombstoneRestoreInput,
+} from '@/types/transaction';
 
 const mockGetCategories = jest.fn();
 const mockRestoreCategories = jest.fn();
 const mockGetTransactions = jest.fn();
 const mockRestoreTransactions = jest.fn();
+const mockRestoreTransactionTombstones = jest.fn();
 
 jest.mock('@/db/categories', () => ({
   getCategories: (...args: unknown[]) => mockGetCategories(...args),
@@ -18,6 +22,8 @@ jest.mock('@/db/categories', () => ({
 jest.mock('@/db/transactions', () => ({
   getTransactions: (...args: unknown[]) => mockGetTransactions(...args),
   restoreTransactions: (...args: unknown[]) => mockRestoreTransactions(...args),
+  restoreTransactionTombstones: (...args: unknown[]) =>
+    mockRestoreTransactionTombstones(...args),
 }));
 
 const TEST_USER_ID = 'user-test';
@@ -88,7 +94,7 @@ describe('local restore data target', () => {
     await expect(target.hasLocalData()).resolves.toBe(true);
   });
 
-  it('writes remote categories before remote transactions', async () => {
+  it('writes remote categories before active transactions and tombstones', async () => {
     const calls: string[] = [];
     const writeCategories = jest.fn(async () => {
       calls.push('categories');
@@ -100,9 +106,15 @@ describe('local restore data target', () => {
 
       return 1;
     });
+    const writeTransactionTombstones = jest.fn(async () => {
+      calls.push('tombstones');
+
+      return 0;
+    });
     const target = createLocalRestoreDataTarget({
       writeCategories,
       writeTransactions,
+      writeTransactionTombstones,
     });
 
     await expect(target.restoreBackup(createPayload())).resolves.toEqual({
@@ -110,7 +122,7 @@ describe('local restore data target', () => {
       restoredTransactionsCount: 1,
     });
 
-    expect(calls).toEqual(['categories', 'transactions']);
+    expect(calls).toEqual(['categories', 'transactions', 'tombstones']);
   });
 
   it('maps remote category_id back to local transaction.category', async () => {
@@ -119,9 +131,13 @@ describe('local restore data target', () => {
     const writeTransactions = jest.fn(
       async (_transactions: TransactionRestoreInput[]) => 1,
     );
+    const writeTransactionTombstones = jest.fn(
+      async (_tombstones: TransactionTombstoneRestoreInput[]) => 0,
+    );
     const target = createLocalRestoreDataTarget({
       writeCategories,
       writeTransactions,
+      writeTransactionTombstones,
     });
 
     await target.restoreBackup(createPayload());
@@ -149,14 +165,17 @@ describe('local restore data target', () => {
         updatedAt: Date.parse('2026-05-19T10:05:00.000Z'),
       },
     ]);
+    expect(writeTransactionTombstones).toHaveBeenCalledWith([]);
   });
 
-  it('filters remote tombstones before local writes', async () => {
+  it('ignores category tombstones and applies transaction tombstones', async () => {
     const writeCategories = jest.fn(async () => 0);
     const writeTransactions = jest.fn(async () => 0);
+    const writeTransactionTombstones = jest.fn(async () => 1);
     const target = createLocalRestoreDataTarget({
       writeCategories,
       writeTransactions,
+      writeTransactionTombstones,
     });
 
     await target.restoreBackup(
@@ -178,12 +197,20 @@ describe('local restore data target', () => {
 
     expect(writeCategories).toHaveBeenCalledWith([]);
     expect(writeTransactions).toHaveBeenCalledWith([]);
+    expect(writeTransactionTombstones).toHaveBeenCalledWith([
+      {
+        id: 'txn-1',
+        updatedAt: Date.parse('2026-05-19T10:05:00.000Z'),
+        deletedAt: Date.parse('2026-05-20T12:00:00.000Z'),
+      },
+    ]);
   });
 
   it('fails safely through the service when a remote timestamp is invalid', async () => {
     const target = createLocalRestoreDataTarget({
       writeCategories: jest.fn(async () => 0),
       writeTransactions: jest.fn(async () => 0),
+      writeTransactionTombstones: jest.fn(async () => 0),
     });
 
     await expect(

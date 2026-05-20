@@ -1,5 +1,9 @@
 import { getCategories, restoreCategories } from '@/db/categories';
-import { getTransactions, restoreTransactions } from '@/db/transactions';
+import {
+  getTransactions,
+  restoreTransactionTombstones,
+  restoreTransactions,
+} from '@/db/transactions';
 import type {
   LocalRestoreDataTarget,
   LocalRestoreWriteResult,
@@ -8,7 +12,11 @@ import type {
   RestorePayload,
 } from '@/lib/sync/sync-types';
 import type { Category, CategoryInput } from '@/types/category';
-import type { Transaction, TransactionRestoreInput } from '@/types/transaction';
+import type {
+  Transaction,
+  TransactionRestoreInput,
+  TransactionTombstoneRestoreInput,
+} from '@/types/transaction';
 
 type LocalRestoreDataTargetOptions = {
   readCategories?: () => Promise<Category[]>;
@@ -17,6 +25,9 @@ type LocalRestoreDataTargetOptions = {
   writeTransactions?: (
     transactions: TransactionRestoreInput[],
   ) => Promise<number>;
+  writeTransactionTombstones?: (
+    tombstones: TransactionTombstoneRestoreInput[],
+  ) => Promise<number>;
 };
 
 export function createLocalRestoreDataTarget({
@@ -24,6 +35,7 @@ export function createLocalRestoreDataTarget({
   readTransactions = getTransactions,
   writeCategories = restoreCategories,
   writeTransactions = restoreTransactions,
+  writeTransactionTombstones = restoreTransactionTombstones,
 }: LocalRestoreDataTargetOptions = {}): LocalRestoreDataTarget {
   return {
     async hasLocalData() {
@@ -44,11 +56,19 @@ export function createLocalRestoreDataTarget({
         .filter(isActiveRemoteRow)
         .map(mapRemoteTransactionToLocalInput);
 
+      const transactionTombstones = payload.transactions
+        .filter(isDeletedRemoteRow)
+        .map(mapRemoteTransactionTombstoneToLocalInput);
+
       const restoredCategoriesCount = await writeCategories(categories);
-      const restoredTransactionsCount = await writeTransactions(transactions);
+      const restoredActiveTransactionsCount =
+        await writeTransactions(transactions);
+      const restoredTransactionTombstonesCount =
+        await writeTransactionTombstones(transactionTombstones);
 
       return {
-        restoredTransactionsCount,
+        restoredTransactionsCount:
+          restoredActiveTransactionsCount + restoredTransactionTombstonesCount,
         restoredCategoriesCount,
       } satisfies LocalRestoreWriteResult;
     },
@@ -57,6 +77,10 @@ export function createLocalRestoreDataTarget({
 
 function isActiveRemoteRow(row: { deletedAt: string | null }) {
   return row.deletedAt === null;
+}
+
+function isDeletedRemoteRow(row: { deletedAt: string | null }) {
+  return row.deletedAt !== null;
 }
 
 function mapRemoteCategoryToLocalInput(
@@ -85,6 +109,20 @@ function mapRemoteTransactionToLocalInput(
     note: transaction.note,
     createdAt: parseRemoteTimestamp(transaction.createdAt),
     updatedAt: parseRemoteTimestamp(transaction.updatedAt),
+  };
+}
+
+function mapRemoteTransactionTombstoneToLocalInput(
+  transaction: RemoteTransaction,
+): TransactionTombstoneRestoreInput {
+  if (transaction.deletedAt === null) {
+    throw new Error('Remote restore transaction tombstone is missing.');
+  }
+
+  return {
+    id: transaction.id,
+    updatedAt: parseRemoteTimestamp(transaction.updatedAt),
+    deletedAt: parseRemoteTimestamp(transaction.deletedAt),
   };
 }
 

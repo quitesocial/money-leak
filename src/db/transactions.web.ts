@@ -2,6 +2,7 @@ import type {
   Transaction,
   TransactionInput,
   TransactionRestoreInput,
+  TransactionTombstoneRestoreInput,
 } from '@/types/transaction';
 
 const NATIVE_ONLY_ERROR_MESSAGE =
@@ -25,11 +26,21 @@ export async function restoreTransactions(
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function restoreTransactionTombstones(
+  _tombstones: TransactionTombstoneRestoreInput[],
+): Promise<number> {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function updateTransaction(_transaction: TransactionInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
+export async function getTransactionsForBackup(): Promise<Transaction[]> {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 

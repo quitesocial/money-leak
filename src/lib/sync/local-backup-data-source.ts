@@ -1,5 +1,5 @@
 import { getCategories } from '@/db/categories';
-import { getTransactions } from '@/db/transactions';
+import { getTransactionsForBackup } from '@/db/transactions';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
@@ -13,7 +13,7 @@ export type LocalBackupDataSource = {
 };
 
 export function createLocalBackupDataSource({
-  readTransactions = getTransactions,
+  readTransactions = getTransactionsForBackup,
   readCategories = getCategories,
 }: {
   readTransactions?: () => Promise<Transaction[]>;
@@ -27,9 +27,7 @@ export function createLocalBackupDataSource({
       ]);
 
       return {
-        transactions: transactions.filter(
-          (transaction) => transaction.deletedAt === null,
-        ),
+        transactions,
         categories: categories.filter(
           (category) => category.deletedAt === null,
         ),

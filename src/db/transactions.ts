@@ -4,6 +4,7 @@ import type {
   Transaction,
   TransactionInput,
   TransactionRestoreInput,
+  TransactionTombstoneRestoreInput,
 } from '@/types/transaction';
 
 import * as nativeTransactions from './transactions.native';
@@ -16,8 +17,12 @@ type TransactionsModule = {
   restoreTransactions: (
     transactions: TransactionRestoreInput[],
   ) => Promise<number>;
+  restoreTransactionTombstones: (
+    tombstones: TransactionTombstoneRestoreInput[],
+  ) => Promise<number>;
   updateTransaction: (transaction: TransactionInput) => Promise<void>;
   getTransactions: () => Promise<Transaction[]>;
+  getTransactionsForBackup: () => Promise<Transaction[]>;
   deleteTransaction: (id: string) => Promise<void>;
 };
 
@@ -29,7 +34,9 @@ export const {
   createTransaction,
   importTransactions,
   restoreTransactions,
+  restoreTransactionTombstones,
   updateTransaction,
   getTransactions,
+  getTransactionsForBackup,
   deleteTransaction,
 } = transactionsModule;
