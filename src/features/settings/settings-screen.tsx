@@ -1098,9 +1098,11 @@ export function SettingsScreen() {
             <View style={styles.sectionCopy}>
               <Text style={styles.sectionTitle}>Sync</Text>
 
-              <Text style={styles.sectionBody}>
-                Pull and push account changes for this account. Local data stays
-                on this device.
+              <Text style={styles.sectionBody}>Auto sync: On</Text>
+
+              <Text style={styles.metaText}>
+                Runs when you return to the app. Local tracking still works
+                offline.
               </Text>
             </View>
 
