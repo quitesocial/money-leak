@@ -23,6 +23,7 @@ import {
   getLastSuccessfulBackupAt,
   setLastSuccessfulBackupAt,
 } from '@/db/backup-status';
+import { getSyncMetadata } from '@/db/sync-status';
 import {
   getGoogleAuthSafeErrorMessage,
   googleAuthAdapter,
@@ -45,6 +46,8 @@ import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { manualBackupService } from '@/lib/sync/manual-backup-service';
 import { manualRestoreService } from '@/lib/sync/manual-restore-service';
+import { manualSyncService } from '@/lib/sync/manual-sync-service';
+import type { SyncResult } from '@/lib/sync/sync-types';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -66,7 +69,15 @@ type RestoreUiResult = {
   restoredCategoriesCount: number;
 };
 
-const lastBackupFormatter = new Intl.DateTimeFormat(undefined, {
+type SyncUiResult = {
+  appliedCount: number;
+  conflictsCount: number;
+  ignoredCount: number;
+  pulledCount: number;
+  pushedCount: number;
+};
+
+const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   month: 'short',
   day: 'numeric',
   hour: '2-digit',
@@ -113,12 +124,45 @@ function formatRestoreResult({
   return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')} and ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')} restored.`;
 }
 
+function formatSyncResult({
+  appliedCount,
+  conflictsCount,
+  ignoredCount,
+  pulledCount,
+  pushedCount,
+}: SyncUiResult) {
+  return `Sync complete. Pulled ${formatCountLabel(pulledCount, 'change')}. Pushed ${formatCountLabel(pushedCount, 'change')}. Applied ${formatCountLabel(appliedCount, 'change')}. Conflicts ${conflictsCount}. Ignored ${formatCountLabel(ignoredCount, 'change')}.`;
+}
+
 function formatLastBackup(timestamp: number) {
   const date = getValidDate(timestamp);
 
   if (!date) return null;
 
-  return `Last backup: ${lastBackupFormatter.format(date)}`;
+  return `Last backup: ${timestampFormatter.format(date)}`;
+}
+
+function formatLastSync(timestamp: number) {
+  const date = getValidDate(timestamp);
+
+  if (!date) return null;
+
+  return `Last sync: ${timestampFormatter.format(date)}`;
+}
+
+function createSyncUiResult(
+  result: Extract<SyncResult, { status: 'succeeded' }>,
+) {
+  return {
+    appliedCount:
+      result.appliedTransactionsCount + result.appliedCategoriesCount,
+    conflictsCount: result.conflictsCount,
+    ignoredCount:
+      result.ignoredTransactionTombstonesCount +
+      result.ignoredCategoryTombstonesCount,
+    pulledCount: result.pulledTransactionsCount + result.pulledCategoriesCount,
+    pushedCount: result.pushedTransactionsCount + result.pushedCategoriesCount,
+  };
 }
 
 function getAccountDisplayName(user: AuthUser) {
@@ -169,6 +213,7 @@ export function SettingsScreen() {
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -182,8 +227,13 @@ export function SettingsScreen() {
   const [restoreResult, setRestoreResult] = useState<RestoreUiResult | null>(
     null,
   );
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncUiResult | null>(null);
   const [isRestoreEmpty, setIsRestoreEmpty] = useState(false);
   const [lastSuccessfulBackupAt, setLastSuccessfulBackupAtState] = useState<
+    number | null
+  >(null);
+  const [lastSuccessfulSyncAt, setLastSuccessfulSyncAtState] = useState<
     number | null
   >(null);
   const [reminderError, setReminderError] = useState<string | null>(null);
@@ -207,6 +257,7 @@ export function SettingsScreen() {
     shouldCheckAppleAuthAvailability && isAppleAuthAvailable;
   const shouldShowBackup = featureFlags.backupEnabled && isAuthenticated;
   const shouldShowRestore = featureFlags.restoreEnabled && isAuthenticated;
+  const shouldShowSync = featureFlags.incrementalSyncEnabled && isAuthenticated;
 
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
@@ -214,6 +265,7 @@ export function SettingsScreen() {
   const isDataActionBusy = isExporting || isImporting;
   const isBackupDisabled = isBackingUp || !shouldShowBackup;
   const isRestoreDisabled = isRestoring || !shouldShowRestore;
+  const isSyncDisabled = isSyncing || !shouldShowSync;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isAppleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isSignOutDisabled =
@@ -245,6 +297,9 @@ export function SettingsScreen() {
     lastSuccessfulBackupAt === null
       ? null
       : formatLastBackup(lastSuccessfulBackupAt);
+
+  const lastSyncText =
+    lastSuccessfulSyncAt === null ? null : formatLastSync(lastSuccessfulSyncAt);
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -309,6 +364,38 @@ export function SettingsScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!shouldShowSync) {
+      setLastSuccessfulSyncAtState(null);
+
+      return;
+    }
+
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const metadata = await getSyncMetadata();
+
+        if (!isMounted) return;
+
+        setLastSuccessfulSyncAtState(
+          metadata.lastSyncSummary?.completedAt ??
+            metadata.lastSuccessfulSyncAt ??
+            null,
+        );
+      } catch {
+        if (!isMounted) return;
+
+        setLastSuccessfulSyncAtState(null);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shouldShowSync]);
 
   useEffect(() => {
     if (!shouldCheckAppleAuthAvailability) {
@@ -564,6 +651,47 @@ export function SettingsScreen() {
       setRestoreError("Couldn't restore backup. Try again.");
     } finally {
       setIsRestoring(false);
+    }
+  }
+
+  async function handleSyncPress() {
+    if (isSyncDisabled) return;
+
+    setIsSyncing(true);
+    setSyncError(null);
+    setSyncResult(null);
+
+    try {
+      const result = await manualSyncService.runIncrementalSync({
+        auth: {
+          status: authStatus,
+          userId: authUser?.id,
+        },
+      });
+
+      if (result.status !== 'succeeded') {
+        setSyncError("Couldn't sync. Try again.");
+
+        return;
+      }
+
+      setSyncResult(createSyncUiResult(result));
+
+      try {
+        const metadata = await getSyncMetadata();
+
+        setLastSuccessfulSyncAtState(
+          metadata.lastSyncSummary?.completedAt ??
+            metadata.lastSuccessfulSyncAt ??
+            result.lastSuccessfulSyncAt,
+        );
+      } catch {
+        setLastSuccessfulSyncAtState(result.lastSuccessfulSyncAt);
+      }
+    } catch {
+      setSyncError("Couldn't sync. Try again.");
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -877,6 +1005,50 @@ export function SettingsScreen() {
 
             {deleteAccountError ? (
               <Text style={styles.errorText}>{deleteAccountError}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {shouldShowSync ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionCopy}>
+              <Text style={styles.sectionTitle}>Sync</Text>
+
+              <Text style={styles.sectionBody}>
+                Pull and push account changes when you choose. Local data stays
+                on this device.
+              </Text>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isSyncDisabled}
+              onPress={() => {
+                void handleSyncPress();
+              }}
+              style={[
+                styles.dataButton,
+                styles.exportButton,
+                isSyncDisabled ? styles.dataButtonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
+                {isSyncing ? 'Syncing...' : 'Sync now'}
+              </Text>
+            </Pressable>
+
+            {lastSyncText ? (
+              <Text style={styles.metaText}>{lastSyncText}</Text>
+            ) : null}
+
+            {syncResult ? (
+              <Text style={styles.infoText}>
+                {formatSyncResult(syncResult)}
+              </Text>
+            ) : null}
+
+            {syncError ? (
+              <Text style={styles.errorText}>{syncError}</Text>
             ) : null}
           </View>
         ) : null}

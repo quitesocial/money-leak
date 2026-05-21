@@ -18,6 +18,7 @@ import {
 import { SettingsScreen } from '@/features/settings/settings-screen';
 import { APP_LINKS } from '@/lib/app-links';
 import { featureFlags } from '@/lib/feature-flags';
+import type { SyncMetadata } from '@/lib/sync/sync-types';
 import type {
   AuthError,
   AuthSession,
@@ -79,6 +80,34 @@ type MockRestoreRunResult =
       isRecoverable: true;
     };
 
+type MockSyncRunResult =
+  | {
+      status: 'succeeded';
+      lastSuccessfulSyncAt: number;
+      pulledTransactionsCount: number;
+      pulledCategoriesCount: number;
+      appliedTransactionsCount: number;
+      appliedCategoriesCount: number;
+      pushedTransactionsCount: number;
+      pushedCategoriesCount: number;
+      ignoredTransactionTombstonesCount: number;
+      ignoredCategoryTombstonesCount: number;
+      conflictsCount: number;
+    }
+  | {
+      status: 'failed';
+      error: {
+        code: string;
+        isRecoverable: true;
+        message: string;
+      };
+    }
+  | {
+      status: 'skipped';
+      skippedReason: string;
+      isRecoverable: true;
+    };
+
 type MockDeleteAccountResult =
   | {
       status: 'succeeded';
@@ -105,6 +134,7 @@ const mockPickTransactionsCsvImport =
 
 const mockUseTransactionsRefresh = jest.fn();
 const mockGetLastSuccessfulBackupAt = jest.fn<() => Promise<number | null>>();
+const mockGetSyncMetadata = jest.fn<() => Promise<SyncMetadata>>();
 
 const mockSetLastSuccessfulBackupAt =
   jest.fn<(_timestamp: number) => Promise<void>>();
@@ -116,6 +146,9 @@ const mockRunManualBackup =
 
 const mockRunManualRestore =
   jest.fn<(_input: unknown) => Promise<MockRestoreRunResult>>();
+
+const mockRunManualSync =
+  jest.fn<(_input: unknown) => Promise<MockSyncRunResult>>();
 
 const mockRunDeleteAccount =
   jest.fn<(_input: unknown) => Promise<MockDeleteAccountResult>>();
@@ -241,6 +274,12 @@ jest.mock('@/db/backup-status', () => ({
   },
 }));
 
+jest.mock('@/db/sync-status', () => ({
+  getSyncMetadata: () => {
+    return mockGetSyncMetadata();
+  },
+}));
+
 jest.mock('@/lib/sync/manual-backup-service', () => ({
   manualBackupService: {
     runBackup: (input: unknown) => {
@@ -256,6 +295,14 @@ jest.mock('@/lib/sync/manual-restore-service', () => ({
     },
     runRestore: (input: unknown) => {
       return mockRunManualRestore(input);
+    },
+  },
+}));
+
+jest.mock('@/lib/sync/manual-sync-service', () => ({
+  manualSyncService: {
+    runIncrementalSync: (input: unknown) => {
+      return mockRunManualSync(input);
     },
   },
 }));
@@ -520,6 +567,43 @@ function createSucceededRestoreResult({
   };
 }
 
+function createSucceededSyncResult({
+  appliedCategoriesCount = 1,
+  appliedTransactionsCount = 3,
+  conflictsCount = 5,
+  ignoredCategoryTombstonesCount = 2,
+  ignoredTransactionTombstonesCount = 7,
+  lastSuccessfulSyncAt = Date.parse('2026-05-20T12:00:00.000Z'),
+  pulledCategoriesCount = 1,
+  pulledTransactionsCount = 2,
+  pushedCategoriesCount = 3,
+  pushedTransactionsCount = 4,
+}: Partial<
+  Extract<MockSyncRunResult, { status: 'succeeded' }>
+> = {}): MockSyncRunResult {
+  return {
+    status: 'succeeded',
+    lastSuccessfulSyncAt,
+    pulledTransactionsCount,
+    pulledCategoriesCount,
+    appliedTransactionsCount,
+    appliedCategoriesCount,
+    pushedTransactionsCount,
+    pushedCategoriesCount,
+    ignoredTransactionTombstonesCount,
+    ignoredCategoryTombstonesCount,
+    conflictsCount,
+  };
+}
+
+function createEmptySyncMetadata(): SyncMetadata {
+  return {
+    lastSuccessfulSyncAt: null,
+    lastSyncErrorAt: null,
+    lastSyncSummary: null,
+  };
+}
+
 async function flushAsyncWork() {
   await act(async () => {
     await Promise.resolve();
@@ -548,9 +632,11 @@ beforeEach(() => {
   mockExportTransactionsCsv.mockResolvedValue(undefined);
   mockPickTransactionsCsvImport.mockResolvedValue({ status: 'cancelled' });
   mockGetLastSuccessfulBackupAt.mockResolvedValue(null);
+  mockGetSyncMetadata.mockResolvedValue(createEmptySyncMetadata());
   mockSetLastSuccessfulBackupAt.mockResolvedValue(undefined);
   mockRunManualBackup.mockResolvedValue(createSucceededBackupResult());
   mockRunManualRestore.mockResolvedValue(createSucceededRestoreResult());
+  mockRunManualSync.mockResolvedValue(createSucceededSyncResult());
   mockRunDeleteAccount.mockResolvedValue({ status: 'succeeded' });
   mockHasLocalRestoreData.mockResolvedValue(false);
   mockGetReminderEnabled.mockResolvedValue(false);
@@ -839,6 +925,7 @@ describe('SettingsScreen account section', () => {
   });
 
   it('signs out through the auth store without touching local data stores', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
     mockAuthStoreState.user = mockAuthSession.user;
@@ -850,6 +937,7 @@ describe('SettingsScreen account section', () => {
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockRunManualBackup).not.toHaveBeenCalled();
     expect(mockRunManualRestore).not.toHaveBeenCalled();
+    expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
     expect(mockImportTransactions).not.toHaveBeenCalled();
@@ -897,6 +985,7 @@ describe('SettingsScreen account section', () => {
   });
 
   it('deletes cloud account data and then signs out without touching local data actions', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
     mockAuthStoreState.user = mockAuthSession.user;
@@ -922,6 +1011,7 @@ describe('SettingsScreen account section', () => {
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockRunManualBackup).not.toHaveBeenCalled();
     expect(mockRunManualRestore).not.toHaveBeenCalled();
+    expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
     expect(mockImportTransactions).not.toHaveBeenCalled();
@@ -1040,6 +1130,234 @@ describe('SettingsScreen account section', () => {
   });
 });
 
+describe('SettingsScreen sync section', () => {
+  it('hides sync UI for guest mode even when sync is enabled', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).not.toContain('Sync now');
+    expect(mockRunManualSync).not.toHaveBeenCalled();
+    expect(mockGetSyncMetadata).not.toHaveBeenCalled();
+  });
+
+  it('hides sync UI for authenticated users when sync is disabled', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).not.toContain('Sync now');
+    expect(mockRunManualSync).not.toHaveBeenCalled();
+    expect(mockGetSyncMetadata).not.toHaveBeenCalled();
+  });
+
+  it('shows sync UI for authenticated users when sync is enabled', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Sync');
+    expect(text).toContain('Sync now');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+  });
+
+  it('runs manual sync with authenticated context', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+
+    expect(mockRunManualSync).toHaveBeenCalledWith({
+      auth: {
+        status: 'authenticated',
+        userId: 'auth-user-test',
+      },
+    });
+  });
+
+  it('shows loading state while manual sync is running', async () => {
+    const deferred = createDeferred<MockSyncRunResult>();
+
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualSync.mockReturnValueOnce(deferred.promise);
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+
+    const button = findButton(renderer, 'Syncing...');
+
+    expect(getNodeText(renderer.root)).toContain('Syncing...');
+    expect((button.props as { disabled?: boolean }).disabled).toBe(true);
+
+    await act(async () => {
+      deferred.resolve(createSucceededSyncResult());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getNodeText(renderer.root)).toContain('Sync now');
+  });
+
+  it('shows safe manual sync summary counts after success', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualSync.mockResolvedValueOnce(
+      createSucceededSyncResult({
+        appliedCategoriesCount: 1,
+        appliedTransactionsCount: 3,
+        conflictsCount: 5,
+        ignoredCategoryTombstonesCount: 2,
+        ignoredTransactionTombstonesCount: 7,
+        pulledCategoriesCount: 1,
+        pulledTransactionsCount: 2,
+        pushedCategoriesCount: 3,
+        pushedTransactionsCount: 4,
+      }),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain(
+      'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
+    );
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+  });
+
+  it('shows last successful sync from existing metadata', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockGetSyncMetadata.mockResolvedValue({
+      lastSuccessfulSyncAt: Date.parse('2026-05-19T12:00:00.000Z'),
+      lastSyncErrorAt: null,
+      lastSyncSummary: {
+        completedAt: Date.parse('2026-05-20T12:00:00.000Z'),
+        cursor: Date.parse('2026-05-20T12:00:00.000Z'),
+        pulledTransactionsCount: 0,
+        pulledCategoriesCount: 0,
+        appliedTransactionsCount: 0,
+        appliedCategoriesCount: 0,
+        pushedTransactionsCount: 0,
+        pushedCategoriesCount: 0,
+        ignoredTransactionTombstonesCount: 0,
+        ignoredCategoryTombstonesCount: 0,
+        conflictsCount: 0,
+      },
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await flushAsyncWork();
+
+    expect(getNodeText(renderer.root)).toContain('Last sync:');
+  });
+
+  it('shows generic sync failure copy for failed and skipped service results', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualSync.mockResolvedValueOnce({
+      status: 'failed',
+      error: {
+        code: 'remote_read_failed',
+        isRecoverable: true,
+        message:
+          'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+      },
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+
+    let text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't sync. Try again.");
+    expect(text).not.toContain('raw backend failure');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+
+    mockRunManualSync.mockResolvedValueOnce({
+      status: 'skipped',
+      skippedReason: 'missing_session',
+      isRecoverable: true,
+    });
+
+    await pressButton(renderer, 'Sync now');
+
+    text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't sync. Try again.");
+    expect(text).not.toContain('missing_session');
+  });
+
+  it('does not render raw sync diagnostics when manual sync throws', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualSync.mockRejectedValueOnce(
+      new Error(
+        'raw backend failure https://example.supabase.co ey-public-anon-key access_token refresh_token provider_token apple-identity-token EXPO_PUBLIC_SUPABASE_URL localOwnerId deviceId ownerId auth-user-test row payload',
+      ),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain("Couldn't sync. Try again.");
+    expect(text).not.toContain('raw backend failure');
+    expect(text).not.toContain('https://example.supabase.co');
+    expect(text).not.toContain('ey-public-anon-key');
+    expect(text).not.toContain('access_token');
+    expect(text).not.toContain('refresh_token');
+    expect(text).not.toContain('provider_token');
+    expect(text).not.toContain('apple-identity-token');
+    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('ownerId');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('row payload');
+  });
+});
+
 describe('SettingsScreen backup section', () => {
   it('renders backup UI only for authenticated users when backup is enabled', async () => {
     mockAuthStoreState.status = 'authenticated';
@@ -1083,6 +1401,7 @@ describe('SettingsScreen backup section', () => {
   it('shows loading and success states for manual backup', async () => {
     const deferred = createDeferred<MockBackupRunResult>();
 
+    mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
     mockAuthStoreState.user = mockAuthSession.user;
@@ -1099,6 +1418,7 @@ describe('SettingsScreen backup section', () => {
         userId: 'auth-user-test',
       },
     });
+    expect(mockRunManualSync).not.toHaveBeenCalled();
 
     await act(async () => {
       deferred.resolve(
@@ -1229,6 +1549,7 @@ describe('SettingsScreen restore section', () => {
   it('shows loading and success states for manual restore', async () => {
     const deferred = createDeferred<MockRestoreRunResult>();
 
+    mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
     mockAuthStoreState.user = mockAuthSession.user;
@@ -1247,6 +1568,7 @@ describe('SettingsScreen restore section', () => {
         userId: 'auth-user-test',
       },
     });
+    expect(mockRunManualSync).not.toHaveBeenCalled();
 
     await act(async () => {
       deferred.resolve(

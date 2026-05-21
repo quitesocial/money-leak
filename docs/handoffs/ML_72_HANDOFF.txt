@@ -1,0 +1,112 @@
+ML-72 Manual Sync Now UI v1 Handoff
+
+Summary
+- Added a user-facing manual Sync card in Settings for authenticated users when
+  featureFlags.incrementalSyncEnabled is enabled.
+- Enabled featureFlags.incrementalSyncEnabled for this release.
+- Sync remains manual-only. No automatic sync was added on app start, login,
+  session restore, sign out, background behavior, or transaction/category
+  mutation.
+
+Implemented behavior
+- Settings shows the Sync card only for authenticated users while the sync flag
+  is enabled.
+- Guest/local mode does not show the Sync card and cannot trigger sync.
+- The Sync button label is "Sync now" when idle and "Syncing..." while the
+  manual sync service is running.
+- The Sync button is disabled while syncing.
+- Pressing Sync now calls src/lib/sync/manual-sync-service.ts through
+  manualSyncService.runIncrementalSync with the current auth context.
+- Success renders only safe aggregate counts:
+  pulled, pushed, applied, conflicts, and ignored.
+- Failure, skipped results, and thrown errors render only:
+  "Couldn't sync. Try again."
+- Last sync time is read through the existing sync metadata boundary and is
+  shown as "Last sync:" when a valid timestamp exists.
+- Existing backup, restore, delete account, import/export, auth, and navigation
+  behavior was left unchanged.
+
+Out of scope / intentionally not added
+- No auto-sync on app start, login, session restore, sign out, background, or
+  local transaction/category changes.
+- No conflict UI.
+- No category tombstone semantics beyond the existing safe ignore/count
+  behavior.
+- No backup/restore behavior change.
+- No Delete Account behavior change.
+- No CSV v1 change.
+- No navigation or bottom tab change.
+- No raw diagnostics UI.
+- No service-role/admin Supabase code in the mobile app.
+- No new dependencies.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling.
+
+Pre-Codex baseline already completed by owner
+- Google login works.
+- Local data remains visible after login.
+- One transaction was created.
+- Manual backup and restore were checked.
+- Sign Out does not delete local data.
+
+Version bump
+- package.json remains the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.16.2 to 1.17.0 as a minor release because ML-72 makes
+  incremental sync user-facing through Settings.
+- package-lock.json top-level and root package version fields were updated to
+  1.17.0.
+- app.config.js and eas.json were not changed.
+
+Validation
+- PASS npm run release:preflight
+  - 9 checks passed, 0 failed.
+  - Expo version resolves to 1.17.0.
+- PASS npm test -- --runInBand
+  - 38 test suites passed.
+  - 287 tests passed.
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+  - Resolved Expo version is 1.17.0.
+- PASS git diff --check
+
+Targeted regression checks
+- PASS CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- PASS bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+- PASS Add Transaction remains a pushed root Stack screen and is not a bottom
+  tab.
+- PASS Shame Card remains a pushed root Stack screen and is not a bottom tab.
+- PASS no dynamic process.env[...] access was added in src or app.
+- PASS no service-role/admin Supabase usage was added to mobile app code,
+  config, or package files.
+- PASS Settings sync UI does not render raw env values, tokens, provider
+  secrets, Supabase URLs, anon keys, backend errors, owner ids, device ids, user
+  ids, or row payloads.
+- PASS no @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or
+  glass styling was added.
+
+Manual QA checklist
+- In guest/local mode, open Settings and confirm the Sync card is hidden.
+- Sign in with Google, open Settings, and confirm the Sync card is visible.
+- Tap Sync now and confirm the button changes to Syncing..., then returns to
+  Sync now.
+- Confirm successful sync shows only aggregate counts and, when available,
+  Last sync.
+- Force a recoverable sync failure or missing session and confirm Settings
+  shows only "Couldn't sync. Try again."
+- Tap Sign Out and confirm sync does not run and local transactions/categories
+  remain visible after returning to guest/local mode.
+- Run manual backup, restore, and Delete Account flows and confirm they do not
+  trigger sync.
+
+Preserved invariants
+- Incremental sync remains behind featureFlags.incrementalSyncEnabled.
+- Incremental sync is still not started automatically by auth/session/app
+  lifecycle or local data mutations.
+- Guest/local mode remains available with no login wall.
+- Mobile app code/config does not use Supabase service-role/admin clients.
+- Sync UI uses the manual sync service and existing sync metadata boundary, not
+  remote adapters or Supabase clients directly.
