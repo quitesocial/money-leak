@@ -1099,7 +1099,7 @@ export function SettingsScreen() {
               <Text style={styles.sectionTitle}>Sync</Text>
 
               <Text style={styles.sectionBody}>
-                Pull and push account changes when you choose. Local data stays
+                Pull and push account changes for this account. Local data stays
                 on this device.
               </Text>
             </View>
