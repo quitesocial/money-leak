@@ -4,6 +4,11 @@ import {
   type LocalBackupDataSource,
 } from '@/lib/sync/local-backup-data-source';
 import {
+  mapLocalCategoryToRemote,
+  mapLocalTransactionToRemote,
+  toRemoteTimestamp,
+} from '@/lib/sync/sync-mappers';
+import {
   BACKUP_PAYLOAD_SCHEMA_VERSION,
   type BackupErrorCode,
   type BackupPayload,
@@ -12,8 +17,6 @@ import {
   type BackupSkippedReason,
   type RemoteBackupAdapter,
 } from '@/lib/sync/sync-types';
-import type { Category } from '@/types/category';
-import type { Transaction } from '@/types/transaction';
 
 type BackupServiceOptions = {
   adapter: RemoteBackupAdapter;
@@ -51,13 +54,13 @@ export function createBackupService({
       createdAt: toRemoteTimestamp(now()),
       includesTombstones: true,
       transactions: localData.transactions.map((transaction) =>
-        mapTransactionToRemote({
+        mapLocalTransactionToRemote({
           transaction,
           userId: normalizedUserId,
         }),
       ),
       categories: nonDeletedCategories.map((category) =>
-        mapCategoryToRemote({
+        mapLocalCategoryToRemote({
           category,
           userId: normalizedUserId,
         }),
@@ -100,70 +103,6 @@ export function createBackupService({
       }
     },
   };
-}
-
-function mapTransactionToRemote({
-  transaction,
-  userId,
-}: {
-  transaction: Transaction;
-  userId: string;
-}) {
-  return {
-    id: transaction.id,
-    userId,
-    amount: transaction.amount,
-    categoryId: transaction.category,
-    isLeak: transaction.isLeak,
-    leakReason: transaction.leakReason,
-    note: transaction.note,
-    createdAt: toRemoteTimestamp(transaction.createdAt),
-    updatedAt: toRemoteTimestamp(transaction.updatedAt),
-    deletedAt:
-      transaction.deletedAt === null
-        ? null
-        : toRemoteTimestamp(transaction.deletedAt),
-    schemaVersion: transaction.schemaVersion,
-    sourceDeviceId: transaction.sourceDeviceId || null,
-  };
-}
-
-function mapCategoryToRemote({
-  category,
-  userId,
-}: {
-  category: Category;
-  userId: string;
-}) {
-  return {
-    id: category.id,
-    userId,
-    name: category.name,
-    isDefault: category.isDefault,
-    isArchived: category.isArchived,
-    sortOrder: category.sortOrder,
-    createdAt: toRemoteTimestamp(category.createdAt),
-    updatedAt: toRemoteTimestamp(category.updatedAt),
-    deletedAt:
-      category.deletedAt === null
-        ? null
-        : toRemoteTimestamp(category.deletedAt),
-    schemaVersion: category.schemaVersion,
-    sourceDeviceId: category.sourceDeviceId || null,
-  };
-}
-
-function toRemoteTimestamp(epochMilliseconds: number) {
-  if (
-    typeof epochMilliseconds !== 'number' ||
-    !Number.isFinite(epochMilliseconds)
-  ) {
-    throw new Error(
-      'Remote backup timestamps must be finite epoch milliseconds.',
-    );
-  }
-
-  return new Date(epochMilliseconds).toISOString();
 }
 
 function createSkippedResult(skippedReason: BackupSkippedReason): BackupResult {

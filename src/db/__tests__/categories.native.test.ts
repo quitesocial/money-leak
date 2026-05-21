@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { getActiveCategories } from '@/lib/category-utils';
 
 import {
+  applyCategorySyncChanges,
   archiveCategory,
   getCategories,
   restoreCategories,
@@ -69,6 +70,10 @@ class FakeCategoriesDatabase {
   async runAsync(source: string, ...params: unknown[]) {
     if (source.includes('INSERT OR IGNORE INTO categories')) {
       return { changes: this.insertCategory(params) ? 1 : 0 };
+    }
+
+    if (source.includes('UPDATE categories') && source.includes('is_default')) {
+      return { changes: this.updateCategory(params) ? 1 : 0 };
     }
 
     if (!source.includes('is_archived = 1')) return { changes: 0 };
@@ -161,6 +166,36 @@ class FakeCategoriesDatabase {
       source_device_id: sourceDeviceId,
       sort_order: sortOrder,
     });
+
+    return true;
+  }
+
+  private updateCategory(params: unknown[]) {
+    const [
+      name,
+      updatedAt,
+      isDefault,
+      isArchived,
+      schemaVersion,
+      sourceDeviceId,
+      sortOrder,
+      id,
+    ] = params;
+
+    const category = this.categories.find(
+      (currentCategory) => currentCategory.id === id,
+    );
+
+    if (!category) return false;
+
+    category.name = name as string;
+    category.updated_at = updatedAt as number;
+    category.is_default = isDefault as number;
+    category.is_archived = isArchived as number;
+    category.deleted_at = null;
+    category.schema_version = schemaVersion as number;
+    category.source_device_id = sourceDeviceId as string;
+    category.sort_order = sortOrder as number;
 
     return true;
   }
@@ -262,6 +297,58 @@ describe('native category persistence', () => {
       deleted_at: null,
       schema_version: 1,
       source_device_id: 'device_test-device',
+      sort_order: 11,
+    });
+  });
+
+  it('applies sync category upserts while preserving stable ids and createdAt', async () => {
+    await archiveCategory({
+      id: 'coffee',
+      updatedAt: 5000,
+    });
+
+    await expect(
+      applyCategorySyncChanges([
+        {
+          id: 'coffee',
+          name: 'Remote Coffee',
+          createdAt: 9999,
+          updatedAt: 6000,
+          isDefault: false,
+          isArchived: false,
+          sortOrder: 9,
+        },
+        {
+          id: 'snacks',
+          name: 'Snacks',
+          createdAt: 7000,
+          updatedAt: 8000,
+          isDefault: false,
+          isArchived: true,
+          sortOrder: 11,
+        },
+      ]),
+    ).resolves.toBe(2);
+
+    expect(
+      database.categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      id: 'coffee',
+      name: 'Remote Coffee',
+      created_at: 1001,
+      updated_at: 6000,
+      is_archived: 0,
+      sort_order: 9,
+    });
+    expect(
+      database.categories.find((category) => category.id === 'snacks'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      name: 'Snacks',
+      created_at: 7000,
+      updated_at: 8000,
+      is_archived: 1,
+      deleted_at: null,
       sort_order: 11,
     });
   });

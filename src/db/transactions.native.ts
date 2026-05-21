@@ -216,6 +216,131 @@ export async function restoreTransactionTombstones(
   return restoredCount;
 }
 
+export async function applyTransactionSyncChanges({
+  tombstones,
+  upserts,
+}: {
+  upserts: TransactionRestoreInput[];
+  tombstones: TransactionTombstoneRestoreInput[];
+}) {
+  if (!upserts.length && !tombstones.length) {
+    return {
+      upsertedTransactionsCount: 0,
+      deletedTransactionsCount: 0,
+    };
+  }
+
+  await initDatabase();
+  await ensureArchivedCategoriesForIds(
+    upserts.map((transaction) => transaction.category),
+  );
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  let upsertedTransactionsCount = 0;
+  let deletedTransactionsCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const transaction of upserts) {
+      const updateResult = await transactionDatabase.runAsync(
+        `
+          UPDATE transactions
+          SET
+            amount = ?,
+            category = ?,
+            is_leak = ?,
+            leak_reason = ?,
+            note = ?,
+            updated_at = ?,
+            deleted_at = NULL,
+            source_device_id = ?
+          WHERE id = ?
+        `,
+        transaction.amount,
+        transaction.category,
+        transaction.isLeak ? 1 : 0,
+        transaction.leakReason,
+        transaction.note,
+        transaction.updatedAt,
+        identity.deviceId,
+        transaction.id,
+      );
+
+      const updatedRows = getChangedRowCount(updateResult);
+
+      if (updatedRows > 0) {
+        upsertedTransactionsCount += updatedRows;
+
+        continue;
+      }
+
+      const insertResult = await transactionDatabase.runAsync(
+        `
+          INSERT OR IGNORE INTO transactions (
+            id,
+            owner_id,
+            amount,
+            category,
+            is_leak,
+            leak_reason,
+            note,
+            created_at,
+            updated_at,
+            deleted_at,
+            schema_version,
+            source_device_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        transaction.id,
+        identity.localOwnerId,
+        transaction.amount,
+        transaction.category,
+        transaction.isLeak ? 1 : 0,
+        transaction.leakReason,
+        transaction.note,
+        transaction.createdAt,
+        transaction.updatedAt,
+        null,
+        1,
+        identity.deviceId,
+      );
+
+      upsertedTransactionsCount += getChangedRowCount(insertResult);
+    }
+
+    for (const tombstone of tombstones) {
+      const result = await transactionDatabase.runAsync(
+        `
+          UPDATE transactions
+          SET
+            deleted_at = ?,
+            updated_at = ?,
+            source_device_id = ?
+          WHERE id = ?
+            AND (
+              deleted_at IS NULL
+              OR deleted_at < ?
+              OR updated_at < ?
+            )
+        `,
+        tombstone.deletedAt,
+        tombstone.updatedAt,
+        identity.deviceId,
+        tombstone.id,
+        tombstone.deletedAt,
+        tombstone.updatedAt,
+      );
+
+      deletedTransactionsCount += getChangedRowCount(result);
+    }
+  });
+
+  return {
+    upsertedTransactionsCount,
+    deletedTransactionsCount,
+  };
+}
+
 export async function updateTransaction(transaction: TransactionInput) {
   await initDatabase();
   await ensureArchivedCategoriesForIds([transaction.category]);

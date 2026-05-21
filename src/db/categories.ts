@@ -16,6 +16,7 @@ type CategoriesModule = {
     updatedAt: number;
   }) => Promise<void>;
   archiveCategory: (input: { id: string; updatedAt: number }) => Promise<void>;
+  applyCategorySyncChanges: (categories: CategoryInput[]) => Promise<number>;
   ensureArchivedCategoriesForIds: (categoryIds: string[]) => Promise<void>;
 };
 
@@ -29,5 +30,6 @@ export const {
   restoreCategories,
   updateCategoryName,
   archiveCategory,
+  applyCategorySyncChanges,
   ensureArchivedCategoriesForIds,
 } = categoriesModule;

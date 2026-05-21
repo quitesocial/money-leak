@@ -204,6 +204,85 @@ export async function archiveCategory({
   );
 }
 
+export async function applyCategorySyncChanges(categories: CategoryInput[]) {
+  if (!categories.length) return 0;
+
+  await initDatabase();
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  let appliedCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
+    for (const category of categories) {
+      const updateResult = await transactionDatabase.runAsync(
+        `
+          UPDATE categories
+          SET
+            name = ?,
+            updated_at = ?,
+            is_default = ?,
+            is_archived = ?,
+            deleted_at = NULL,
+            schema_version = ?,
+            source_device_id = ?,
+            sort_order = ?
+          WHERE id = ?
+        `,
+        category.name,
+        category.updatedAt,
+        category.isDefault ? 1 : 0,
+        category.isArchived ? 1 : 0,
+        1,
+        identity.deviceId,
+        category.sortOrder,
+        category.id,
+      );
+
+      const updatedRows = getChangedRowCount(updateResult);
+
+      if (updatedRows > 0) {
+        appliedCount += updatedRows;
+
+        continue;
+      }
+
+      const insertResult = await transactionDatabase.runAsync(
+        `
+          INSERT OR IGNORE INTO categories (
+            id,
+            owner_id,
+            name,
+            created_at,
+            updated_at,
+            is_default,
+            is_archived,
+            deleted_at,
+            schema_version,
+            source_device_id,
+            sort_order
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        category.id,
+        identity.localOwnerId,
+        category.name,
+        category.createdAt,
+        category.updatedAt,
+        category.isDefault ? 1 : 0,
+        category.isArchived ? 1 : 0,
+        null,
+        1,
+        identity.deviceId,
+        category.sortOrder,
+      );
+
+      appliedCount += getChangedRowCount(insertResult);
+    }
+  });
+
+  return appliedCount;
+}
+
 export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
   const normalizedCategoryIds = [
     ...new Set(

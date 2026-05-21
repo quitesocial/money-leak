@@ -1,0 +1,151 @@
+ML-71 Incremental Sync Prototype v1 Handoff
+
+Summary
+- Added a hidden/manual incremental sync foundation behind
+  featureFlags.incrementalSyncEnabled.
+- The feature flag remains false by default.
+- No Settings Sync UI, automatic background sync, login sync, session-restore
+  sync, app-start sync, or sign-out sync was added.
+- Guest/local mode remains available and sync skips safely outside an
+  authenticated Supabase anon-client session.
+
+Implemented behavior
+- Manual/dev-callable service:
+  src/lib/sync/manual-sync-service.ts.
+- Sync orchestration:
+  src/lib/sync/sync-service.ts.
+- Supabase remote adapter:
+  src/lib/sync/supabase-remote-sync-adapter.ts.
+- Fake deterministic test adapter:
+  src/lib/sync/fake-remote-sync-adapter.ts.
+- Local source/target and metadata store:
+  src/lib/sync/local-sync-data-source.ts,
+  src/lib/sync/local-sync-data-target.ts, and
+  src/lib/sync/sync-metadata-store.ts.
+- Local sync metadata is stored in app_metadata through src/db/sync-status.*.
+- Incremental sync pulls remote rows since the previous cursor, reads local
+  rows, applies remote winners locally, pushes local winners remotely, then
+  records a safe summary cursor.
+- Sync skips before mutation when disabled, in guest mode, without a user id,
+  without a Supabase session, or when the Supabase session user does not match
+  the local auth display user.
+- Sync failures return generic recoverable error copy and safe error codes only.
+
+Files changed
+- AGENTS.md
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_71_HANDOFF.txt
+- package.json
+- package-lock.json
+- src/db/categories.ts
+- src/db/categories.native.ts
+- src/db/categories.web.ts
+- src/db/sync-status.native.ts
+- src/db/sync-status.ts
+- src/db/sync-status.web.ts
+- src/db/transactions.ts
+- src/db/transactions.native.ts
+- src/db/transactions.web.ts
+- src/db/__tests__/categories.native.test.ts
+- src/db/__tests__/sync-status.native.test.ts
+- src/db/__tests__/transactions.native.test.ts
+- src/lib/sync/fake-remote-sync-adapter.ts
+- src/lib/sync/local-sync-data-source.ts
+- src/lib/sync/local-sync-data-target.ts
+- src/lib/sync/manual-sync-service.ts
+- src/lib/sync/supabase-remote-row-mappers.ts
+- src/lib/sync/supabase-remote-sync-adapter.ts
+- src/lib/sync/sync-mappers.ts
+- src/lib/sync/sync-metadata-store.ts
+- src/lib/sync/sync-service.ts
+- src/lib/sync/sync-types.ts
+- src/lib/sync/backup-service.ts
+- src/lib/sync/local-restore-data-target.ts
+- src/lib/sync/supabase-remote-backup-adapter.ts
+- src/lib/sync/supabase-remote-restore-adapter.ts
+- src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+- src/lib/sync/__tests__/sync-service.test.ts
+
+Conflict policy
+- Transactions and categories use last-write-wins by updatedAt.
+- Transaction tombstones compare deletedAt when present; deletedAt wins only
+  when it is newer than the competing active updatedAt.
+- Equal timestamp differences keep the local row and count as a conflict.
+- createdAt and stable ids are preserved.
+- Remote transaction tombstones soft-delete matching local transactions.
+- Remote transaction tombstones with no matching local row are ignored and do
+  not create visible local rows.
+- Local transaction tombstones are pushed to remote_transactions.
+- Category archive state syncs as isArchived.
+- Category tombstones are an explicit ML-71 limitation: remote category
+  tombstones are ignored safely and counted. Archived categories remain
+  resolvable for old transactions.
+- No conflict UI was added.
+
+Feature flag state
+- featureFlags.incrementalSyncEnabled remains false by default.
+- The manual sync service exists for dev/manual invocation only.
+
+Manual QA steps
+- Confirm no Sync UI appears in Settings by default.
+- Confirm no sync runs on app start, login, session restore, sign out, backup,
+  restore, or delete account.
+- In a dev harness with incrementalSyncEnabled enabled, run manual sync as a
+  guest and confirm it skips before local/remote mutation.
+- Run manual sync with an authenticated Supabase session and confirm local
+  transactions/categories push to remote without duplicates.
+- Add remote-only active rows and confirm they pull locally without wiping
+  local-only data.
+- Create local and remote transaction tombstones and confirm matching rows are
+  soft-deleted while orphan tombstones stay invisible.
+- Archive a category locally and confirm it pushes as is_archived.
+- Exercise newer remote, newer local, and equal timestamp conflicts.
+- Confirm no raw backend errors, env values, Supabase URL, anon key,
+  service-role key, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, or
+  raw user IDs are visible in UI/logs/tests/docs.
+
+Non-goals
+- No production automatic sync.
+- No background sync.
+- No sync on login/session restore/app start/sign out.
+- No Settings Sync UI.
+- No service-role/admin Supabase usage in mobile app code/config.
+- No conflict UI.
+- No category tombstone delete semantics beyond safe ignore/count.
+- No database replacement, local wipe, auth wall, CSV format change, navigation
+  change, or visual redesign.
+
+Version bump
+- package.json remains the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.16.1 to 1.16.2 as a patch release because ML-71 is a
+  hidden/prototype sync foundation behind a disabled feature flag.
+- package-lock.json top-level and root package version fields were updated to
+  1.16.2.
+- app.config.js and eas.json were not changed.
+
+Validation
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+  - 38 test suites passed.
+  - 278 tests passed.
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+  - Resolved Expo version is 1.16.2.
+- PASS git diff --check
+
+Targeted regression checks
+- PASS CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- PASS no service-role/admin Supabase usage was added to src, app, mobile
+  app config, or package config.
+- PASS no dynamic process.env[...] access was added in src or app.
+- PASS Settings/account/sync code does not expose raw env values, tokens,
+  provider secrets, ids, or backend errors.
+- PASS bottom tabs remain Home, Analytics & Leaks, Settings.
+- PASS Add Transaction and Shame Card remain root Stack screens.
+- PASS no @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass,
+  or glass styling was added.

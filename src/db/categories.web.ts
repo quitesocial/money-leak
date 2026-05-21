@@ -34,6 +34,12 @@ export async function archiveCategory(_input: {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function applyCategorySyncChanges(
+  _categories: CategoryInput[],
+): Promise<number> {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function ensureArchivedCategoriesForIds(_categoryIds: string[]) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
