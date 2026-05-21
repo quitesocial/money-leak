@@ -56,6 +56,7 @@ nvm use 20.19.4
 - When a local function or hook needs more than two inputs (3+), prefer one object parameter with named fields.
 - Keep Supabase service-role/admin operations inside server-side Supabase Edge Functions; never add service-role keys or admin clients to mobile app code/config.
 - Keep incremental sync behind `featureFlags.incrementalSyncEnabled`; do not run sync automatically on app start, login, session restore, sign out, or in the background unless a task explicitly asks for that behavior.
+- Keep user-facing Settings sync UI routed through the manual sync service and sync metadata boundaries; do not call remote sync adapters or Supabase clients directly from screen code.
 
 ## Current App Structure
 

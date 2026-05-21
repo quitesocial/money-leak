@@ -3,5 +3,5 @@ export const featureFlags = {
   appleAuthEnabled: true,
   backupEnabled: true,
   restoreEnabled: true,
-  incrementalSyncEnabled: false,
+  incrementalSyncEnabled: true,
 } as const;
