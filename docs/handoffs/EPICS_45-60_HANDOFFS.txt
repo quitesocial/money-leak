@@ -1,0 +1,2183 @@
+Money Leak — Detailed Summary of Epics 45–60
+Combined handoff file generated from individual epic handoff notes.
+Included source files:
+- Epic 45: ML_45_HANDOFF.txt
+- Epic 46: ML_46_HANDOFF.txt
+- Epic 47: ML_47_HANDOFF.txt
+- Epic 48: ML_48_HANDOFF.txt
+- Epic 49: ML_49_HANDOFF.txt
+- Epic 50: ML_50_HANDOFF.txt
+- Epic 51: ML_51_HANDOFF.txt
+- Epic 52: ML_52_HANDOFF.txt
+- Epic 53: ML_53_HANDOFF.txt
+- Epic 54: ML_54_HANDOFF.txt
+- Epic 55: ML_55_HANDOFF.txt
+- Epic 56: ML_56_HANDOFF.txt
+- Epic 57: ML_57_HANDOFF.txt
+- Epic 58: ML_58_HANDOFF.txt
+- Epic 59: ML_59_HANDOFF.txt
+- Epic 60: ML_60_HANDOFF.txt
+
+================================================================================
+
+EPIC 45 — SOURCE: ML_45_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-45 / Epic 45 handoff: iOS Glass Feel v1
+
+Date: 2026-05-13
+Repo: Money Leak
+App version after work: 1.8.0
+
+Summary
+The original ML-45 direction was to add native iOS SwiftUI-backed controls using @expo/ui. That approach was attempted but abandoned because the current @expo/ui SwiftUI beta caused local iOS simulator/dev-build problems and poor layout quality for this app.
+
+The final implemented direction is a conservative React Native-only iOS-like "glass" visual pass. No SwiftUI/native Expo UI wrappers remain in the app. The UI now uses translucent card/control surfaces, softer radii, subtle borders, and iOS-style shadows while keeping the existing React Native controls and product behavior intact.
+
+Important decision
+- Do not continue the @expo/ui/SwiftUI beta approach for this pass.
+- Do not reintroduce @expo/ui unless a later Expo SDK has stable APIs and the app is explicitly moved to development-build-only UI behavior.
+- The final ML-45 implementation intentionally avoids hand-built blur/glass effects and avoids extra blur dependencies. It is an iOS-inspired React Native visual pass, not a native SwiftUI component pass.
+
+Problems seen with @expo/ui
+- In Expo Go / normal npm start simulator flow, runtime failed with:
+  Cannot find native module 'ExpoUI'
+- In npx expo run:ios, the iOS build failed around @expo/ui Swift files:
+  SafeAreaControllable is not a member type of ExpoModulesCore.ExpoSwiftUI
+  RNHostViewProtocol is not a member type of ExpoModulesCore.ExpoSwiftUI
+- After partial workaround, @expo/ui TextField triggered runtime errors like:
+  Calling the 'setText' function has failed
+  Unable to find the 'TextFieldView' view with tag ...
+- The resulting native wrapper layout looked worse than the previous app UI.
+
+What was removed
+- Removed the experimental src/components/native-ui/ abstraction layer.
+- Removed all @expo/ui and @expo/ui/swift-ui usage.
+- Removed the old docs/native-ui-audit.md document because it no longer matches the accepted implementation.
+- package.json and package-lock.json do not include @expo/ui.
+
+What was added
+- Added src/components/glass-styles.ts.
+- This file centralizes the small visual tokens used by the pass:
+  glassColors
+  glassShadow
+  glassButtonShadow
+
+Main UI changes
+- Home:
+  Translucent summary and transaction cards, softer buttons, subtle shadows.
+- Home supporting cards:
+  DailyReviewCard, LoggingStreakCard, and LeakRiskCard use the glass card treatment.
+- TransactionForm:
+  Existing RN TextInput, Pressable chips, note input, and submit button remain.
+  Styling was softened with translucent inputs/chips, larger radii, and primary button shadow.
+- Add Transaction and Edit Transaction:
+  Background updated to the shared glass background color.
+  Edit fallback/state action button updated to the same primary glass-style button treatment.
+- Manage Categories:
+  Existing RN TextInput and Pressable controls remain.
+  Section cards, inputs, and add/save/edit/delete controls use glass-style surfaces.
+- Settings:
+  Existing RN Switch and Pressable buttons remain.
+  Reminder card, category/data/support cards, import/export/support buttons use the glass-style treatment.
+- Analytics:
+  Summary cards, insight sections, metric cards, and alternative reality rows use the glass-style treatment.
+- PeriodSelector:
+  Existing chip/date-picker behavior remains.
+  Only chip styling was updated.
+- ScreenShell:
+  Background color now uses the shared glass background.
+
+Areas intentionally not changed
+- Navigation was not changed.
+- Bottom tabs remain Home, Analytics, Shame Card, Settings.
+- Add Transaction remains a pushed root screen at /add-transaction and was not reintroduced as a bottom tab.
+- CSV import/export format and behavior were not changed.
+- Category persistence and archived category behavior were not changed.
+- SQLite schema was not changed.
+- Reminder scheduling/storage behavior was not changed.
+- Shame Card generated content, preview/capture area, and share behavior were not changed.
+- Release workflows, app.config.js, and eas.json were not changed.
+- No backend/auth/cloud sync/API calls were added.
+
+Docs
+- docs/mvp-qa-checklist.md now includes:
+  ML-45 / Epic 45: iOS Glass Feel v1
+- The QA section covers Home, Add/Edit Transaction, category selector, archived category in Edit, leak toggle/reason behavior, period selector and iOS date picker, Analytics, Shame Card, Settings, Import/Export, Manage Categories, Android/Web fallback safety, and confirming Add Transaction is not a tab.
+
+Versioning
+- package.json root version bumped from 1.7.0 to 1.8.0.
+- package-lock.json root version fields bumped from 1.7.0 to 1.8.0.
+- app.config.js was left unchanged, but resolves version 1.8.0 from package.json.
+
+Validation already run successfully
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+
+Validation result highlights
+- Release preflight passed.
+- Jest passed: 13 suites, 88 tests.
+- Typecheck passed.
+- Lint passed.
+- Format check passed.
+- Expo config resolves version 1.8.0.
+
+Manual QA
+Manual testing was completed by the user after implementation and reported as OK.
+
+Operational notes for future agents
+- If the simulator still shows old ExpoUI-related errors, stop Metro and restart with:
+  npx expo start -c
+- If using a generated iOS dev build from the abandoned @expo/ui attempt, rebuild once after dependency cleanup:
+  npx expo run:ios
+- There may be a generated local ios/ directory from npx expo run:ios. Treat it as generated/local unless git status shows tracked changes.
+
+High-level recommendation for next planning agent
+- Treat ML-45 as completed as an RN-only iOS-like visual pass.
+- Do not plan more native SwiftUI/@expo/ui work until the Expo UI API is stable enough and the project accepts development-build-only constraints.
+- Future visual polish should stay incremental and preserve Money Leak's product guardrails: local-only, minimal, no backend/auth/cloud sync, no CSV/schema/navigation regressions.
+
+================================================================================
+
+EPIC 46 — SOURCE: ML_46_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-46 handoff for next AI agent
+Date: 2026-05-14
+Branch at handoff: feature/ML-46
+Current HEAD at handoff: a605782
+
+Goal already handled
+ML-46 reverted the ML-45 iOS-like glass visual pass while preserving app behavior.
+The app is back to simple, stable React Native styling without glass imitation.
+
+What ML-45 had introduced
+- Added src/components/glass-styles.ts.
+- Added glassColors, glassShadow, and glassButtonShadow.
+- Applied translucent/glass-like card, input, chip, button, background, border, and shadow styles across major screens/components.
+
+What was removed or reverted
+- src/components/glass-styles.ts was deleted.
+- All imports/usages of glassColors, glassShadow, glassButtonShadow, and glass-styles were removed.
+- All affected visual styles were restored to plain static React Native values:
+  - solid #f7f7f5 screen backgrounds
+  - solid #ffffff cards, inputs, chips, and tab bar background
+  - normal #e5e7eb / #d1d5db borders
+  - normal #111827 primary buttons and selected chips
+  - no translucent surfaces
+  - no pseudo-glass borders
+  - no heavy glass shadow helpers
+  - no blur or Liquid Glass imitation
+- Confirmed there are no @expo/ui or @expo/ui/swift-ui imports or package references.
+
+Files affected by the rollback
+- src/components/period-selector.tsx
+- src/components/screen-shell.tsx
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/analytics/analytics-screen.tsx
+- src/features/categories/categories-screen.tsx
+- src/features/edit-transaction/edit-transaction-screen.tsx
+- src/features/home/daily-review-card.tsx
+- src/features/home/home-screen.tsx
+- src/features/home/leak-risk-card.tsx
+- src/features/home/logging-streak-card.tsx
+- src/features/settings/settings-screen.tsx
+- src/features/transaction-form/transaction-form.tsx
+
+Additional tab bar/layout fix done during QA
+- The user noticed an ugly gray/white band between scroll content and the bottom tab bar on iOS.
+- app/(tabs)/_layout.tsx was adjusted:
+  - tabBarStyle.borderTopWidth = 0
+  - tabBarStyle.height = 64
+  - tabBarStyle.backgroundColor = #ffffff
+  - tabBarStyle.elevation = 0
+  - tabBarStyle.shadowOpacity = 0
+  - compact top/bottom padding
+  - centered tab bar items/icons
+- The bottom safe-area inset was removed only from the tab screens by using:
+  SafeAreaView edges={['top', 'left', 'right']}
+- This was applied to:
+  - Home
+  - Analytics
+  - Shame Card
+  - Settings
+- Pushed/root screens such as Add Transaction, Edit Transaction, and Manage Categories were intentionally not changed for this safe-area adjustment.
+
+Versioning and docs state
+- package.json version is 1.8.1.
+- package-lock.json root/package version fields are also 1.8.1 in the current branch.
+- The ML-45 QA checklist section was removed from docs/mvp-qa-checklist.md.
+- No ML-46 release-notes file is currently present in docs/release-notes.
+
+Behavior intentionally preserved
+- No backend, auth, cloud sync, API calls, or new dependencies were added.
+- Navigation is preserved.
+- Add Transaction remains a pushed root screen at /add-transaction.
+- Add Transaction was not reintroduced as a bottom tab.
+- Transaction schema was not changed.
+- Category schema was not changed.
+- CSV import/export format was not changed.
+- CSV export still uses stored category IDs, not display names.
+- Reminder behavior was not changed.
+- Analytics logic was not changed.
+- Shame Card content/share behavior was not changed.
+- ML-44 editable category behavior was preserved.
+
+Validation already run by Codex
+- npm run release:preflight passed.
+- npm test -- --runInBand passed: 13 test suites, 88 tests.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- Final searches found no:
+  - glassColors
+  - glassShadow
+  - glassButtonShadow
+  - glass-styles
+  - @expo/ui
+  - @expo/ui/swift-ui
+
+Manual QA status
+- The user completed the manual steps needed locally and manually tested the app.
+- User reported manual testing is OK.
+
+Local iOS build note
+- npx expo run:ios initially failed before compilation with xcodebuild error code 70.
+- Root cause was local Xcode simulator/platform mismatch, not app code:
+  - booted simulator existed under iOS 26.4
+  - current Xcode expected iOS 26.5
+  - xcodebuild could not find an eligible destination
+- User later handled the required local/manual setup and confirmed manual testing passed.
+
+Important guidance for follow-up work
+- Do not reintroduce glass styling, blur effects, @expo/ui, SwiftUI wrappers, Liquid Glass imitation, or any new UI dependency.
+- Keep future visual changes small and explicit unless a new design epic asks for a broader redesign.
+- If changing bottom tab layout again, preserve:
+  - white tab bar background
+  - compact height
+  - centered tab icons/labels
+  - no gray content spacer between scroll content and tab bar
+
+================================================================================
+
+EPIC 47 — SOURCE: ML_47_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-47 Agent Handoff: Footer Navigation Update
+Created: 2026-05-14
+
+Project context
+- App: Money Leak, local-only Expo + React Native + TypeScript + Expo Router app.
+- Product guardrails stayed in force: no backend, auth, cloud sync, API calls, AI calls, bank integrations, schema changes, or CSV format changes were added.
+- ML-45 broad iOS glass / @expo/ui / SwiftUI direction was intentionally not reintroduced.
+- ML-47 scope stayed limited to the bottom footer/tab menu and the minimum navigation/content updates needed by that footer.
+
+Final implementation state
+- Bottom footer now has exactly three visible tabs:
+  - Home
+  - Analytics & Leaks
+  - Settings
+- Shame Card is no longer visible in the bottom footer.
+- Add Transaction remains a pushed root screen at /add-transaction and is not a footer tab.
+- Shame Card was preserved as a pushed root route at /shame-card.
+- Analytics has a clear CTA labeled "Generate Shame Card" that opens /shame-card.
+- Root stack registers /shame-card with normal back navigation.
+- App version was bumped from 1.8.1 to 1.9.0 in package.json and package-lock.json root version fields.
+
+Key files changed for ML-47
+- app/(tabs)/_layout.tsx
+  - Replaced the default Expo Router tab footer with a custom animated React Native tab bar.
+  - The footer is an absolute-positioned floating pill with a light translucent-looking plain background, rounded radius, border, and soft shadow.
+  - Active tab has a light gray rounded capsule.
+  - Active icon and label use blue #0088ff.
+  - Inactive icon and label use near-black #1a1a1a.
+  - The active capsule moves between tabs using Animated.spring, giving the selected background an iOS-like flowing transition.
+  - Analytics label is rendered as two lines: "Analytics" and "& Leaks".
+- app/_layout.tsx
+  - Registered the root stack route "shame-card".
+- app/shame-card.tsx
+  - Added root route that renders the existing ShameCardScreen.
+- app/(tabs)/shame-card.tsx
+  - Removed from tabs.
+- src/features/analytics/analytics-screen.tsx
+  - Added Link href="/shame-card" CTA labeled "Generate Shame Card".
+  - Analytics calculations were not changed.
+- src/features/home/home-screen.tsx
+  - Increased bottom content padding so the absolute footer does not cover content.
+- src/features/analytics/analytics-screen.tsx
+  - Increased bottom content padding for the same footer reason.
+- src/features/settings/settings-screen.tsx
+  - Increased bottom content padding for the same footer reason.
+- docs/mvp-qa-checklist.md
+  - Added the ML-47 manual QA checklist.
+- package.json / package-lock.json
+  - Version is now 1.9.0.
+  - expo-symbols was added for native SF Symbol rendering.
+
+Icon decisions
+- The final tab icons are rendered with expo-symbols / SymbolView, not @expo/vector-icons and not custom SVG.
+- Home uses SF Symbol "house".
+- Analytics & Leaks uses SF Symbol "drop.halffull".
+- Settings uses SF Symbol "gearshape".
+- This was an intentional final correction after testing: a custom outline SVG drop did not match the Figma node. The Figma analytics icon is a half-filled droplet, and "drop.halffull" is the matching SF Symbol.
+- Directly rendering Figma private SF glyph text was tried earlier and produced question-mark icons, so do not use private Unicode glyphs from Figma as Text.
+- react-native-svg is not part of the final icon solution.
+
+Design behavior now expected
+- Footer resembles Figma node 26:188:
+  - floating rounded pill container
+  - white / very light translucent-looking surface implemented only with plain React Native styles
+  - soft shadow
+  - active gray capsule
+  - blue active icon and label
+  - near-black inactive icon and label
+  - compact centered layout
+  - safe-area friendly bottom offset
+- There should be no gray or white spacer band inserted between screen content and the footer.
+- The active capsule should animate/flow between tabs instead of switching abruptly.
+
+Validation already run successfully
+- npm run release:preflight
+- npm test -- --runInBand
+  - 13 test suites passed
+  - 88 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+
+Forbidden-regression searches already passed
+- No @expo/ui.
+- No @expo/ui/swift-ui.
+- No glass-styles.
+- No glassColors.
+- No glassShadow.
+- No glassButtonShadow.
+- No final react-native-svg usage.
+
+Manual QA status
+- The user manually tested the final state and reported that everything needed by hand was checked and OK.
+- Manual QA covered the footer appearance, tab switching, Shame Card access from Analytics, and general ML-47 behavior.
+
+Important constraints for future agents
+- Do not reintroduce @expo/ui.
+- Do not add SwiftUI/native UI wrappers.
+- Do not add blur dependencies.
+- Do not add Liquid Glass imitation or broad app-wide glass styling.
+- Do not make Add Transaction a visible tab.
+- Do not remove Shame Card behavior, preview, capture, or share logic.
+- Do not change transaction/category schemas.
+- Do not change CSV import/export format.
+- Do not change analytics logic unless a future task explicitly asks for it.
+- Keep app/ route-focused and feature implementations under src/features.
+
+Known documentation note
+- ML-47 added a new checklist section to docs/mvp-qa-checklist.md.
+- Some older historical documentation/checklist text may still mention Shame Card as a tab because it describes previous states or older QA flows. Future documentation cleanup can address those references if requested, but it was not part of the narrow ML-47 implementation scope.
+
+================================================================================
+
+EPIC 48 — SOURCE: ML_48_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-48 / Epic 48 - Home Page Redesign Handoff
+Date: 2026-05-14
+Project: Money Leak
+
+Purpose
+This file summarizes the completed ML-48 Home redesign work so a future AI agent can plan follow-up work without rediscovering the same context.
+
+Current Status
+- ML-48 Home redesign has been implemented.
+- User completed manual QA after final hand edits and confirmed everything is OK.
+- App version is now 1.10.0.
+- The worktree was clean before this handoff file was added.
+
+Core Product Constraints Still In Force
+- Local-only app.
+- No backend, auth, cloud sync, bank integrations, AI/API calls, or schema changes.
+- Do not reintroduce Add Transaction as a tab.
+- Do not reintroduce Shame Card as a tab.
+- Do not reintroduce @expo/ui, @expo/ui/swift-ui, blur dependencies, glass-styles, or Liquid Glass imitation.
+- Keep the ML-47 footer behavior intact.
+
+Implemented Home Behavior
+- Home is simplified to two main sections:
+  1. Today summary
+  2. History
+- Old separate Home cards are no longer rendered:
+  - DailyReviewCard / Today check-in
+  - LoggingStreakCard
+  - LeakRiskCard
+- Their helper logic and tests remain in the codebase.
+
+Today Summary
+- Uses calculateDailyReviewSummary({ transactions }).
+- Summarizes today only, based on local device day boundaries.
+- Shows:
+  - Total
+  - Leak
+  - Leak %
+- Handles empty today safely with zero values and no NaN.
+- Add Transaction CTA remains on Home and routes to /add-transaction as a pushed root screen.
+
+History
+- History uses filterTransactionsByPeriod and the existing period-scope store.
+- On Home only, the History period selector exposes exactly three periods:
+  - Today
+  - Yesterday
+  - This week
+- Choose date is intentionally not shown on Home.
+- If the shared period store is left on custom_date after visiting Analytics or Shame Card, Home normalizes its visible selected period back to Today.
+- Analytics and Shame Card still use the shared PeriodSelector default behavior with all four options:
+  - Yesterday
+  - Today
+  - This week
+  - Choose date
+
+Period Selector
+- src/components/period-selector.tsx now supports an optional periods prop.
+- Without periods, it defaults to PERIOD_SCOPE_OPTIONS, preserving Analytics/Shame Card behavior.
+- The selected capsule is animated using React Native Animated.spring, similar to the ML-47 footer.
+- No new UI or gesture dependency was added for the selector.
+
+History Item UI
+- History items show:
+  - category display name
+  - amount
+  - short time/date label
+  - Normal/Leak state
+  - leak reason when present
+  - note when present
+- Category display uses getCategoryDisplayName, so custom and archived categories remain safe.
+- The old gray left border was removed.
+- At rest, transaction cards are gray to match the design direction.
+- While swiping, the foreground card interpolates to white.
+- Leak rows remain subtly distinguishable through the Leak badge/reason, not heavy card styling.
+
+History Edit/Delete
+- Persistent inline Edit/Delete buttons were removed.
+- Swipe right reveals red delete action with trash icon.
+- Swipe left reveals green edit action with pencil icon.
+- Swipe implementation uses React Native PanResponder and Animated, not react-native-gesture-handler.
+- Edit routes to the existing /transaction/[id]/edit screen.
+- Delete uses the existing Alert confirmation and removeTransaction store flow.
+- No duplicate CRUD path was introduced.
+
+History More Button
+- A More button appears next to the History heading.
+- It routes to the Analytics & Leaks tab via router.push('/analytics').
+
+Typography / New York Font
+- New York is now bundled as an app asset:
+  - assets/fonts/NewYork.ttf
+- The root layout loads it with expo-font:
+  - app/_layout.tsx
+- Home title/section title styles use fontFamily: 'NewYork'.
+- package.json now includes:
+  - expo-font@~14.0.11
+- This dependency was added specifically because using system font names such as "New York" or "NewYork-Bold" did not reliably render the desired font.
+
+Versioning
+- package.json version: 1.10.0
+- package-lock.json root/package versions: 1.10.0
+- app.config.js still reads version from package.json.
+- eas.json was not modified.
+
+Files Most Relevant To ML-48
+- app/_layout.tsx
+- assets/fonts/NewYork.ttf
+- src/features/home/home-screen.tsx
+- src/components/period-selector.tsx
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+QA Documentation
+- docs/mvp-qa-checklist.md has an ML-48 / Epic 48 section.
+- Older QA references that expected Daily Review, Logging Streak, or Leak Risk cards on Home were updated so the checklist matches the redesigned Home.
+- CSV fixture QA now acknowledges that Home no longer exposes Choose date; fixed historical fixture dates are verified through Analytics/Shame Card.
+
+Automated Validation Already Run During Implementation
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+
+Validation Results
+- All checks passed during implementation.
+- Jest passed: 13 test suites, 88 tests.
+- npx expo config --json resolved app version 1.10.0.
+
+Manual QA
+- User manually tested after final hand edits.
+- User confirmed manual testing is OK.
+
+Dependency / Safety Checks
+- No @expo/ui, @expo/ui/swift-ui, blur, Liquid Glass, or glass-style dependency was added.
+- Add Transaction and Shame Card remain pushed root screens, not tabs.
+- The tab layout remains Home, Analytics & Leaks, Settings.
+
+Important Follow-Up Notes For Future Agents
+- Do not bring Choose date back to Home unless explicitly requested; this was intentionally changed to match the design.
+- Do not remove expo-font or assets/fonts/NewYork.ttf unless replacing them with an equally reliable New York font strategy.
+- Do not convert swipe actions into visible inline Edit/Delete buttons; the latest accepted behavior is native-style swipe actions.
+- Keep Home route files thin; feature code belongs in src/features/home.
+- Keep existing store and CRUD flows; do not add transaction schema/store/data-flow changes for Home UI work.
+
+================================================================================
+
+EPIC 49 — SOURCE: ML_49_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-49 handoff
+Date: 2026-05-17
+
+Context
+- Project: Money Leak, Expo + React Native + TypeScript + Expo Router + Zustand.
+- ML-48 had redesigned Home into Today summary and History.
+- History rows already used React Native PanResponder + Animated swipe actions.
+- The goal for ML-49 was to make History row swipes less fragile without adding gesture dependencies or changing navigation, schemas, analytics, CSV, categories, reminders, or visual design.
+
+Implemented changes
+- Updated src/features/home/home-screen.tsx.
+- Kept the existing PanResponder + Animated approach.
+- Replaced the old strict horizontal detection with explicit gesture intent handling:
+  - tiny movement is ignored before intent is decided
+  - clearly vertical movement is left to ScrollView
+  - horizontal-enough movement locks the row into swipe mode
+  - once locked, the row keeps handling the gesture even if the finger drifts vertically
+- Added localized swipe constants:
+  - SWIPE_ACTION_WIDTH = 88
+  - HORIZONTAL_ACTIVATION_DISTANCE = 10
+  - VERTICAL_SCROLL_DISTANCE = 8
+  - HORIZONTAL_INTENT_RATIO = 0.75
+  - SWIPE_OPEN_THRESHOLD = 44
+  - SWIPE_VELOCITY_THRESHOLD = 0.35
+- Added clampSwipeTranslation so card movement is clamped to [-88, 88].
+- Translation uses dx only after horizontal lock.
+- Release behavior now snaps predictably:
+  - swipe right past threshold or with enough positive velocity opens Delete
+  - swipe left past threshold or with enough negative velocity opens Edit
+  - otherwise the row closes
+- Added onPanResponderTerminationRequest so locked horizontal swipes are not stolen mid-gesture.
+- Kept action buttons explicit:
+  - swipe only reveals the actions
+  - Delete still triggers the existing Alert confirmation
+  - Edit still routes to /transaction/[id]/edit
+- Preserved the existing transaction display:
+  - category display name
+  - amount
+  - date/time label
+  - Normal/Leak state
+  - leak reason
+  - note
+- Implemented one-open-row behavior:
+  - HomeScreen now tracks openSwipeTransactionId
+  - opening one row closes any previously open row
+  - starting interaction on another row closes the currently open row
+  - loading/deleting state closes open rows
+  - if the open row disappears from the filtered History list, the open-row state is cleared
+
+Docs and version
+- Updated docs/mvp-qa-checklist.md with a new ML-49 section.
+- The ML-49 checklist covers:
+  - slow diagonal swipes left and right
+  - fast short velocity swipes left and right
+  - vertical scrolling over History cards
+  - mostly vertical gestures not opening actions
+  - Delete confirmation behavior
+  - Edit route behavior
+  - returning from edit
+  - one-open-row behavior
+  - unchanged footer tabs
+- Bumped app version from 1.10.0 to 1.10.1 in:
+  - package.json
+  - package-lock.json
+- app.config.js and eas.json were not modified.
+
+Validation already run
+- npm run release:preflight
+- npm test -- --runInBand
+  - 13 test suites passed
+  - 88 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved Expo version: 1.10.1
+- git diff --check
+
+Regression searches already run
+- Confirmed no matches for:
+  - @expo/ui
+  - @expo/ui/swift-ui
+  - glass-styles
+  - glassColors
+  - glassShadow
+  - glassButtonShadow
+  - BlurView
+  - known blur dependencies in package.json/package-lock.json
+- Confirmed Add Transaction remains a root stack screen, not a visible tab.
+- Confirmed Shame Card remains a root stack screen, not a visible tab.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+
+Manual QA status
+- The user manually tested the ML-49 behavior after implementation.
+- Manual testing result from user: all required manual checks passed.
+
+Touched files
+- src/features/home/home-screen.tsx
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+- docs/ml-49-handoff.txt
+
+Current status
+- ML-49 implementation is complete.
+- Automated validation passed.
+- Manual QA passed.
+- The worktree contains the expected ML-49 changes and this handoff file.
+
+================================================================================
+
+EPIC 50 — SOURCE: ML_50_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-50 handoff
+
+Date: 2026-05-17
+App version after ML-50: 1.10.2
+
+Summary
+
+ML-50 implemented autofocus for the main amount input on Add Transaction and Edit Transaction.
+Both flows use the shared TransactionForm, so the implementation was kept there instead of changing route screens.
+
+Implemented behavior
+
+- Add Transaction focuses the amount input shortly after the form mounts.
+- On native devices, focusing the amount input opens the keyboard automatically.
+- Edit Transaction focuses the same amount input after the edit form mounts.
+- Existing edit amount values remain populated.
+- The focus attempt runs once per TransactionForm mount and does not repeat on form state changes.
+- Unsupported focus runtimes fail silently instead of crashing.
+- The focus timer is cleaned up on unmount so back navigation does not leave a stale focus action behind.
+
+Files changed for ML-50
+
+- src/features/transaction-form/transaction-form.tsx
+  - Added a TextInput ref for the amount input.
+  - Added a one-time useEffect with a 250 ms delay before calling focus().
+  - Wrapped focus() in try/catch for runtime safety.
+  - Attached the ref to the amount TextInput.
+
+- docs/mvp-qa-checklist.md
+  - Added "ML-50 / Epic 50: Add/Edit Transaction Amount Autofocus".
+  - Manual QA cases cover Add, Edit, native keyboard, validation, category/leak/note fields, back navigation, and tab/root-screen regressions.
+
+- package.json
+  - Bumped version from 1.10.1 to 1.10.2.
+
+- package-lock.json
+  - Updated only the root package version fields from 1.10.1 to 1.10.2.
+
+Validation already run
+
+- npm run release:preflight
+  - Passed.
+  - Confirmed package.json version is valid semver 1.10.2.
+  - Confirmed app.config.js resolves Expo version 1.10.2 from package.json.
+
+- npm test -- --runInBand
+  - Passed.
+  - 13 test suites passed.
+  - 88 tests passed.
+
+- npm run typecheck
+  - Passed.
+
+- npm run lint
+  - Passed.
+
+- npm run format:check
+  - Passed.
+
+- npx expo config --json
+  - Passed.
+  - Output resolved version 1.10.2.
+
+- git diff --check
+  - Passed.
+
+Regression checks already confirmed
+
+- No references found in app/src/docs/package files for:
+  - @expo/ui
+  - @expo/ui/swift-ui
+  - glass-styles
+  - glassColors
+  - glassShadow
+  - glassButtonShadow
+  - BlurView
+
+- Add Transaction remains a pushed root stack screen.
+- Shame Card remains a pushed root stack screen.
+- Bottom tabs remain exactly:
+  - Home
+  - Analytics & Leaks
+  - Settings
+
+Manual QA status
+
+The user manually tested the ML-50 behavior and reported that everything is OK.
+
+Manual QA cases completed by user:
+
+- Add Transaction opens with amount input focused.
+- Edit Transaction opens with amount input focused and existing amount preserved.
+- Keyboard opens on native.
+- Validation still works.
+- Category, leak, leak reason, note, and submit behavior still work.
+- Back navigation does not leave the app in a broken keyboard or focus state.
+
+Important constraints for future planning
+
+- Do not add new dependencies.
+- Do not reintroduce @expo/ui, SwiftUI wrappers, glass styling, blur dependencies, or Liquid Glass imitation.
+- Do not change navigation structure.
+- Do not add Add Transaction or Shame Card to bottom tabs.
+- Do not change transaction schema, category schema, CSV format, analytics logic, reminders, or Shame Card logic.
+- Do not modify app.config.js or eas.json for this version bump pattern unless a future task explicitly requires it.
+
+Current planning note
+
+ML-50 can be treated as implemented, validated, manually QAed, and ready for downstream planning or release workflow work.
+
+================================================================================
+
+EPIC 51 — SOURCE: ML_51_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-51 Agent Context
+
+Purpose:
+This file summarizes what was completed during ML-51 so a future AI agent can
+plan the next auth/sync epics without rediscovering the same baseline.
+
+Project state after ML-51:
+- App version is 1.10.3.
+- Latest completed epic is ML-51: Auth & Sync Readiness Audit.
+- ML-51 was intentionally documentation/version-only.
+- Runtime app behavior was not changed.
+- No transaction or category schema changes were made.
+- No CSV format changes were made.
+- No dependencies were added.
+- No auth, backend, cloud sync, account, Supabase, Firebase, Google, or Apple
+  implementation was added.
+- app.config.js, app.json, and eas.json were not changed.
+
+Files changed in ML-51:
+- docs/auth-sync-audit.md
+- docs/ml-51-handoff.txt
+- docs/ml-51-agent-context.txt
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+Version bump:
+- package.json version moved from 1.10.2 to 1.10.3.
+- package-lock.json top-level version moved from 1.10.2 to 1.10.3.
+- package-lock.json packages[""].version moved from 1.10.2 to 1.10.3.
+- app.config.js already resolves Expo version from package.json, so no config
+  edit was needed.
+- npx expo config --json resolved version 1.10.3 after the bump.
+
+Navigation baseline confirmed:
+- Bottom tabs remain exactly:
+  - Home
+  - Analytics & Leaks
+  - Settings
+- Add Transaction is a pushed root Stack screen, not a bottom tab.
+- Shame Card is a pushed root Stack screen, not a bottom tab.
+- Manage Categories is a pushed root Stack screen.
+- Edit Transaction is a pushed Stack screen at /transaction/[id]/edit.
+
+Data/storage baseline confirmed:
+- Native transaction/category persistence uses Expo SQLite.
+- Web transaction/category persistence is intentionally unsupported in this
+  build.
+- Transactions are stored in SQLite table transactions.
+- Categories are stored in SQLite table categories.
+- Onboarding completion is stored in AsyncStorage.
+- Daily reminder enabled state is stored in AsyncStorage.
+- Notification permission/scheduling is device-local through expo-notifications.
+- Period scope is in-memory Zustand state.
+
+Important transaction findings:
+- Current Transaction fields:
+  id, amount, category, isLeak, leakReason, note, createdAt.
+- Transactions do not yet have ownerId, updatedAt, deletedAt, schemaVersion,
+  deviceId, revision, or equivalent sync metadata.
+- Add Transaction uses crypto.randomUUID() when available and a timestamp/random
+  fallback otherwise.
+- Edit Transaction preserves id and createdAt.
+- Delete currently hard-deletes SQLite rows.
+- Hard delete is the largest future sync-readiness risk because deleted records
+  cannot be propagated later without tombstones or a change log.
+- Future migrations must preserve existing local guest transactions.
+
+Important category findings:
+- Current Category fields:
+  id, name, createdAt, updatedAt, isDefault, isArchived, sortOrder.
+- Default category IDs are stable:
+  food, transport, alcohol, shopping, subscriptions, other.
+- Custom category IDs are generated from local slugs with suffixes for
+  collisions.
+- Category delete is archive behavior, not row deletion.
+- Unknown imported category IDs are recovered as archived placeholder
+  categories.
+- Categories already have updatedAt, but still need ownerId, deletedAt or
+  tombstone policy, schemaVersion, device/revision metadata before sync.
+- Custom slug IDs can conflict across devices, so ML-53 should decide ID and
+  conflict policy before schema changes.
+
+CSV baseline confirmed:
+- CSV v1 header is exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- CSV export writes category IDs, not display names.
+- CSV import requires the exact v1 header.
+- CSV import supports UTF-8 BOM and CRLF fixtures.
+- CSV import parses duplicate IDs as valid rows, but SQLite import uses
+  INSERT OR IGNORE so existing IDs are skipped.
+- Recommendation from ML-51: keep CSV v1 metadata-free until an explicit CSV v2
+  migration is designed.
+
+SQLite/migration baseline confirmed:
+- initDatabase enables WAL.
+- initDatabase creates transactions and categories tables if missing.
+- Default categories are seeded with INSERT OR IGNORE.
+- There is one ad hoc migration that rebuilds the transactions table if an old
+  category constraint is detected.
+- There is no generic versioned migration runner yet.
+- A migration runner should be added before ownerId, updatedAt, deletedAt,
+  schemaVersion, or sync metadata columns are introduced.
+
+Store/data-flow baseline confirmed:
+- useTransactionsStore directly calls src/db/transactions.
+- useCategoriesStore directly calls src/db/categories.
+- Feature screens call store actions rather than DB functions directly.
+- Future sync-ready work should centralize write metadata behind repositories
+  or sync-ready data APIs instead of spreading owner/timestamp/tombstone logic
+  across screens.
+
+Validation completed during ML-51:
+- npm run release:preflight passed.
+- npm test -- --runInBand passed: 13 suites, 88 tests.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- npx expo config --json passed and resolved version 1.10.3.
+- git diff --check passed.
+- Human owner reported manual testing completed and OK after implementation.
+
+Recommended next epics from ML-51:
+- ML-52: provider/config decision docs.
+  Suggested files:
+  - docs/auth-provider-decision.md
+  - docs/sync-provider-decision.md
+  - docs/auth-sync-env-contract.md
+- ML-53: sync-ready data contract before schema edits.
+  Suggested file:
+  - docs/sync-data-contract.md
+  Decisions needed:
+  - owner/account field names
+  - guest/local mode ownership model
+  - ID stability
+  - soft-delete/tombstone semantics
+  - updatedAt/revision/device metadata
+  - CSV compatibility policy
+  - category conflict policy
+- ML-54: local migration runner.
+  Likely areas:
+  - src/db/database.native.ts
+  - possible new src/db/migrations module
+  Requirements:
+  - versioned migration metadata
+  - idempotent migration steps
+  - preservation of existing local transactions/categories
+- ML-55: auth foundation.
+  Recommended shape:
+  - account entry in Settings
+  - pushed /account route if account UI needs its own screen
+  - preserve guest/local mode
+  - no forced login
+  - no bottom-tab changes
+
+Human owner decisions needed before ML-52:
+- Choose auth provider.
+- Choose sync/backup provider.
+- Decide whether the first account feature is backup-only or full multi-device
+  sync.
+- Decide whether guest/local mode remains permanently available.
+- Decide token/secret storage posture before adding dependencies.
+- Decide whether CSV v1 remains unchanged through auth/sync launch.
+- Decide conflict policy for transaction IDs and category IDs.
+
+Non-goals to preserve in future planning unless explicitly changed:
+- No silent data wipe.
+- No forced login.
+- No cloud-first rewrite.
+- No CSV breaking change without deliberate migration.
+- No broad UI redesign.
+- No Add Transaction or Shame Card bottom tabs.
+- No @expo/ui, SwiftUI wrappers, glass styling, BlurView, blur dependencies, or
+  Liquid Glass imitation.
+
+================================================================================
+
+EPIC 52 — SOURCE: ML_52_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-52 Provider / Auth / Sync Config Decision Handoff
+
+Purpose
+This handoff summarizes what was completed for ML-52 so the next AI agent can
+continue planning without re-discovering the same context.
+
+Repo-side work completed
+- Added docs/auth-provider-decision.md.
+- Added docs/sync-provider-decision.md.
+- Added docs/auth-sync-env-contract.md.
+- Added .env.example with placeholder-only public client config keys.
+- Updated docs/mvp-qa-checklist.md with the ML-52 QA section.
+- Bumped app version from 1.10.3 to 1.10.4 in package.json.
+- Bumped package-lock.json top-level and root package version fields to 1.10.4.
+
+Provider decisions recorded
+- Auth provider: Supabase Auth.
+- Remote DB / backup provider: Supabase Postgres.
+- First login provider: Google.
+- Second login provider: Apple Sign-In.
+- Guest/local mode remains permanently available.
+- Initial backup model: manual backup first, not automatic sync.
+- CSV v1 remains unchanged through the auth/sync foundation.
+- App remains local-first: SQLite stays the source of truth for the current UX.
+- Backend is a future backup/sync layer, not primary online CRUD.
+
+Auth decision details
+- No forced login.
+- Logout must never delete local data.
+- Delete account is a separate future flow.
+- No secrets belong in the repo.
+- Supabase service role keys must never be used in the mobile app.
+- Future token/session storage must use SecureStore / Keychain-style storage,
+  not AsyncStorage.
+- Google login will be implemented first.
+- Apple Sign-In must follow before public iOS release if Google login is
+  visible as primary auth on iOS.
+
+Sync decision details
+- Future remote-backed data may include:
+  - user profile/account identity
+  - transactions backup
+  - categories backup
+  - account-level settings
+  - sync metadata
+  - delete-account state
+- Not initially required:
+  - realtime sync
+  - social features
+  - bank integrations
+  - server-generated analytics
+- Explicit data safety rule:
+  Never silently overwrite, replace, or delete local data.
+
+Future environment/config contract
+- Placeholder public client keys documented:
+  - EXPO_PUBLIC_SUPABASE_URL
+  - EXPO_PUBLIC_SUPABASE_ANON_KEY
+  - EXPO_PUBLIC_AUTH_REDIRECT_SCHEME
+  - EXPO_PUBLIC_AUTH_REDIRECT_PATH
+  - EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER
+  - EXPO_PUBLIC_ANDROID_PACKAGE
+- .env.example contains placeholders only.
+- Real values must live in ignored local env files, EAS/CI env values, or
+  provider dashboards.
+- Future Google/Apple provider secrets belong in provider dashboards and
+  Supabase provider settings, not in app code.
+
+Manual owner work completed outside the repo
+- Owner accepted the provider decision:
+  Supabase Auth + Supabase Postgres, Google first, Apple second, manual backup
+  first, guest mode permanent, CSV v1 unchanged.
+- Owner created a Supabase project.
+- Owner selected an EU region closer to expected users.
+- Owner saved the Supabase Project URL and anon public key outside the repo.
+- Owner did not give Codex the service role key.
+- Owner did not commit the service role key or any real secret to the repo.
+- Owner intentionally did not fully configure Google/Apple yet; that is
+  deferred to ML-56 / ML-64.
+- Owner completed manual testing and reported everything is OK.
+
+Validation completed during ML-52 implementation
+- npm run release:preflight passed.
+- npm test -- --runInBand passed.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- npx expo config --json passed and resolved version 1.10.4.
+- git diff --check passed.
+- Confirmation searches found no new auth/provider runtime dependencies.
+- Confirmation searches found no real secret-like keys.
+- Confirmation searches found service-role mentions only as documentation
+  warnings.
+- Confirmation searches found no @expo/ui, @expo/ui/swift-ui, BlurView,
+  expo-blur, or glass-style dependency reintroduced.
+- CSV v1 header remained unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remained exactly:
+  Home, Analytics & Leaks, Settings
+
+Runtime behavior status
+- No runtime auth implementation was added.
+- No backend implementation was added.
+- No sync implementation was added.
+- No Supabase/Firebase/Auth dependency was installed.
+- No transaction schema change was made.
+- No category schema change was made.
+- No CSV format change was made.
+- No navigation change was made.
+- app.config.js, app.json, and eas.json were not changed for ML-52.
+
+Recommended next epic
+- ML-53 sync-ready data contract.
+
+Recommended future order from ML-52 docs
+1. ML-53 sync-ready data contract.
+2. ML-54 local migration runner / sync-ready migrations.
+3. ML-55 auth foundation.
+4. ML-56 Google Auth.
+5. ML-57 session restore.
+6. ML-58 account screen/logout.
+7. ML-59 link local data to authenticated identity.
+8. ML-60 backend user profile/RLS.
+9. ML-61 backup/sync foundation.
+10. ML-64 Apple Sign-In.
+11. ML-62 manual backup.
+12. ML-63 restore backup.
+13. ML-65 delete account/privacy.
+14. ML-66 incremental sync prototype.
+
+Notes for next agent
+- Treat docs/auth-sync-audit.md as the authoritative ML-51 source.
+- The earlier requested docs/ml-51-handoff.txt and
+  docs/ml-51-agent-context.txt were absent when ML-52 planning started and
+  were not backfilled.
+- Do not implement auth, install provider SDKs, add backend tables, or change
+  runtime data flow unless the next task explicitly asks for that.
+- Keep the app local-first and preserve existing local data above all else.
+
+================================================================================
+
+EPIC 53 — SOURCE: ML_53_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-53 Agent Planning Context
+
+Date: 2026-05-18
+Project: Money Leak
+Current app version after ML-53: 1.10.5
+
+Purpose of this file
+- Give the next AI agent enough context to plan the next auth/backup/sync work
+  without rediscovering what ML-53 already decided.
+
+What was completed in ML-53
+- Added docs/sync-data-contract.md.
+- Updated docs/mvp-qa-checklist.md with an ML-53 checklist section.
+- Bumped package.json from 1.10.4 to 1.10.5.
+- Bumped package-lock.json root/top-level app version fields from 1.10.4 to
+  1.10.5.
+- Confirmed app.config.js continues to resolve Expo version from package.json.
+
+Main ML-53 decisions documented
+- Money Leak remains local-first.
+- SQLite remains the source of truth for the current app UX.
+- Guest/local mode remains a permanent product mode.
+- Supabase Auth remains the future auth provider decision from ML-52.
+- Supabase Postgres remains the future remote backup/sync provider decision
+  from ML-52.
+- Future backup starts as manual backup, not automatic sync.
+- CSV v1 remains unchanged through auth/sync foundation work.
+
+Current local baseline documented
+- Transactions currently use:
+  id, amount, category, isLeak, leakReason, note, createdAt
+- Categories currently use:
+  id, name, createdAt, updatedAt, isDefault, isArchived, sortOrder
+- Settings/storage baseline:
+  AsyncStorage onboarding flag, AsyncStorage reminder flag, local notification
+  behavior, and in-memory period scope.
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+
+Future sync-ready local contract documented
+- Future transactions should include:
+  id, ownerId, amount, categoryId, isLeak, leakReason, note, createdAt,
+  updatedAt, deletedAt, schemaVersion, sourceDeviceId.
+- Current transaction category field is legacy naming:
+  category stores a category ID, not a display name.
+- Future domain/remote naming should use categoryId/category_id.
+- Future categories should include:
+  id, ownerId, name, createdAt, updatedAt, isDefault, isArchived, deletedAt,
+  sortOrder, schemaVersion, sourceDeviceId.
+- Later-only sync metadata was intentionally deferred:
+  syncStatus, lastSyncedAt, localRevision, remoteRevision, conflictStatus,
+  syncCursor.
+
+Ownership model documented
+- localOwnerId is the guest/local owner identity.
+- appUserId is the normalized Money Leak user identity after account linking or
+  sign-in.
+- authUserId and provider user IDs must stay isolated to auth/profile mapping.
+- Domain rows should use ownerId.
+- In guest/local mode, ownerId points to localOwnerId.
+- After explicit linking/auth, ownerId points to appUserId.
+- Logout must not delete local data.
+- Delete account must be a separate future flow with explicit confirmation and
+  privacy handling.
+
+Delete/tombstone policy documented
+- Syncable deletes should use deletedAt.
+- UI should hide records where deletedAt is set.
+- Physical purge should wait for later confirmed sync/retention policy.
+- Current transaction hard-delete behavior is a known risk to fix later.
+- Category isArchived is separate from deletedAt:
+  isArchived hides a category from normal selection, while deletedAt is a true
+  sync tombstone.
+
+Device and timestamp policy documented
+- Future migration/foundation work should generate deviceId once per install.
+- sourceDeviceId records where a row or mutation originated.
+- deviceId/sourceDeviceId must never be treated as user identity.
+- Every future local mutation should update updatedAt.
+- Legacy transaction updatedAt can be backfilled from createdAt.
+- Category updatedAt already exists but should be normalized by future
+  migration work.
+
+Schema versioning documented
+- Entity schemaVersion describes how to interpret a row.
+- SQLite migration version describes which local DB migrations have run.
+- These are separate concepts and should not share one field.
+
+CSV compatibility documented
+- CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Do not add ownerId, updatedAt, deletedAt, schemaVersion, sourceDeviceId,
+  deviceId, or sync metadata to CSV v1.
+- CSV v1 export keeps writing the stored category ID in category, not a display
+  name.
+- CSV v2 is a separate future product/compatibility decision if needed.
+
+Draft remote contract documented
+- Conceptual Supabase tables were documented only:
+  profiles/app users, remote_transactions, remote_categories, remote_settings.
+- Row Level Security is required before storing user data remotely.
+- No actual Supabase SQL migrations or RLS policies were created in ML-53.
+- Supabase service role keys must never be shipped in the mobile app.
+
+What intentionally did not change
+- No runtime app behavior changed.
+- No SQLite schema migration was added.
+- No migration runner was added.
+- No Supabase SDK was installed.
+- No Google Auth was added.
+- No Apple Sign-In was added.
+- No auth UI or Account screen was added.
+- No backend tables or RLS policies were added.
+- No backup/sync service was added.
+- No CSV format changed.
+- No transaction/category runtime behavior changed.
+- No navigation changed.
+- No visual redesign happened.
+- No app.config.js, app.json, or eas.json changes were required.
+- No secrets or real env values were added.
+
+Validation completed by Codex during ML-53
+- npm run release:preflight passed.
+- npm test -- --runInBand passed.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- npx expo config --json passed and resolved version as 1.10.5.
+- git diff --check passed.
+- Confirmation search found no Supabase service role key or real secret-like
+  value.
+- Confirmation search found no auth/provider runtime dependency.
+- Confirmation search confirmed CSV v1 header remains documented unchanged.
+- Confirmation search found no @expo/ui, BlurView, expo-blur, glass-style, or
+  Liquid Glass runtime reintroduction.
+
+Manual QA
+- The user reported that all required manual work and manual testing were
+  completed successfully.
+
+Recommended next epic
+- ML-54: local migration runner / sync-ready migrations.
+
+ML-54 planning guidance
+- Start with a versioned local migration runner before adding sync columns.
+- Preserve existing local data.
+- Never silently overwrite, replace, or delete local data.
+- Backfill ownerId, updatedAt, deletedAt, schemaVersion, and sourceDeviceId only
+  through explicit migration work.
+- Keep guest/local mode permanent.
+- Keep CSV v1 unchanged.
+- Do not add Supabase SDK, auth UI, backend tables, or sync service unless the
+  next epic explicitly expands scope beyond local migrations.
+
+================================================================================
+
+EPIC 54 — SOURCE: ML_54_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-54 Agent Context - Completed Work Summary
+
+Repository
+- Project: Money Leak.
+- Stack: Expo / React Native / TypeScript / Expo Router / Zustand / Expo SQLite.
+- Current app version after ML-54: 1.11.0.
+- Version source of truth: package.json. app.config.js reads package.json.version.
+- Guest/local mode remains permanent.
+- App remains local-first.
+
+ML-54 status
+- ML-54 is implemented.
+- Automated validation passed.
+- Human owner completed manual QA and confirmed everything is OK.
+
+What ML-54 added
+- Native SQLite now has a versioned local migration runner.
+- Migration state is stored in schema_migrations.
+- Local app metadata is stored in app_metadata.
+- localOwnerId and deviceId are generated and persisted in SQLite app_metadata.
+- localOwnerId format: local_<uuid-or-fallback>.
+- deviceId format: device_<uuid-or-fallback>.
+- These IDs are not secrets, not auth tokens, and not Supabase user IDs.
+
+Migration strategy
+- initDatabase now:
+  1. opens money-leak.db;
+  2. enables WAL;
+  3. ensures app_metadata exists;
+  4. ensures schema_migrations exists;
+  5. ensures stable localOwnerId and deviceId;
+  6. creates current transactions/categories tables for fresh installs;
+  7. runs versioned migrations;
+  8. seeds default categories.
+- Migrations are intended to run once and are recorded in schema_migrations.
+- Migration steps are also idempotent.
+- Existing transactions/categories are preserved; there is no wipe, destructive reset, or table drop of user data.
+
+Implemented migrations
+- 001_remove_transactions_category_check:
+  - Keeps compatibility with the previous ad hoc migration that removed an old category CHECK constraint from transactions.
+  - Only rebuilds the transactions table when sqlite_master shows the old category IN constraint.
+- 002_add_sync_ready_local_fields:
+  - Adds sync-ready local fields to transactions and categories.
+  - Backfills existing rows with local owner/device metadata.
+
+Transactions after ML-54
+- Existing storage column category remains physically named category.
+- category still stores the category ID, not a display name.
+- New transaction columns:
+  - owner_id
+  - updated_at
+  - deleted_at
+  - schema_version
+  - source_device_id
+- TypeScript Transaction now includes:
+  - ownerId
+  - updatedAt
+  - deletedAt
+  - schemaVersion
+  - sourceDeviceId
+- TransactionInput exists for create/import/update inputs that do not carry local metadata.
+- Existing rows are backfilled:
+  - ownerId = localOwnerId
+  - updatedAt = createdAt
+  - deletedAt = null
+  - schemaVersion = 1
+  - sourceDeviceId = deviceId
+- New transaction inserts receive sync metadata in the DB layer.
+- Transaction imports receive sync metadata in the DB layer.
+- Transaction edits update updatedAt and sourceDeviceId.
+- Normal transaction reads filter deleted_at IS NULL.
+- deleteTransaction is now soft delete:
+  - deleted_at = Date.now()
+  - updated_at = Date.now()
+  - source_device_id = current deviceId
+- Soft-deleted transactions disappear from normal UI reads.
+
+Categories after ML-54
+- New category columns:
+  - owner_id
+  - deleted_at
+  - schema_version
+  - source_device_id
+- TypeScript Category now includes:
+  - ownerId
+  - deletedAt
+  - schemaVersion
+  - sourceDeviceId
+- CategoryInput exists for create inputs that do not carry local metadata.
+- Existing rows are backfilled:
+  - ownerId = localOwnerId
+  - deletedAt = null
+  - schemaVersion = 1
+  - sourceDeviceId = deviceId
+  - updatedAt is preserved when valid, otherwise repaired from createdAt or migration time.
+- New category inserts receive sync metadata in the DB layer.
+- Category edits/archive update updatedAt and sourceDeviceId.
+- Normal category reads filter deleted_at IS NULL.
+- Category archive behavior is unchanged:
+  - isArchived remains the product-level hide-from-selector state.
+  - deletedAt is reserved for future sync tombstones.
+  - Current delete category flow does not set deletedAt.
+
+CSV compatibility
+- CSV v1 stayed unchanged.
+- Exact CSV v1 header:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Export does not include ownerId, updatedAt, deletedAt, schemaVersion, sourceDeviceId, or deviceId.
+- Import still accepts existing CSV v1 files.
+- Imported rows receive local sync metadata at SQLite insert time.
+- Existing duplicate-ID behavior is preserved through INSERT OR IGNORE.
+
+Type/API surface changes
+- Transaction is now the persisted sync-ready entity.
+- TransactionInput is used for create/import/update inputs.
+- Category is now the persisted sync-ready entity.
+- CategoryInput is used for category creation inputs.
+- Screens and stores do not assign owner/device metadata directly.
+- DB layer owns local metadata enrichment.
+
+Tests added/updated
+- New DB-focused tests were added under src/db/__tests__.
+- Covered migration runner recording and skip behavior.
+- Covered idempotent sync-ready migration behavior.
+- Covered legacy transaction/category backfills.
+- Covered new transaction sync metadata.
+- Covered transaction edit updatedAt refresh.
+- Covered transaction soft delete hiding from getTransactions.
+- Covered CSV v1 import metadata enrichment and duplicate ignore behavior.
+- Covered category archive still hiding active categories without setting deletedAt.
+- Existing tests were updated for the new persisted Transaction/Category shapes.
+
+Docs updated
+- docs/mvp-qa-checklist.md has an ML-54 section.
+- docs/sync-data-contract.md has ML-54 implementation notes.
+- docs/ml-54-handoff.txt summarizes the implementation and QA.
+- This file, docs/ml-54-agent-context.txt, was added as a planning handoff for future AI agents.
+
+Validation results
+- npm run release:preflight: passed.
+- npm test -- --runInBand: passed, 16 suites / 97 tests.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.11.0.
+- git diff --check: passed.
+- Manual QA by human owner: completed and OK.
+
+Regression confirmations
+- No Supabase SDK/auth dependency was added.
+- No Google Auth or Apple Auth implementation was added.
+- No backend tables, RLS, sync service, backup, or account UI was added.
+- No CSV v1 header change.
+- No bottom tab/navigation change.
+- Add Transaction and Shame Card were not reintroduced as bottom tabs.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, glass styling, glassColors, glassShadow, glassButtonShadow, or Liquid Glass imitation was added.
+- app.config.js, app.json, and eas.json were not changed for ML-54.
+
+Important non-goals still true after ML-54
+- No auth implementation.
+- No Supabase client.
+- No remote backup.
+- No cloud sync.
+- No account linking.
+- No conflict resolution.
+- No sync queue.
+- No backend schema.
+- No destructive local reset.
+
+Known limitations / future planning notes
+- Rows physically deleted before ML-54 cannot be reconstructed as tombstones.
+- Transaction soft deletes now create tombstones locally, but there is no sync service yet.
+- Category deletedAt is present but unused by current category archive UI.
+- localOwnerId may later be mapped/reassigned only through an explicit account-linking migration; it must not be treated as an auth provider ID.
+- deviceId is install-local and may change on reinstall.
+- Future auth/sync work should preserve guest/local mode and must not require login.
+- Future sync work should decide how localOwnerId transitions to appUserId after explicit linking.
+- Future sync work should define conflict policy before adding remote writes.
+- Future CSV v2, if ever needed, must be a separate compatibility design; CSV v1 must remain importable.
+
+Suggested next-epic starting points
+- Plan auth/account foundation only through Settings or pushed routes, not bottom tabs.
+- Add Supabase SDK only in an explicit auth/sync epic, not as incidental cleanup.
+- Keep authUserId/provider IDs out of transaction/category domain rows.
+- Before remote sync, define appUserId mapping, local-to-account linking semantics, tombstone retention, and conflict resolution.
+- Keep local SQLite as the current UX source of truth until a future sync epic explicitly changes that behavior.
+
+================================================================================
+
+EPIC 55 — SOURCE: ML_55_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-55 Agent Context: Auth Foundation / Guest Account Architecture
+
+Purpose
+- This file summarizes what was completed in ML-55 so a future AI agent can plan the next auth/sync work without re-discovering the already shipped foundation.
+- Money Leak remains a local-first Expo / React Native / TypeScript / Expo Router / Zustand app.
+- The app is still fully usable without login. Guest/local mode is the default.
+
+Current version
+- package.json version is 1.11.1.
+- package-lock.json is also at 1.11.1.
+- app.config.js still reads the Expo app version from package.json.
+- app.config.js was not changed for ML-55.
+
+Dependency/config changes
+- expo-secure-store is installed at ~15.0.8.
+- app.json includes the required "expo-secure-store" config plugin.
+- The config plugin was added because the Expo installer could not automatically write through the dynamic app.config.js setup.
+
+Auth files added
+- src/types/auth.ts
+  - Defines AuthProvider: "google" | "apple".
+  - Defines AuthStatus: "loading" | "guest" | "authenticated" | "error".
+  - Defines AuthUser.
+  - Defines token-free AuthSession.
+  - Defines AuthError and AuthErrorCode.
+- src/lib/auth/auth-service.ts
+  - Defines AuthService.
+  - Defines AuthProviderAdapter for future Google/Apple adapters.
+- src/lib/auth/auth-errors.ts
+  - Defines createSafeAuthError().
+- src/lib/auth/session-storage.ts
+  - Defines AuthSessionStorage.
+  - Implements secureAuthSessionStorage with expo-secure-store.
+  - Uses storage key money-leak:auth-session:v1.
+  - Stores only a schemaVersion wrapper plus token-free AuthSession.
+  - Does not use AsyncStorage.
+  - SecureStore unavailable on restore returns null.
+  - SecureStore unavailable on clear is a no-op.
+  - SecureStore unavailable on save throws a safe local error for the store to handle.
+- src/lib/auth/guest-auth-service.ts
+  - Implements createGuestAuthService().
+  - Exposes guestAuthService.
+  - restoreSession() reads secure session storage.
+  - setSession() writes secure session storage.
+  - signOut() clears secure session storage.
+- src/store/auth-store.ts
+  - Adds Zustand auth store via createAuthStore().
+  - Exposes useAuthStore.
+  - State: status, session, user, error, isInitialized.
+  - Actions: initializeAuth(), setSession(), clearAuthError(), signOut().
+  - restore null -> guest.
+  - restore session -> authenticated.
+  - restore throws -> guest plus safe recoverable error.
+  - setSession stores through AuthService before marking authenticated.
+  - signOut clears through AuthService and returns to guest.
+- src/lib/feature-flags.ts
+  - googleAuthEnabled: false.
+  - appleAuthEnabled: false.
+  - backupEnabled: false.
+  - restoreEnabled: false.
+  - incrementalSyncEnabled: false.
+
+Bootstrap behavior
+- app/_layout.tsx imports useAuthStore.
+- RootLayout selects initializeAuth from the auth store.
+- A useEffect calls initializeAuth() without awaiting it for render.
+- Auth initialization does not block fonts, navigation, onboarding routing, SQLite init, transaction loading, category loading, import, export, or local expense tracking.
+- Existing initDatabase() behavior remains unchanged and separate from auth.
+
+Tests added
+- src/store/__tests__/auth-store.test.ts
+  - restore null initializes guest mode.
+  - restore session initializes authenticated mode.
+  - restore throw falls back to guest and records a safe error.
+  - signOut clears session/user and calls service clear.
+  - setSession stores session/user/authenticated state.
+  - clearAuthError clears only auth error.
+- src/lib/auth/__tests__/guest-auth-service.test.ts
+  - verifies guest service delegates restore/set/signOut to the session storage boundary.
+- src/lib/auth/__tests__/session-storage.test.ts
+  - verifies SecureStore unavailable restore -> null.
+  - verifies valid stored session restore.
+  - verifies invalid stored data -> null.
+  - verifies session writes do not contain accessToken or refreshToken fields.
+  - verifies unavailable save throws.
+  - verifies clear when available and unavailable.
+
+Docs updated
+- docs/mvp-qa-checklist.md includes ML-55 QA coverage and invariants.
+
+Validation completed during ML-55
+- npm run release:preflight passed.
+- npm test -- --runInBand passed.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- npx expo config --json passed and resolved version 1.11.1.
+- git diff --check passed.
+- Manual testing was also completed by the project owner after implementation, with no issues found.
+
+Important invariants verified
+- No Supabase SDK was added.
+- No Supabase service role key or real auth secret was committed.
+- No Google provider implementation was added.
+- No Apple provider implementation was added.
+- Auth sessions are token-free in ML-55.
+- AsyncStorage is not used for auth session storage.
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Shame Card remain pushed root Stack screens, not bottom tabs.
+- No transaction/category SQLite schema changes were made in ML-55.
+- No backend tables, RLS, backup, restore, or sync service were added.
+- No Account UI or login wall was added.
+
+Current expected runtime behavior
+- Fresh install or no stored auth session: app initializes auth and continues as guest.
+- SecureStore unavailable: app continues as guest.
+- Auth restore error: app continues as guest with a safe auth error in the auth store.
+- Stored token-free session: app can enter authenticated store state, but no UI or data behavior changes yet.
+- signOut clears only auth session state/storage. It does not delete, relink, or mutate transactions/categories.
+
+Guidance for the next planning agent
+- Treat ML-55 as complete and already shipped.
+- Do not redesign the auth foundation unless a concrete bug is found.
+- ML-56 can build the first real provider adapter, likely Google auth, behind googleAuthEnabled.
+- Keep guest/local mode available.
+- Do not add a login wall.
+- Store real auth/session secrets only through the secure session storage boundary.
+- Do not use AsyncStorage for auth tokens/session secrets.
+- Do not link, merge, back up, restore, or sync local data until the later account/data-linking epics explicitly request it.
+- Do not change CSV v1 unless a future task explicitly designs CSV v2.
+- Do not change bottom tab navigation unless a future task explicitly requests navigation changes.
+- Do not add Supabase SDK or backend/RLS work unless the next epic explicitly calls for it.
+
+================================================================================
+
+EPIC 56 — SOURCE: ML_56_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-56 context for next AI agent
+
+Project
+
+- Money Leak is an Expo / React Native / TypeScript / Expo Router app.
+- The app is local-first.
+- Guest/local mode must remain permanently available.
+- Login is optional and must never become a login wall.
+- No backup, restore, sync, Apple Sign-In, Supabase tables/RLS, backend profile
+  logic, or account linking was implemented in ML-56.
+
+What ML-56 implemented
+
+- Added optional Google login through Supabase Auth.
+- Added a compact Account section in Settings.
+- Settings shows Continue with Google only when Google auth is enabled and
+  required public Supabase/auth config is present.
+- Successful Google login maps the Supabase user into the existing token-free
+  Money Leak AuthSession shape.
+- Login cancel/dismiss is quiet and non-fatal.
+- Provider/config/network failures show safe generic user-facing copy.
+- Added minimal Sign Out action through the existing authStore.signOut().
+- Sign Out only clears local auth display state; it does not delete, upload,
+  merge, relink, back up, restore, sync, or mutate local transactions/categories.
+- Local transactions/categories remain visible after login and logout.
+- Bottom tabs stayed exactly Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card stayed root Stack screens, not bottom tabs.
+- CSV v1 stayed exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+
+Main code areas
+
+- src/lib/supabase/supabase-config.ts
+  Centralized public env config and config availability checks.
+- src/lib/supabase/supabase-client.ts
+  Centralized Supabase client factory.
+- src/lib/supabase/supabase-secure-storage.ts
+  SecureStore-backed storage adapter for Supabase auth storage boundary.
+- src/lib/auth/google-auth-adapter.ts
+  Google AuthProviderAdapter implementation using Supabase OAuth and
+  expo-web-browser.
+- src/lib/auth/auth-service.ts
+  AuthProviderAdapter.signIn now returns AuthSession | null so null can mean
+  login cancel/dismiss.
+- src/features/settings/settings-screen.tsx
+  Account section, Continue with Google, Sign Out, safe errors.
+- src/lib/feature-flags.ts
+  googleAuthEnabled is true; Apple, backup, restore, incremental sync remain
+  false.
+- src/lib/auth/session-storage.ts
+  Existing Money Leak token-free AuthSession persistence uses SecureStore.
+
+Dependencies added
+
+- @supabase/supabase-js
+- react-native-url-polyfill
+- expo-web-browser
+
+Version
+
+- package.json and package-lock.json were bumped from 1.11.1 to 1.12.0.
+- This is a minor bump because optional Google auth is a user-visible feature.
+- app.config.js was not changed because it already reads Expo version from
+  package.json.
+
+Required public env keys
+
+- EXPO_PUBLIC_SUPABASE_URL
+- EXPO_PUBLIC_SUPABASE_ANON_KEY
+- EXPO_PUBLIC_AUTH_REDIRECT_SCHEME
+- EXPO_PUBLIC_AUTH_REDIRECT_PATH
+- EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER
+- EXPO_PUBLIC_ANDROID_PACKAGE
+
+Manual setup completed by owner
+
+- Supabase project exists.
+- Supabase Auth Google provider is configured.
+- Google Cloud OAuth consent screen is configured.
+- Google OAuth Web client exists.
+- Supabase callback URL was added to Google Authorized redirect URIs.
+- Google client ID and client secret were saved in Supabase Google provider
+  settings.
+- Supabase redirect allow list includes:
+  - moneyleak://auth/callback
+  - moneyleak:///auth/callback
+- Local .env contains real values for required EXPO_PUBLIC_* keys.
+- Real secrets were not committed.
+
+Manual QA completed by owner
+
+- Google login was tested on iPhone simulator after implementation.
+- Initial login attempt reached Google/Supabase but failed to save the local
+  Money Leak auth session.
+- Root cause was SecureStore key incompatibility:
+  old key was money-leak:auth-session:v1
+  SecureStore only allows alphanumeric characters, ".", "-", and "_".
+- Fixed key:
+  money-leak-auth-session-v1
+- Added a regression test that AUTH_SESSION_STORAGE_KEY matches SecureStore's
+  allowed key format.
+- After the fix, owner manually tested again and reported everything is OK.
+
+Validation completed after implementation/fix
+
+- npm run release:preflight: passed
+- npm test -- --runInBand: passed
+- npm run typecheck: passed
+- npm run lint: passed
+- npm run format:check: passed
+- npx expo config --json: passed, version resolved to 1.12.0
+- git diff --check: passed
+
+Guardrail checks completed
+
+- No Supabase service role key committed.
+- No real secret-like value committed.
+- No Apple Sign-In implementation added.
+- No backup/sync implementation added.
+- No transaction/category SQLite schema migration added.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain root Stack screens.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, or glass styling added.
+
+Known notes for future planning
+
+- Supabase logs this warning in React Native:
+  WebCrypto API is not supported. Code challenge method will default to use
+  plain instead of sha256.
+- That warning was not the cause of the login-save failure. The failure was the
+  invalid SecureStore key.
+- Future ML-57 planning should decide whether to harden Supabase PKCE/WebCrypto
+  behavior and token-backed session refresh/restore.
+- Current ML-56 persisted Money Leak auth state remains token-free. It is only
+  local account display/session state and does not enable sync.
+- Do not link localOwnerId/ownerId to Supabase auth user yet.
+- Do not add Apple Sign-In, backup, restore, incremental sync, Supabase tables,
+  RLS policies, or account/profile logic unless a future task explicitly asks
+  for that scope.
+
+================================================================================
+
+EPIC 57 — SOURCE: ML_57_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-57 Handoff: TestFlight Auth Env Rebuild Hotfix
+
+Status
+- Implemented and manually verified.
+- This was the small TestFlight auth environment rebuild hotfix, not the full
+  planned ML-57 session-restore epic.
+- Owner confirmed the required manual setup and real-device TestFlight QA were
+  completed successfully.
+
+Why this hotfix existed
+- ML-56 added optional Google login through Supabase Auth.
+- Google login worked locally/simulator with local .env values.
+- The real TestFlight build showed guest-mode fallback copy instead of the
+  Continue with Google button because the required EXPO_PUBLIC_* values were
+  not available when that native app bundle was built.
+- EXPO_PUBLIC_* values are baked into Expo native builds at build time, so
+  adding or changing GitHub/EAS environment values requires a new build.
+- The Release iOS workflow only starts the real EAS iOS build path when
+  package.json.version changes.
+
+Implemented changes
+- package.json version was bumped from 1.12.0 to 1.12.1.
+- package-lock.json top-level version and root package version were aligned to
+  1.12.1.
+- README.md now documents the required public build environment for Google
+  login and explains why local .env is not enough for TestFlight/GitHub Actions
+  builds.
+- docs/auth-sync-env-contract.md now has a Production / TestFlight Builds
+  section explaining build-time inlining and rebuild requirements.
+- docs/release-runbook.md now includes ML-57 owner verification steps for the
+  1.12.1 TestFlight build.
+- docs/mvp-qa-checklist.md now includes an ML-57 QA checklist.
+
+Required public build environment keys
+- EXPO_PUBLIC_SUPABASE_URL
+- EXPO_PUBLIC_SUPABASE_ANON_KEY
+- EXPO_PUBLIC_AUTH_REDIRECT_SCHEME
+- EXPO_PUBLIC_AUTH_REDIRECT_PATH
+- EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER
+- EXPO_PUBLIC_ANDROID_PACKAGE
+
+Runtime scope
+- No runtime auth behavior was changed.
+- Existing config gating remains in place: Google login is available only when
+  the Google feature flag is enabled and the required public Supabase/auth
+  config is present and non-placeholder.
+- No non-sensitive diagnostics helper or dev logging was added because docs
+  were sufficient for this hotfix.
+
+Validation completed
+- npm run release:preflight passed.
+- npm test -- --runInBand passed: 21 suites, 128 tests.
+- npm run typecheck passed.
+- npm run lint passed.
+- npm run format:check passed.
+- npx expo config --json resolved Expo version as 1.12.1.
+- git diff --check passed.
+
+Manual owner QA completed
+- Required GitHub/EAS public auth env values were configured.
+- The version bump was present.
+- Release iOS workflow started after merge/push to main.
+- New TestFlight build appeared as 1.12.1.
+- Real-device TestFlight update showed Continue with Google in Settings.
+- Google login worked or produced safe provider/config error behavior.
+- Local transaction/category data remained after login/logout.
+
+Explicitly not changed
+- No Apple Sign-In.
+- No backup, restore, sync, Supabase tables, RLS, account linking, backend
+  profile logic, or auth wall.
+- No CSV v1 format change.
+- No navigation or bottom tab changes.
+- No transaction/category local data deletion or mutation logic.
+- No real secrets or real env values committed.
+
+Planning notes for the next agent
+- Treat the TestFlight env rebuild issue as resolved unless a new regression is
+  reported.
+- The full ML-57 session-restore hardening remains future work and should be
+  planned separately from this hotfix.
+- Any future auth work should preserve guest/local mode and local data
+  ownership unless the task explicitly changes those guardrails.
+
+================================================================================
+
+EPIC 58 — SOURCE: ML_58_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-58 TestFlight Google Auth Config Rebuild Hotfix Handoff
+
+Date: 2026-05-18
+Project: Money Leak
+App version after ML-58: 1.12.2
+
+Context
+
+ML-56 added optional Google login through Supabase Auth.
+The Continue with Google button is gated by a feature flag plus required
+EXPO_PUBLIC_* Supabase/auth config.
+
+On real TestFlight builds, the button can be hidden when the required
+EXPO_PUBLIC_* values were not present at native build time. The project owner
+has now added the required EXPO_PUBLIC_* variables to the Expo production
+environment. ML-58 is a rebuild/config hotfix, not a new auth feature.
+
+Required public production env keys
+
+- EXPO_PUBLIC_SUPABASE_URL
+- EXPO_PUBLIC_SUPABASE_ANON_KEY
+- EXPO_PUBLIC_AUTH_REDIRECT_SCHEME
+- EXPO_PUBLIC_AUTH_REDIRECT_PATH
+- EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER
+- EXPO_PUBLIC_ANDROID_PACKAGE
+
+What changed in ML-58
+
+- package.json version was bumped from 1.12.1 to 1.12.2.
+- package-lock.json top-level version was bumped from 1.12.1 to 1.12.2.
+- package-lock.json root package version was bumped from 1.12.1 to 1.12.2.
+- docs/mvp-qa-checklist.md now has an ML-58 section for TestFlight Google auth
+  config rebuild QA.
+
+What intentionally did not change
+
+- No runtime Google auth behavior changed.
+- No app.config.js changes.
+- No eas.json changes.
+- No GitHub release workflow changes.
+- No README.md or docs/auth-sync-env-contract.md changes, because they already
+  document that EXPO_PUBLIC_* values are required for TestFlight builds and are
+  baked into native bundles at build time.
+- No Apple Sign-In.
+- No backup, restore, sync, Supabase database tables, RLS, account linking,
+  backend profile logic, or auth wall.
+- No CSV v1 format change.
+- No navigation or bottom tab change.
+- No transaction/category local data mutation behavior change.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, or glass styling.
+- No real env values, secrets, service role keys, OAuth secrets, or tokens were
+  committed.
+
+Validation already run by Codex
+
+- npm run release:preflight: passed
+- npm test -- --runInBand: passed
+- npm run typecheck: passed
+- npm run lint: passed
+- npm run format:check: passed
+- npx expo config --json: passed and resolved version 1.12.2
+- git diff --check: passed
+
+Guardrails confirmed by Codex
+
+- CSV v1 header remains:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain:
+  Home, Analytics & Leaks, Settings
+- Add Transaction and Shame Card remain root Stack screens, not bottom tabs.
+- The only changed files at implementation time were:
+  - package.json
+  - package-lock.json
+  - docs/mvp-qa-checklist.md
+
+Manual QA status
+
+The project owner reported that all required manual steps and manual testing
+were completed successfully.
+
+Release note for the next agent
+
+This hotfix still depends on merge to main and a new production iOS/TestFlight
+build. EXPO_PUBLIC_* values are baked into the native app bundle during the EAS
+build, so changing Expo production environment values does not update an
+already-installed TestFlight build.
+
+After merge to main, verify:
+
+- Release iOS starts for the merge commit.
+- The workflow continues past the unchanged-version skip path because
+  package.json.version changed to 1.12.2.
+- A new TestFlight build appears as version 1.12.2.
+- Real-device TestFlight Settings shows Continue with Google.
+- Google login works or shows a safe provider/config error.
+- Sign Out does not delete or mutate local transactions/categories.
+- Local data remains visible after login/logout.
+
+================================================================================
+
+EPIC 59 — SOURCE: ML_59_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-59 handoff: TestFlight Google Auth config diagnostics and static Expo env hotfix
+
+Context
+-------
+Money Leak is an Expo/React Native app. Google Auth is intentionally minimal:
+no backend work, no cloud sync, no bank integrations, no auth-domain expansion
+beyond the current Supabase OAuth client path.
+
+The observed TestFlight problem in build 1.12.4 was:
+- Settings > Account diagnostics showed googleAuthEnabled: true.
+- All Supabase/auth config booleans were false:
+  hasSupabaseUrl, hasSupabaseAnonKey, hasRedirectScheme, hasRedirectPath,
+  hasIosBundleIdentifier, hasAndroidPackage, isGoogleAuthConfigAvailable.
+- eas.json build.production.environment was already set to production.
+- The required EXPO_PUBLIC_* values existed in the Expo project production
+  environment.
+
+Main conclusion
+---------------
+The likely issue was how the app read Expo public environment variables inside
+the JS bundle. Expo/Metro requires static reads such as:
+
+process.env.EXPO_PUBLIC_SUPABASE_URL
+
+Dynamic access such as process.env[key], key reducers, or generic getEnv(key)
+helpers may not be inlined into production bundles. The final hotfix replaced
+the dynamic Supabase config env flow with static property reads.
+
+Last 4 commits included in this ML-59 handoff
+---------------------------------------------
+1. 7f92f65 / PR #61
+   hotfix Bump version to 1.12.3 and add EAS production environment QA notes
+
+   What changed:
+   - Set eas.json build.production.environment to production.
+   - Added QA checklist notes for EAS production env and required public auth
+     values.
+   - Bumped package.json and package-lock.json to 1.12.3.
+
+2. 83a17b0 / PR #62
+   hotfix Add diagnostics for Supabase config and Google Auth availability
+
+   What changed:
+   - Added Settings > Account diagnostics when Google Auth is hidden in guest
+     mode.
+   - Diagnostics show only booleans:
+     googleAuthEnabled, hasSupabaseUrl, hasSupabaseAnonKey, hasRedirectScheme,
+     hasRedirectPath, hasIosBundleIdentifier, hasAndroidPackage,
+     isGoogleAuthConfigAvailable.
+   - Diagnostics intentionally do not expose URLs, keys, tokens, OAuth secrets,
+     provider secrets, or raw EXPO_PUBLIC_* values.
+   - Added release-preflight coverage for eas.json production environment.
+   - Added/updated tests for Settings diagnostics and Supabase config status.
+
+3. 18d5aa0 / PR #63
+   1.12.4
+
+   What changed:
+   - Bumped package.json and package-lock.json to 1.12.4 to force another
+     TestFlight build.
+
+   Result:
+   - TestFlight 1.12.4 still showed all Supabase/auth config booleans false,
+     which ruled out only-version/rebuild explanations and pointed back to env
+     access inside code.
+
+4. bb7f927 / PR #64
+   hotfix Refactor Supabase config to statically read required Expo public
+   environment variables and normalize diagnostics handling
+
+   What changed:
+   - src/lib/supabase/supabase-config.ts now builds runtime config from direct
+     static reads:
+     process.env.EXPO_PUBLIC_SUPABASE_URL
+     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+     process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME
+     process.env.EXPO_PUBLIC_AUTH_REDIRECT_PATH
+     process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER
+     process.env.EXPO_PUBLIC_ANDROID_PACKAGE
+   - Removed the old runtime pattern that effectively passed process.env into
+     generic key lookup helpers for required auth config.
+   - Kept one centralized exported supabaseConfigStatus object.
+   - Preserved the existing SupabaseConfigStatus shape:
+     config, diagnostics, isAvailable, missingKeys, placeholderKeys.
+   - Preserved placeholder/invalid URL behavior.
+   - Kept Settings diagnostics for one more TestFlight build.
+   - Bumped package.json and package-lock.json to 1.12.5.
+   - Added a QA checklist note about static EXPO_PUBLIC_* access.
+   - Added test coverage for default runtime env reads through static Expo
+     public properties.
+
+Important current files
+-----------------------
+- src/lib/supabase/supabase-config.ts
+  Central config/status module for Supabase Auth. Runtime env values are read
+  statically, normalized, validated, and exposed through supabaseConfigStatus.
+
+- src/lib/supabase/__tests__/supabase-config.test.ts
+  Covers all-values-present, missing values, placeholder values, invalid URL,
+  boolean-only diagnostics, and default runtime process.env path.
+
+- src/features/settings/settings-screen.tsx
+  Displays Continue with Google only when googleAuthEnabled and the Google Auth
+  adapter/config are enabled. Otherwise, in guest mode, it can show temporary
+  boolean-only diagnostics.
+
+- scripts/release-preflight.js
+  Checks eas.json build.production.environment is production.
+
+- docs/mvp-qa-checklist.md
+  Contains the ML-59 diagnostics checklist and the later static env read note.
+  The static env note is currently titled ML-60 in the file, but for planning
+  purposes this handoff treats the whole sequence as ML-59 per owner request.
+
+Validation already run after the static env hotfix
+--------------------------------------------------
+All of these passed on Node 20.19.4:
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Additional search performed:
+- No dynamic process.env[...] access remains in src or app.
+- Remaining auth env reads in production code are static
+  process.env.EXPO_PUBLIC_* property reads.
+
+Current expected behavior
+-------------------------
+- When all required Expo production EXPO_PUBLIC_* variables are present and
+  real, isGoogleAuthConfigAvailable should be true.
+- Continue with Google should appear when featureFlags.googleAuthEnabled is
+  true and Supabase config is available.
+- If config is unavailable, Settings diagnostics should show which boolean gate
+  failed without exposing actual env values or secrets.
+- Guest/local mode remains unchanged.
+- No backend, database, account sync, backup/restore, RLS, account linking, or
+  Apple Sign-In work was added in these commits.
+
+Recommended next planning steps
+-------------------------------
+1. Build/TestFlight 1.12.5 from main and verify on a real iOS TestFlight install.
+2. In Settings > Account:
+   - If Continue with Google appears, verify Google sign-in success or safe
+     provider error handling.
+   - If Continue with Google is hidden, capture the boolean diagnostics only.
+3. Confirm local transactions/categories remain visible after Google login and
+   logout.
+4. After TestFlight confirms config is fixed, plan a cleanup task to remove the
+   temporary Settings Account diagnostics.
+5. Do not plan backend/sync/auth expansion as part of this cleanup unless a new
+   task explicitly asks for it.
+
+Do not include in future commits
+--------------------------------
+- Real Supabase URLs or anon keys.
+- OAuth client secrets.
+- Provider secrets.
+- Access tokens, refresh tokens, or session values.
+- Raw EXPO_PUBLIC_* values in UI, logs, docs, tests, or committed files.
+
+================================================================================
+
+EPIC 60 — SOURCE: ML_60_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-60 agent context
+Generated on 2026-05-20 after implementation, automated validation, and owner manual QA.
+
+Repository
+- Path: /Users/quitesocial/Code/money-leak
+- App: Money Leak, Expo / React Native / TypeScript / Expo Router.
+- Current version after ML-60: 1.12.6.
+- package.json is the version source of truth; app.config.js reads package.json.version.
+
+High-level product constraints to preserve
+- App is local-first.
+- Guest/local mode must remain permanently available.
+- No login wall.
+- Bottom tabs must remain exactly Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card must remain pushed root Stack screens, not bottom tabs.
+- CSV v1 must remain exactly: id,amount,category,isLeak,leakReason,note,createdAt
+- Do not add Apple Sign-In.
+- Do not add backup, restore, sync, Supabase database tables, RLS, backend profile logic, account linking, or delete account.
+- Do not expose raw env values, Supabase URLs, anon keys, OAuth secrets, provider secrets, tokens, or raw EXPO_PUBLIC_* values in UI/logs/tests/docs.
+- Do not reintroduce @expo/ui, SwiftUI wrappers, BlurView, expo-blur, glass styling, or Liquid Glass imitation.
+
+What ML-60 did
+- Removed temporary Settings > Account Google Auth diagnostics UI.
+- Removed diagnostics-only code from src/features/settings/settings-screen.tsx:
+  - AccountDiagnosticRow type
+  - supabaseConfigStatus import
+  - shouldShowGoogleAuthDiagnostics
+  - googleAuthDiagnostics array
+  - diagnostics JSX block
+  - accountDiagnostics style
+- Kept Google Auth availability gating as:
+  featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled
+- Settings now shows normal user-safe guest/account copy when Google Auth is unavailable.
+- Continue with Google still appears when Google Auth is enabled and Supabase/Auth config is available.
+- Updated Settings tests so unavailable auth config asserts:
+  - guest copy remains visible
+  - Continue with Google is hidden
+  - diagnostic labels are not rendered
+  - raw env-like values are not rendered
+- Updated docs/mvp-qa-checklist.md ML-60 section for diagnostics cleanup QA.
+- Bumped app version from 1.12.5 to 1.12.6 in package.json and package-lock.json root/top-level fields.
+- app.config.js and eas.json were intentionally not changed.
+
+What ML-60 intentionally did not change
+- src/lib/supabase/supabase-config.ts stayed intact.
+- Supabase config/status tests stayed intact, including:
+  - all values present
+  - missing values
+  - placeholder values
+  - invalid URL
+  - boolean diagnostics shape
+  - default runtime process.env static reads
+- Google Auth adapter behavior and safe error copy stayed intact.
+- Guest/local auth behavior stayed intact.
+- Local transactions/categories behavior stayed intact.
+- CSV import/export format stayed intact.
+- Navigation stayed intact.
+- No backend, sync, RLS, Supabase tables, Apple Sign-In, account linking, or delete account behavior was added.
+
+Validation already run and passed
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved Expo version as 1.12.6
+- git diff --check
+
+Regression checks already run and passed
+- No dynamic process.env[...] access remains in src or app.
+- Settings production UI does not render diagnostic boolean labels.
+- Settings production UI does not render raw EXPO_PUBLIC_* values, Supabase URLs, anon keys, tokens, or provider secrets.
+- Tracked-file secret searches found only policy/documentation references and fake test token names, not real committed secrets.
+- CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain root Stack screens.
+
+Manual QA already completed by owner
+- Owner manually tested the resulting build/state after ML-60.
+- Owner reported that all manual testing was OK.
+- Treat ML-60 as implemented and manually verified.
+
+Important notes for future planning agents
+- Do not re-add the temporary Account diagnostics UI unless explicitly asked for a new temporary diagnostic build.
+- If auth availability needs troubleshooting again, prefer internal tests or a temporary debug-only path that never exposes raw env values.
+- Keep static Expo public env reads in src/lib/supabase/supabase-config.ts. Avoid process.env[key] or generic getEnv(key) helpers for these Expo public auth values.
+- Any future account/auth work must preserve permanent guest/local mode and avoid a login wall.
+- Any future sync/backup/backend work is out of scope unless explicitly requested in a new task.
+
+================================================================================
