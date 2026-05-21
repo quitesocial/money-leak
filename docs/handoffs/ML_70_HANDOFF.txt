@@ -1,0 +1,117 @@
+ML-70 Full Account Deletion / Supabase Auth User Delete Handoff
+
+Summary
+- Added a Supabase Edge Function for full authenticated account deletion.
+- Delete Account now calls the delete-account Edge Function instead of
+  deleting remote rows directly from the mobile app.
+- The Edge Function deletes app-owned cloud rows and then deletes the Supabase
+  Auth user through a server-side service-role boundary.
+- Local SQLite transactions/categories remain untouched and visible after the
+  app returns to guest/local mode.
+
+Files changed
+- package.json
+- package-lock.json
+- tsconfig.json
+- AGENTS.md
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_70_HANDOFF.txt
+- supabase/functions/delete-account/index.ts
+- supabase/functions/delete-account/handler.ts
+- supabase/functions/delete-account/__tests__/handler.test.ts
+- src/lib/account/delete-account-service.ts
+- src/lib/account/supabase-delete-account-adapter.ts
+- src/lib/account/__tests__/delete-account-service.test.ts
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+
+Implementation notes
+- The mobile adapter uses `client.functions.invoke('delete-account')` through
+  the existing Supabase anon client.
+- The mobile app does not pass a raw user id to the delete-account service or
+  Edge Function.
+- The Edge Function verifies the bearer JWT with Supabase Auth before deriving
+  the user id.
+- The Edge Function ignores any request body user id.
+- Remote deletion order is remote_transactions by user_id, remote_categories by
+  user_id, profiles by id, then Supabase Auth user delete.
+- Zero app-owned rows is treated as success so already-deleted backup/profile
+  rows do not block Auth user deletion.
+- Auth user delete returning not found is treated as safely complete.
+- If app-owned row deletion fails, Auth user deletion is not attempted.
+- Failure responses are generic and do not include raw backend errors, tokens,
+  env values, service-role values, provider secrets, localOwnerId, deviceId, or
+  ownerId.
+
+Deployment note
+- Link the Supabase project with the Supabase CLI if the local workspace is not
+  already linked.
+- Set `MONEY_LEAK_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
+  commit or share the value:
+  `npx supabase secrets set MONEY_LEAK_SERVICE_ROLE_KEY=<service-role-or-secret-key>`
+- If any service role/secret key was exposed in code, logs, docs, screenshots,
+  or chat, rotate it before deployment.
+- Deploy the function with:
+  `supabase functions deploy delete-account`
+- Confirm the function environment includes the platform-provided
+  `SUPABASE_URL` and the manually configured `MONEY_LEAK_SERVICE_ROLE_KEY`.
+
+Manual QA checklist
+- Log in through Google or Apple on a build with Supabase auth configured.
+- Create or confirm local transactions/categories are visible.
+- Create a manual backup so remote rows exist for the account.
+- Open Settings and confirm Privacy/Delete Account are visible only while
+  authenticated.
+- Tap Delete Account, cancel the confirmation, and confirm no remote delete,
+  Auth user delete, Edge Function call, or sign out occurs.
+- Tap Delete Account again and confirm deletion.
+- Verify public.remote_transactions, public.remote_categories, and
+  public.profiles rows for that account are deleted.
+- Verify Supabase Authentication -> Users no longer contains the Auth user.
+- Confirm the app signs out and returns to guest/local mode.
+- Confirm local SQLite transactions/categories remain visible on the device.
+- Confirm Sign Out remains separate and unchanged.
+- Confirm guest mode shows no Delete Account UI.
+- Confirm no backup, restore, sync, upload, import, export, local delete, or
+  local unlink runs as part of Delete Account.
+
+Validation
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Targeted regression checks
+- Confirm no service-role/admin Supabase usage exists in src, app, mobile app
+  config, or package config.
+- Confirm Settings/UI does not render raw env values, Supabase URLs, anon keys,
+  service-role values, tokens, provider secrets, auth IDs, localOwnerId,
+  deviceId, ownerId, or raw backend errors.
+- Confirm no dynamic process.env[...] access was added in src/app.
+- Confirm CSV v1 header remains
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- Confirm bottom tabs remain Home, Analytics & Leaks, Settings.
+- Confirm Add Transaction and Shame Card remain root Stack screens and are not
+  bottom tabs.
+- Confirm no @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or
+  glass styling was introduced.
+
+Non-goals
+- No service-role usage in mobile app code.
+- No local SQLite transaction/category deletion or mutation.
+- No automatic backup, restore, sync, or remote merge.
+- No auth/login wall or guest mode restriction.
+- No CSV, tab navigation, pushed route, or styling-system changes.
+
+Version bump
+- package.json remains the source of truth and app.config.js reads
+  package.json.version.
+- Version bumped from 1.16.0 to 1.16.1 as a patch release because ML-70
+  finalizes the existing Delete Account privacy behavior without changing the
+  visible UI.
+- package-lock.json top-level and root package version fields were updated to
+  1.16.1.
+- app.config.js and eas.json were not changed.
