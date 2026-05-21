@@ -128,6 +128,7 @@ async function runForegroundSyncIfNeeded({
 
     const result = await syncService.runIncrementalSync({
       auth,
+      source: 'foreground',
     });
 
     if (result.status !== 'succeeded') return;

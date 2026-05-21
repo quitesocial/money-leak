@@ -47,7 +47,11 @@ import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { manualBackupService } from '@/lib/sync/manual-backup-service';
 import { manualRestoreService } from '@/lib/sync/manual-restore-service';
 import { manualSyncService } from '@/lib/sync/manual-sync-service';
-import type { SyncResult, SyncSummary } from '@/lib/sync/sync-types';
+import type {
+  SyncAttemptSource,
+  SyncResult,
+  SyncSummary,
+} from '@/lib/sync/sync-types';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -142,12 +146,22 @@ function formatLastBackup(timestamp: number) {
   return `Last backup: ${timestampFormatter.format(date)}`;
 }
 
-function formatLastSync(timestamp: number) {
+function formatLastSync({
+  source,
+  timestamp,
+}: {
+  source: unknown;
+  timestamp: number;
+}) {
   const date = getValidDate(timestamp);
 
   if (!date) return null;
 
-  return `Last sync: ${timestampFormatter.format(date)}`;
+  const sourceLabel = getSafeSyncSourceLabel(source);
+
+  return sourceLabel
+    ? `Last sync: ${timestampFormatter.format(date)} · ${sourceLabel}`
+    : `Last sync: ${timestampFormatter.format(date)}`;
 }
 
 function createSyncUiResult(
@@ -231,6 +245,19 @@ function getSafeSyncTimestamp(value: unknown) {
   return Math.trunc(value);
 }
 
+function getSafeSyncSource(value: unknown): SyncAttemptSource | null {
+  return value === 'manual' || value === 'foreground' ? value : null;
+}
+
+function getSafeSyncSourceLabel(value: unknown) {
+  const source = getSafeSyncSource(value);
+
+  if (source === 'manual') return 'Manual';
+  if (source === 'foreground') return 'Auto';
+
+  return null;
+}
+
 function getAccountDisplayName(user: AuthUser) {
   if (user.email) return user.email;
   if (user.displayName) return user.displayName;
@@ -304,6 +331,8 @@ export function SettingsScreen() {
   const [lastSuccessfulSyncAt, setLastSuccessfulSyncAtState] = useState<
     number | null
   >(null);
+  const [lastSuccessfulSyncSource, setLastSuccessfulSyncSourceState] =
+    useState<SyncAttemptSource | null>(null);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -368,7 +397,12 @@ export function SettingsScreen() {
       : formatLastBackup(lastSuccessfulBackupAt);
 
   const lastSyncText =
-    lastSuccessfulSyncAt === null ? null : formatLastSync(lastSuccessfulSyncAt);
+    lastSuccessfulSyncAt === null
+      ? null
+      : formatLastSync({
+          source: lastSuccessfulSyncSource,
+          timestamp: lastSuccessfulSyncAt,
+        });
   const visibleSyncResult = syncResult ?? persistedSyncResult;
 
   useTransactionsRefresh({
@@ -438,6 +472,7 @@ export function SettingsScreen() {
   useEffect(() => {
     if (!shouldShowSync) {
       setLastSuccessfulSyncAtState(null);
+      setLastSuccessfulSyncSourceState(null);
       setPersistedSyncResult(null);
 
       return;
@@ -455,6 +490,9 @@ export function SettingsScreen() {
           getSafeSyncTimestamp(metadata.lastSyncSummary?.completedAt) ??
             getSafeSyncTimestamp(metadata.lastSuccessfulSyncAt),
         );
+        setLastSuccessfulSyncSourceState(
+          getSafeSyncSource(metadata.lastSuccessfulSyncSource),
+        );
         setPersistedSyncResult(
           createSyncUiResultFromSummary(metadata.lastSyncSummary),
         );
@@ -462,6 +500,7 @@ export function SettingsScreen() {
         if (!isMounted) return;
 
         setLastSuccessfulSyncAtState(null);
+        setLastSuccessfulSyncSourceState(null);
         setPersistedSyncResult(null);
       }
     })();
@@ -744,6 +783,7 @@ export function SettingsScreen() {
           status: authStatus,
           userId: authUser?.id,
         },
+        source: 'manual',
       });
 
       if (result.status !== 'succeeded') {
@@ -765,11 +805,15 @@ export function SettingsScreen() {
             getSafeSyncTimestamp(metadata.lastSuccessfulSyncAt) ??
             result.lastSuccessfulSyncAt,
         );
+        setLastSuccessfulSyncSourceState(
+          getSafeSyncSource(metadata.lastSuccessfulSyncSource),
+        );
         setPersistedSyncResult(
           createSyncUiResultFromSummary(metadata.lastSyncSummary),
         );
       } catch {
         setLastSuccessfulSyncAtState(result.lastSuccessfulSyncAt);
+        setLastSuccessfulSyncSourceState('manual');
       }
     } catch {
       setSyncError("Couldn't sync. Try again.");

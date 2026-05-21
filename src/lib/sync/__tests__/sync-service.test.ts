@@ -10,7 +10,10 @@ import type {
   RemoteSyncAdapter,
   RemoteSyncChanges,
   RemoteTransaction,
+  SyncAttemptSource,
+  SyncAuthContext,
   SyncMetadata,
+  SyncService,
   SyncSummary,
 } from '@/lib/sync/sync-types';
 import type { Category } from '@/types/category';
@@ -52,6 +55,16 @@ function createDeferred<T>() {
     reject,
     resolve,
   };
+}
+
+function runManualIncrementalSync(
+  service: SyncService,
+  input: { auth: SyncAuthContext },
+) {
+  return service.runIncrementalSync({
+    ...input,
+    source: 'manual',
+  });
 }
 
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
@@ -183,6 +196,7 @@ function createMetadataStore({
     lastSuccessfulSyncAt: TEST_CURSOR,
     lastSyncErrorAt: null,
     lastSyncSummary: null,
+    lastSuccessfulSyncSource: null,
   },
   shouldFailRead = false,
   shouldFailWrite = false,
@@ -192,11 +206,11 @@ function createMetadataStore({
   shouldFailWrite?: boolean;
 } = {}): LocalSyncMetadataStore & {
   failures: number[];
-  successes: SyncSummary[];
+  successes: { source: SyncAttemptSource; summary: SyncSummary }[];
 } {
   const metadata = { ...initialMetadata };
   const failures: number[] = [];
-  const successes: SyncSummary[] = [];
+  const successes: { source: SyncAttemptSource; summary: SyncSummary }[] = [];
 
   return {
     failures,
@@ -210,12 +224,13 @@ function createMetadataStore({
       failures.push(timestamp);
       metadata.lastSyncErrorAt = timestamp;
     },
-    async recordSuccess(summary) {
+    async recordSuccess({ source, summary }) {
       if (shouldFailWrite) throw new Error(RAW_FAILURE);
 
-      successes.push(summary);
+      successes.push({ source, summary });
       metadata.lastSuccessfulSyncAt = summary.cursor;
       metadata.lastSyncSummary = summary;
+      metadata.lastSuccessfulSyncSource = source;
     },
   };
 }
@@ -256,7 +271,7 @@ describe('incremental sync service', () => {
     });
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'authenticated',
           userId: TEST_USER_ID,
@@ -280,7 +295,7 @@ describe('incremental sync service', () => {
     const service = createService({ metadataStore, remoteAdapter });
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'guest',
           userId: null,
@@ -292,7 +307,7 @@ describe('incremental sync service', () => {
     });
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'authenticated',
           userId: '   ',
@@ -304,7 +319,7 @@ describe('incremental sync service', () => {
     });
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'authenticated',
           userId: TEST_USER_ID,
@@ -318,7 +333,7 @@ describe('incremental sync service', () => {
     remoteAdapter.setSessionUserId('other-user');
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'authenticated',
           userId: TEST_USER_ID,
@@ -347,12 +362,13 @@ describe('incremental sync service', () => {
           lastSuccessfulSyncAt: null,
           lastSyncErrorAt: null,
           lastSyncSummary: null,
+          lastSuccessfulSyncSource: null,
         },
       }),
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -407,7 +423,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -454,7 +470,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -493,6 +509,7 @@ describe('incremental sync service', () => {
         lastSuccessfulSyncAt: null,
         lastSyncErrorAt: null,
         lastSyncSummary: null,
+        lastSuccessfulSyncSource: null,
       },
     });
     const service = createService({
@@ -503,13 +520,13 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    await service.runIncrementalSync({
+    await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
       },
     });
-    const secondResult = await service.runIncrementalSync({
+    const secondResult = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -535,6 +552,7 @@ describe('incremental sync service', () => {
         lastSuccessfulSyncAt: null,
         lastSyncErrorAt: null,
         lastSyncSummary: null,
+        lastSuccessfulSyncSource: null,
       },
     });
     const service = createService({
@@ -544,13 +562,13 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const firstResult = await service.runIncrementalSync({
+    const firstResult = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
       },
     });
-    const secondResult = await service.runIncrementalSync({
+    const secondResult = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -595,6 +613,7 @@ describe('incremental sync service', () => {
         lastSuccessfulSyncAt: null,
         lastSyncErrorAt: null,
         lastSyncSummary: null,
+        lastSuccessfulSyncSource: null,
       },
     });
     const remoteAdapter = createFakeRemoteSyncAdapter({
@@ -612,8 +631,8 @@ describe('incremental sync service', () => {
       },
     };
 
-    const firstSync = service.runIncrementalSync(input);
-    const secondSync = service.runIncrementalSync(input);
+    const firstSync = runManualIncrementalSync(service, input);
+    const secondSync = runManualIncrementalSync(service, input);
 
     expect(secondSync).toBe(firstSync);
 
@@ -651,7 +670,7 @@ describe('incremental sync service', () => {
       dataSource,
     });
 
-    const syncPromise = service.runIncrementalSync({
+    const syncPromise = runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -694,7 +713,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -740,7 +759,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -787,7 +806,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -833,7 +852,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -881,7 +900,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -920,7 +939,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -972,7 +991,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1025,7 +1044,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1075,7 +1094,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1113,7 +1132,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1148,7 +1167,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1190,7 +1209,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1221,7 +1240,7 @@ describe('incremental sync service', () => {
       remoteAdapter,
     });
 
-    const result = await service.runIncrementalSync({
+    const result = await runManualIncrementalSync(service, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,
@@ -1250,7 +1269,7 @@ describe('incremental sync service', () => {
     });
 
     await expect(
-      service.runIncrementalSync({
+      runManualIncrementalSync(service, {
         auth: {
           status: 'authenticated',
           userId: TEST_USER_ID,
@@ -1262,17 +1281,20 @@ describe('incremental sync service', () => {
     });
     expect(metadataStore.successes).toEqual([
       expect.objectContaining({
-        appliedCategoriesCount: 0,
-        appliedTransactionsCount: 0,
-        completedAt: TEST_NOW,
-        conflictsCount: 0,
-        cursor: TEST_NOW,
-        ignoredCategoryTombstonesCount: 0,
-        ignoredTransactionTombstonesCount: 0,
-        pulledCategoriesCount: 0,
-        pulledTransactionsCount: 0,
-        pushedCategoriesCount: 0,
-        pushedTransactionsCount: 1,
+        source: 'manual',
+        summary: expect.objectContaining({
+          appliedCategoriesCount: 0,
+          appliedTransactionsCount: 0,
+          completedAt: TEST_NOW,
+          conflictsCount: 0,
+          cursor: TEST_NOW,
+          ignoredCategoryTombstonesCount: 0,
+          ignoredTransactionTombstonesCount: 0,
+          pulledCategoriesCount: 0,
+          pulledTransactionsCount: 0,
+          pushedCategoriesCount: 0,
+          pushedTransactionsCount: 1,
+        }),
       }),
     ]);
     expect(metadataStore.failures).toEqual([]);
@@ -1284,7 +1306,7 @@ describe('incremental sync service', () => {
       metadataStore: failingMetadataStore,
     });
 
-    const result = await failingService.runIncrementalSync({
+    const result = await runManualIncrementalSync(failingService, {
       auth: {
         status: 'authenticated',
         userId: TEST_USER_ID,

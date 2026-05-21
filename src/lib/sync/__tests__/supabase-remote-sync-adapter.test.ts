@@ -314,6 +314,7 @@ describe('Supabase remote sync adapter', () => {
           lastSuccessfulSyncAt: null,
           lastSyncErrorAt: null,
           lastSyncSummary: null,
+          lastSuccessfulSyncSource: null,
         })),
         recordFailure: jest.fn(async () => {}),
         recordSuccess: jest.fn(async () => {}),
@@ -327,6 +328,7 @@ describe('Supabase remote sync adapter', () => {
         status: 'authenticated',
         userId: TEST_USER_ID,
       },
+      source: 'manual',
     });
 
     expect(result).toMatchObject({

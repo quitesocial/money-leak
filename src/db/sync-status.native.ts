@@ -1,4 +1,8 @@
-import type { SyncMetadata, SyncSummary } from '@/lib/sync/sync-types';
+import type {
+  SyncAttemptSource,
+  SyncMetadata,
+  SyncSummary,
+} from '@/lib/sync/sync-types';
 
 import { getDatabase, initDatabase } from './database.native';
 import { ensureAppMetadataTable } from './local-identity.native';
@@ -9,6 +13,8 @@ type AppMetadataRow = {
 };
 
 const LAST_SUCCESSFUL_SYNC_AT_KEY = 'last_successful_incremental_sync_at';
+const LAST_SUCCESSFUL_SYNC_SOURCE_KEY =
+  'last_successful_incremental_sync_source';
 const LAST_SYNC_ERROR_AT_KEY = 'last_incremental_sync_error_at';
 const LAST_SYNC_SUMMARY_KEY = 'last_incremental_sync_summary';
 
@@ -23,9 +29,10 @@ export async function getSyncMetadata(): Promise<SyncMetadata> {
     `
       SELECT key, value
       FROM app_metadata
-      WHERE key IN (?, ?, ?)
+      WHERE key IN (?, ?, ?, ?)
     `,
     LAST_SUCCESSFUL_SYNC_AT_KEY,
+    LAST_SUCCESSFUL_SYNC_SOURCE_KEY,
     LAST_SYNC_ERROR_AT_KEY,
     LAST_SYNC_SUMMARY_KEY,
   );
@@ -45,11 +52,25 @@ export async function getSyncMetadata(): Promise<SyncMetadata> {
     ),
     lastSyncErrorAt: parseStoredTimestamp(values.get(LAST_SYNC_ERROR_AT_KEY)),
     lastSyncSummary: parseStoredSummary(values.get(LAST_SYNC_SUMMARY_KEY)),
+    lastSuccessfulSyncSource: parseStoredSource(
+      values.get(LAST_SUCCESSFUL_SYNC_SOURCE_KEY),
+    ),
   };
 }
 
-export async function recordSyncSuccess(summary: SyncSummary) {
+export async function recordSyncSuccess({
+  source,
+  summary,
+}: {
+  source: SyncAttemptSource;
+  summary: SyncSummary;
+}) {
   const safeSummary = normalizeSummary(summary);
+  const safeSource = normalizeSyncAttemptSource(source);
+
+  if (!safeSource) {
+    throw new Error('Sync source must be a safe known value.');
+  }
 
   await initDatabase();
 
@@ -70,6 +91,13 @@ export async function recordSyncSuccess(summary: SyncSummary) {
       key: LAST_SYNC_SUMMARY_KEY,
       timestamp: safeSummary.completedAt,
       value: JSON.stringify(safeSummary),
+    });
+
+    await upsertMetadataValue({
+      database: transactionDatabase,
+      key: LAST_SUCCESSFUL_SYNC_SOURCE_KEY,
+      timestamp: safeSummary.completedAt,
+      value: safeSource,
     });
   });
 }
@@ -114,6 +142,16 @@ function parseStoredSummary(value: unknown): SyncSummary | null {
   } catch {
     return null;
   }
+}
+
+function parseStoredSource(value: unknown): SyncAttemptSource | null {
+  if (typeof value !== 'string') return null;
+
+  return normalizeSyncAttemptSource(value);
+}
+
+function normalizeSyncAttemptSource(value: unknown): SyncAttemptSource | null {
+  return value === 'manual' || value === 'foreground' ? value : null;
 }
 
 function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {

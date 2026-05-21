@@ -1,0 +1,110 @@
+ML-77 Sync Attempt Source Metadata v1 Handoff
+
+Summary
+- Added explicit incremental sync attempt source metadata for successful syncs.
+- Settings manual sync now calls the sync service with source "manual".
+- Foreground auto sync now calls the same sync service boundary with source
+  "foreground".
+- Persisted sync source is limited to the safe enum values "manual" and
+  "foreground" and is stored separately from the aggregate-only sync summary.
+- Settings shows "Last sync: <date> · Manual" or "Last sync: <date> · Auto"
+  only when both timestamp and source are valid.
+- Bumped the app patch version from 1.18.1 to 1.18.2.
+
+What changed
+- Extended src/lib/sync/sync-types.ts with SyncAttemptSource and
+  lastSuccessfulSyncSource metadata.
+- Updated src/lib/sync/sync-service.ts to require source on
+  runIncrementalSync and record success metadata as { summary, source }.
+- Updated native/web sync metadata persistence to read/write safe source
+  metadata separately from last_incremental_sync_summary.
+- Updated Settings and foreground sync call sites to pass explicit source.
+- Added tests for manual/foreground source propagation, safe persistence,
+  corrupted source handling, source labels, guest hiding, and aggregate-only
+  summary safety.
+- Added ML-77 QA coverage to docs/mvp-qa-checklist.md.
+- Added an AGENTS.md rule to keep sync source metadata as a safe enum outside
+  summaries/raw diagnostics.
+
+Files changed
+- AGENTS.md
+- package.json
+- package-lock.json
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_77_HANDOFF.txt
+- src/db/sync-status.native.ts
+- src/db/sync-status.web.ts
+- src/db/__tests__/sync-status.native.test.ts
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/lib/sync/sync-types.ts
+- src/lib/sync/sync-service.ts
+- src/lib/sync/use-foreground-auto-sync.ts
+- src/lib/sync/__tests__/sync-service.test.ts
+- src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx
+- src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+
+Validation results
+- PASS targeted sync tests:
+  npm test -- --runInBand src/lib/sync/__tests__/sync-service.test.ts src/db/__tests__/sync-status.native.test.ts src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx src/features/settings/__tests__/settings-screen.test.ts src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS targeted regressions: CSV v1 header tests/constants, bottom tab labels,
+  pushed Add Transaction / Shame Card routes, no dynamic process.env[...] in
+  src/app, no direct production Supabase calls from Settings/root foreground
+  lifecycle, no forbidden UI/glass dependencies or styling, and Settings
+  raw-value safety coverage.
+- PASS git diff --check
+
+Manual QA checklist
+- In guest/local mode, open Settings and confirm the Sync card is hidden.
+- Sign in, tap Sync now, and confirm Settings later shows
+  "Last sync: ... · Manual".
+- After the foreground throttle window, background/foreground the app and
+  confirm Settings later can show "Last sync: ... · Auto".
+- Corrupt or unknown stored source should fall back to plain "Last sync:" with
+  no source label.
+- Force a recoverable sync failure and confirm Settings shows only
+  "Couldn't sync. Try again." with no raw diagnostics.
+- Add, edit, and delete local transactions/categories and confirm those local
+  mutations do not trigger sync until manual sync or a later eligible
+  foreground return.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
+  Restore, Delete Account, Sign Out, and local guest mode.
+
+Preserved invariants
+- Guest/local mode remains permanently available; no login wall was added.
+- Local tracking remains local-first and offline-capable.
+- No sync on cold start, login, session restore, sign out, background
+  execution, or transaction/category add/edit/delete.
+- Foreground auto sync remains limited to React Native AppState foreground
+  returns, throttled by last successful sync metadata, and routed through the
+  existing sync service boundary.
+- Settings sync UI remains routed through manualSyncService and sync metadata
+  boundaries.
+- Sync summary remains aggregate-only and does not store source, raw ids,
+  device ids, owner ids, user ids, row payloads, backend errors, env values,
+  Supabase URLs, anon keys, service-role strings, OAuth/provider secrets,
+  access tokens, refresh tokens, provider tokens, or Apple identity tokens.
+- No conflict UI, category tombstone implementation, backup/restore redesign,
+  Delete Account behavior change, CSV v2, navigation change, new dependency,
+  or forbidden glass UI styling was added.
+- CSV v1 header remains exactly
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- app.config.js and eas.json were not changed.
+
+Version bump rationale
+- 1.18.1 -> 1.18.2 is a patch bump because ML-77 hardens sync status metadata
+  and safe Settings display without adding a new large user-facing capability.
+- package.json remains the source of truth for version, and app.config.js
+  continues to read package.json.version.
+
+Agent context
+- No docs/handoffs/*AGENT_CONTEXT* pattern exists in this repo, so no separate
+  ML_77_AGENT_CONTEXT.txt file was added.

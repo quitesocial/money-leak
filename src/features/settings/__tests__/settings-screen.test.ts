@@ -633,6 +633,7 @@ function createEmptySyncMetadata(): SyncMetadata {
     lastSuccessfulSyncAt: null,
     lastSyncErrorAt: null,
     lastSyncSummary: null,
+    lastSuccessfulSyncSource: null,
   };
 }
 
@@ -640,6 +641,8 @@ function createCorruptedSyncMetadata(): SyncMetadata {
   return {
     lastSuccessfulSyncAt: Date.parse('2026-05-19T12:00:00.000Z'),
     lastSyncErrorAt: null,
+    lastSuccessfulSyncSource:
+      'raw backend failure' as unknown as SyncMetadata['lastSuccessfulSyncSource'],
     lastSyncSummary: {
       completedAt: 'auth-user-test',
       cursor: Date.parse('2026-05-20T12:00:00.000Z'),
@@ -1265,6 +1268,7 @@ describe('SettingsScreen sync section', () => {
         status: 'authenticated',
         userId: 'auth-user-test',
       },
+      source: 'manual',
     });
   });
 
@@ -1366,6 +1370,7 @@ describe('SettingsScreen sync section', () => {
     mockGetSyncMetadata.mockResolvedValue({
       lastSuccessfulSyncAt: Date.parse('2026-05-19T12:00:00.000Z'),
       lastSyncErrorAt: null,
+      lastSuccessfulSyncSource: 'manual',
       lastSyncSummary: {
         completedAt: Date.parse('2026-05-20T12:00:00.000Z'),
         cursor: Date.parse('2026-05-20T12:00:00.000Z'),
@@ -1388,9 +1393,33 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
+    expect(text).toContain('· Manual');
     expect(text).toContain(
       'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
     );
+    expectNoRawSyncUiValues(text);
+  });
+
+  it('shows Auto beside last successful sync for valid foreground source metadata', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockGetSyncMetadata.mockResolvedValue({
+      lastSuccessfulSyncAt: Date.parse('2026-05-20T12:00:00.000Z'),
+      lastSyncErrorAt: null,
+      lastSyncSummary: null,
+      lastSuccessfulSyncSource: 'foreground',
+    });
+
+    const renderer = await renderSettingsScreen();
+
+    await flushAsyncWork();
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Last sync:');
+    expect(text).toContain('· Auto');
     expectNoRawSyncUiValues(text);
   });
 
@@ -1408,6 +1437,8 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
+    expect(text).not.toContain('· Manual');
+    expect(text).not.toContain('· Auto');
     expect(text).not.toContain('Sync complete.');
     expectNoRawSyncUiValues(text);
   });

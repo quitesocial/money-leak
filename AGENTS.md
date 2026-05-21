@@ -58,6 +58,7 @@ nvm use 20.19.4
 - Keep incremental sync behind `featureFlags.incrementalSyncEnabled`; do not run sync automatically on app start, login, session restore, sign out, or in the background unless a task explicitly asks for that behavior.
 - Keep foreground auto-sync limited to React Native `AppState` foreground returns, throttled by last successful sync metadata, and routed through the existing sync service boundary.
 - Keep user-facing Settings sync UI routed through the manual sync service and sync metadata boundaries; do not call remote sync adapters or Supabase clients directly from screen code.
+- Keep sync attempt source metadata limited to the safe enum values `manual` and `foreground`; do not store it inside aggregate summaries or raw diagnostics.
 
 ## Current App Structure
 

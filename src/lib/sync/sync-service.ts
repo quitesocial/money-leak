@@ -90,6 +90,7 @@ export function createSyncService({
 
   async function runIncrementalSyncOnce({
     auth,
+    source,
   }: Parameters<SyncService['runIncrementalSync']>[0]): Promise<SyncResult> {
     if (!isSyncEnabled) return createSkippedResult('sync_disabled');
 
@@ -203,7 +204,7 @@ export function createSyncService({
     };
 
     try {
-      await metadataStore.recordSuccess(summary);
+      await metadataStore.recordSuccess({ source, summary });
     } catch {
       return createFailedResult('metadata_write_failed');
     }
