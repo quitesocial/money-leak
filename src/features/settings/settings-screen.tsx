@@ -618,7 +618,7 @@ export function SettingsScreen() {
       const result = await deleteAccountService.runDeleteAccount({
         auth: {
           status: authStatus,
-          userId: authUser.id,
+          hasAuthenticatedUser: authUser !== null,
         },
       });
 
@@ -629,8 +629,8 @@ export function SettingsScreen() {
       }
 
       await signOut();
-    } catch (error) {
-      console.error('Failed to delete account data', error);
+    } catch {
+      console.error('Failed to delete account data');
       setDeleteAccountError("Couldn't delete account. Try again.");
     } finally {
       setIsDeletingAccount(false);

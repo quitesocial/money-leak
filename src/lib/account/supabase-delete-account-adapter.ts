@@ -7,55 +7,34 @@ import type {
 } from '@/lib/account/delete-account-service';
 import { getSupabaseClient } from '@/lib/supabase/supabase-client';
 
-type SupabaseAccountDeleteClient = Pick<SupabaseClient, 'from'>;
+type SupabaseAccountDeleteClient = Pick<SupabaseClient, 'functions'>;
 
 type SupabaseDeleteAccountAdapterOptions = {
   getClient?: () => SupabaseAccountDeleteClient | null;
 };
 
-type SupabaseDeleteResult = {
+type SupabaseFunctionResult = {
+  data: unknown;
   error: unknown;
 };
-
-type RemoteAccountDeleteStep = {
-  column: 'id' | 'user_id';
-  tableName: 'profiles' | 'remote_categories' | 'remote_transactions';
-};
-
-const DELETE_ACCOUNT_STEPS: RemoteAccountDeleteStep[] = [
-  {
-    tableName: 'remote_transactions',
-    column: 'user_id',
-  },
-  {
-    tableName: 'remote_categories',
-    column: 'user_id',
-  },
-  {
-    tableName: 'profiles',
-    column: 'id',
-  },
-];
 
 export function createSupabaseDeleteAccountAdapter({
   getClient = getSupabaseClient,
 }: SupabaseDeleteAccountAdapterOptions = {}): DeleteAccountAdapter {
   return {
-    async deleteAccountData({ userId }) {
-      const normalizedUserId = userId.trim();
+    async deleteAccountData() {
       const client = getClient();
 
       if (!client) return createFailedResult('delete_client_unavailable');
-      if (!normalizedUserId) return createFailedResult('remote_delete_failed');
 
       try {
-        for (const step of DELETE_ACCOUNT_STEPS) {
-          const result = (await client
-            .from(step.tableName)
-            .delete()
-            .eq(step.column, normalizedUserId)) as SupabaseDeleteResult;
+        const result = (await client.functions.invoke(
+          'delete-account',
+        )) as SupabaseFunctionResult;
 
-          if (result.error) return createFailedResult('remote_delete_failed');
+        if (result.error) return createFailedResult('remote_delete_failed');
+        if (!isDeleteAccountFunctionSuccess(result.data)) {
+          return createFailedResult('remote_delete_failed');
         }
 
         return {
@@ -66,6 +45,15 @@ export function createSupabaseDeleteAccountAdapter({
       }
     },
   };
+}
+
+function isDeleteAccountFunctionSuccess(data: unknown) {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'status' in data &&
+    data.status === 'deleted'
+  );
 }
 
 function createFailedResult(code: DeleteAccountErrorCode): DeleteAccountResult {

@@ -916,7 +916,7 @@ describe('SettingsScreen account section', () => {
     expect(mockRunDeleteAccount).toHaveBeenCalledWith({
       auth: {
         status: 'authenticated',
-        userId: 'auth-user-test',
+        hasAuthenticatedUser: true,
       },
     });
     expect(mockSignOut).toHaveBeenCalledTimes(1);
@@ -998,6 +998,44 @@ describe('SettingsScreen account section', () => {
     expect(text).not.toContain('refresh_token');
     expect(text).not.toContain('provider_token');
     expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('does not log raw delete account failures when the service throws', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunDeleteAccount.mockRejectedValueOnce(
+      new Error(
+        'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+      ),
+    );
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Delete Account');
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = getNodeText(renderer.root);
+    const loggedText = JSON.stringify(consoleErrorSpy.mock.calls);
+
+    expect(text).toContain("Couldn't delete account. Try again.");
+    expect(loggedText).toContain('Failed to delete account data');
+    expect(loggedText).not.toContain('raw backend failure');
+    expect(loggedText).not.toContain('auth-user-test');
+    expect(loggedText).not.toContain('localOwnerId');
+    expect(loggedText).not.toContain('deviceId');
+    expect(loggedText).not.toContain('access_token');
+    expect(loggedText).not.toContain('refresh_token');
+    expect(loggedText).not.toContain('provider_token');
+    expect(loggedText).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@ import type { AuthStatus } from '@/types/auth';
 
 export type DeleteAccountAuthContext = {
   status: AuthStatus;
-  userId: string | null | undefined;
+  hasAuthenticatedUser: boolean;
 };
 
 export type DeleteAccountSkippedReason = 'guest_mode' | 'missing_user_id';
@@ -31,9 +31,7 @@ export type DeleteAccountResult =
     };
 
 export type DeleteAccountAdapter = {
-  deleteAccountData: (input: {
-    userId: string;
-  }) => Promise<DeleteAccountResult>;
+  deleteAccountData: () => Promise<DeleteAccountResult>;
 };
 
 type DeleteAccountServiceOptions = {
@@ -55,12 +53,11 @@ export function createDeleteAccountService({
         return createSkippedResult('guest_mode');
       }
 
-      const userId = auth.userId?.trim();
-
-      if (!userId) return createSkippedResult('missing_user_id');
+      if (!auth.hasAuthenticatedUser)
+        return createSkippedResult('missing_user_id');
 
       try {
-        return await adapter.deleteAccountData({ userId });
+        return await adapter.deleteAccountData();
       } catch {
         return createFailedResult('remote_delete_failed');
       }

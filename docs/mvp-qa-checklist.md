@@ -1123,6 +1123,78 @@ Manual owner QA:
   account data.
 - Confirm no automatic backup/restore/sync runs during or after deletion.
 
+## ML-70: Full Account Deletion / Supabase Auth User Delete
+
+- Delete Account uses the Supabase `delete-account` Edge Function as the
+  server-side deletion boundary.
+- The mobile app calls the Edge Function through the existing authenticated
+  Supabase anon client and does not contain service-role/admin client usage.
+- The Edge Function verifies the request JWT, derives the user id from the
+  verified auth context, and ignores any body-provided user id.
+- Confirming delete removes rows for the authenticated user from
+  `public.remote_transactions`, `public.remote_categories`, and
+  `public.profiles`, then deletes the Supabase Auth user.
+- If app-owned row deletion fails, the Edge Function does not delete the Auth
+  user.
+- Delete Account then signs out through the existing auth flow and returns the
+  app to guest/local mode.
+- Guest/local mode remains available with no login wall and no Delete Account
+  UI.
+- `Sign Out` behavior remains unchanged and does not call Delete Account or the
+  Edge Function.
+- Local SQLite transactions/categories are not deleted, overwritten, unlinked,
+  restored, imported, exported, backed up, or otherwise mutated by Delete
+  Account.
+- Manual backup, restore, import, and export do not run during Delete Account.
+- Failure copy remains generic: `Couldn't delete account. Try again.`
+- UI, tests, docs, and mobile-visible errors do not include real env values,
+  Supabase URL, anon key, service-role key, OAuth secrets, provider secrets,
+  access tokens, refresh tokens, provider tokens, Apple identity tokens,
+  localOwnerId, deviceId, ownerId, or raw backend errors.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `package.json.version` is bumped intentionally to `1.16.1`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.16.1`.
+- `app.config.js` and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.16.1`.
+- `git diff --check` passes.
+
+Manual owner deployment and QA:
+
+- Link the local Supabase project if needed with the Supabase CLI.
+- Set `SUPABASE_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
+  commit or expose the value.
+- Deploy the `delete-account` Edge Function.
+- Log in through Google or Apple on a device/build with Supabase auth
+  configured.
+- Create or confirm local transactions/categories are visible.
+- Create a manual backup so remote rows exist for the account.
+- Open Settings and confirm `Privacy` and `Delete Account` are visible while
+  authenticated.
+- Tap `Delete Account`, cancel the confirmation, and confirm no sign out occurs
+  and remote rows remain.
+- Tap `Delete Account` again, confirm deletion, and verify the account's
+  `remote_transactions`, `remote_categories`, and `profiles` rows are removed.
+- In Supabase Authentication -> Users, verify the Auth user is deleted.
+- Confirm the app returns to guest/local mode after deletion.
+- Confirm the same local transactions/categories remain visible after delete
+  completes.
+- Confirm guest Settings does not show `Privacy` or `Delete Account`.
+- Confirm `Sign Out` still returns to guest/local mode without deleting remote
+  account data or calling the Edge Function.
+- Confirm no automatic backup/restore/sync runs during or after deletion.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

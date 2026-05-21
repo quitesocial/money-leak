@@ -54,14 +54,17 @@ nvm use 20.19.4
 - Prefer the `@/*` path alias for imports from `src`.
 - Keep placeholder UI minimal and explicit. Do not invent fake product logic.
 - When a local function or hook needs more than two inputs (3+), prefer one object parameter with named fields.
+- Keep Supabase service-role/admin operations inside server-side Supabase Edge Functions; never add service-role keys or admin clients to mobile app code/config.
 
 ## Current App Structure
 
 - `app/_layout.tsx`: root Expo Router layout.
 - `app/(tabs)/_layout.tsx`: bottom tab navigation.
 - `app/(tabs)/index.tsx`: Home route.
-- `app/(tabs)/add-transaction.tsx`: Add Transaction route.
 - `app/(tabs)/analytics.tsx`: Analytics route.
+- `app/(tabs)/settings.tsx`: Settings route.
+- `app/add-transaction.tsx`: pushed root Stack Add Transaction route.
+- `app/shame-card.tsx`: pushed root Stack Shame Card route.
 - `src/features/*`: screen components for each route.
 - `src/components/screen-shell.tsx`: minimal shared screen wrapper.
 
