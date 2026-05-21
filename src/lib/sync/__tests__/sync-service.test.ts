@@ -37,6 +37,22 @@ const TEST_CURSOR = Date.parse('2026-05-20T12:00:00.000Z');
 const RAW_FAILURE =
   'raw backend failure access_token refresh_token localOwnerId';
 
+function createDeferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+}
+
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: 'txn-1',
@@ -498,6 +514,65 @@ describe('incremental sync service', () => {
       pulledTransactionsCount: 0,
       pushedTransactionsCount: 0,
     });
+  });
+
+  it('shares one in-flight sync operation for overlapping service calls', async () => {
+    const deferredData = createDeferred<{
+      categories: Category[];
+      transactions: Transaction[];
+    }>();
+    const dataSource: LocalSyncDataSource & {
+      getSyncData: jest.MockedFunction<LocalSyncDataSource['getSyncData']>;
+    } = {
+      getSyncData: jest.fn(() => deferredData.promise),
+    };
+    const metadataStore = createMetadataStore({
+      initialMetadata: {
+        lastSuccessfulSyncAt: null,
+        lastSyncErrorAt: null,
+        lastSyncSummary: null,
+      },
+    });
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+    });
+    const service = createService({
+      dataSource,
+      metadataStore,
+      remoteAdapter,
+    });
+    const input = {
+      auth: {
+        status: 'authenticated' as const,
+        userId: TEST_USER_ID,
+      },
+    };
+
+    const firstSync = service.runIncrementalSync(input);
+    const secondSync = service.runIncrementalSync(input);
+
+    expect(secondSync).toBe(firstSync);
+
+    deferredData.resolve({
+      categories: [createCategory()],
+      transactions: [createTransaction()],
+    });
+
+    const [firstResult, secondResult] = await Promise.all([
+      firstSync,
+      secondSync,
+    ]);
+
+    expect(firstResult).toMatchObject({
+      status: 'succeeded',
+      pushedTransactionsCount: 1,
+      pushedCategoriesCount: 1,
+    });
+    expect(secondResult).toEqual(firstResult);
+    expect(dataSource.getSyncData).toHaveBeenCalledTimes(1);
+    expect(remoteAdapter.getTransactions()).toHaveLength(1);
+    expect(remoteAdapter.getCategories()).toHaveLength(1);
+    expect(metadataStore.successes).toHaveLength(1);
   });
 
   it('uses LWW when the remote active row is newer', async () => {

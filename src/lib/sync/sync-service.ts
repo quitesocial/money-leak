@@ -69,6 +69,8 @@ export function createSyncService({
   now = Date.now,
   remoteAdapter,
 }: SyncServiceOptions): SyncService {
+  let incrementalSyncPromise: Promise<SyncResult> | null = null;
+
   async function createFailedResult(code: SyncErrorCode): Promise<SyncResult> {
     try {
       await metadataStore.recordFailure(now());
@@ -86,140 +88,153 @@ export function createSyncService({
     };
   }
 
+  async function runIncrementalSyncOnce({
+    auth,
+  }: Parameters<SyncService['runIncrementalSync']>[0]): Promise<SyncResult> {
+    if (!isSyncEnabled) return createSkippedResult('sync_disabled');
+
+    if (auth.status !== 'authenticated') {
+      return createSkippedResult('guest_mode');
+    }
+
+    const userId = auth.userId?.trim();
+
+    if (!userId) return createSkippedResult('missing_user_id');
+
+    let sessionUserId: string | null;
+
+    try {
+      sessionUserId = await remoteAdapter.getAuthenticatedUserId();
+    } catch {
+      return createSkippedResult('missing_session');
+    }
+
+    if (!sessionUserId) return createSkippedResult('missing_session');
+    if (sessionUserId !== userId) {
+      return createSkippedResult('session_user_mismatch');
+    }
+
+    let lastSuccessfulSyncAt: number | null;
+
+    try {
+      const metadata = await metadataStore.getMetadata();
+      lastSuccessfulSyncAt = metadata.lastSuccessfulSyncAt;
+    } catch {
+      return createFailedResult('metadata_read_failed');
+    }
+
+    let remoteChanges: RemoteSyncChanges;
+
+    try {
+      remoteChanges = await remoteAdapter.pullChanges({
+        userId,
+        since: lastSuccessfulSyncAt,
+      });
+    } catch {
+      return createFailedResult('remote_read_failed');
+    }
+
+    let localData: LocalSyncData;
+
+    try {
+      localData = await dataSource.getSyncData();
+    } catch {
+      return createFailedResult('local_read_failed');
+    }
+
+    let plan: SyncPlan;
+
+    try {
+      plan = createSyncPlan({
+        localData,
+        remoteChanges,
+        since: lastSuccessfulSyncAt,
+      });
+    } catch {
+      return createFailedResult('remote_read_failed');
+    }
+
+    let appliedCounts: Pick<
+      SyncCounts,
+      'appliedCategoriesCount' | 'appliedTransactionsCount'
+    >;
+
+    try {
+      appliedCounts = await dataTarget.applyRemoteChanges(
+        plan.remoteChangesToApply,
+      );
+    } catch {
+      return createFailedResult('local_write_failed');
+    }
+
+    let pushedCounts: Pick<
+      SyncCounts,
+      'pushedCategoriesCount' | 'pushedTransactionsCount'
+    >;
+
+    try {
+      pushedCounts = await remoteAdapter.pushChanges({
+        userId,
+        transactions: plan.localTransactionsToPush.map((transaction) =>
+          mapLocalTransactionToRemote({ transaction, userId }),
+        ),
+        categories: plan.localCategoriesToPush.map((category) =>
+          mapLocalCategoryToRemote({ category, userId }),
+        ),
+      });
+    } catch {
+      return createFailedResult('remote_write_failed');
+    }
+
+    const completedAt = now();
+    const cursor = Math.max(completedAt, plan.cursorFloor);
+    const summary: SyncSummary = {
+      completedAt,
+      cursor,
+      pulledTransactionsCount: plan.pulledTransactionsCount,
+      pulledCategoriesCount: plan.pulledCategoriesCount,
+      appliedTransactionsCount: appliedCounts.appliedTransactionsCount,
+      appliedCategoriesCount: appliedCounts.appliedCategoriesCount,
+      pushedTransactionsCount: pushedCounts.pushedTransactionsCount,
+      pushedCategoriesCount: pushedCounts.pushedCategoriesCount,
+      ignoredTransactionTombstonesCount: plan.ignoredTransactionTombstonesCount,
+      ignoredCategoryTombstonesCount: plan.ignoredCategoryTombstonesCount,
+      conflictsCount: plan.conflictsCount,
+    };
+
+    try {
+      await metadataStore.recordSuccess(summary);
+    } catch {
+      return createFailedResult('metadata_write_failed');
+    }
+
+    return {
+      status: 'succeeded',
+      lastSuccessfulSyncAt: cursor,
+      pulledTransactionsCount: summary.pulledTransactionsCount,
+      pulledCategoriesCount: summary.pulledCategoriesCount,
+      appliedTransactionsCount: summary.appliedTransactionsCount,
+      appliedCategoriesCount: summary.appliedCategoriesCount,
+      pushedTransactionsCount: summary.pushedTransactionsCount,
+      pushedCategoriesCount: summary.pushedCategoriesCount,
+      ignoredTransactionTombstonesCount:
+        summary.ignoredTransactionTombstonesCount,
+      ignoredCategoryTombstonesCount: summary.ignoredCategoryTombstonesCount,
+      conflictsCount: summary.conflictsCount,
+    };
+  }
+
   return {
-    async runIncrementalSync({ auth }) {
-      if (!isSyncEnabled) return createSkippedResult('sync_disabled');
+    runIncrementalSync(input) {
+      if (incrementalSyncPromise) return incrementalSyncPromise;
 
-      if (auth.status !== 'authenticated') {
-        return createSkippedResult('guest_mode');
-      }
+      const syncPromise = runIncrementalSyncOnce(input).finally(() => {
+        incrementalSyncPromise = null;
+      });
 
-      const userId = auth.userId?.trim();
+      incrementalSyncPromise = syncPromise;
 
-      if (!userId) return createSkippedResult('missing_user_id');
-
-      let sessionUserId: string | null;
-
-      try {
-        sessionUserId = await remoteAdapter.getAuthenticatedUserId();
-      } catch {
-        return createSkippedResult('missing_session');
-      }
-
-      if (!sessionUserId) return createSkippedResult('missing_session');
-      if (sessionUserId !== userId) {
-        return createSkippedResult('session_user_mismatch');
-      }
-
-      let lastSuccessfulSyncAt: number | null;
-
-      try {
-        const metadata = await metadataStore.getMetadata();
-        lastSuccessfulSyncAt = metadata.lastSuccessfulSyncAt;
-      } catch {
-        return createFailedResult('metadata_read_failed');
-      }
-
-      let remoteChanges: RemoteSyncChanges;
-
-      try {
-        remoteChanges = await remoteAdapter.pullChanges({
-          userId,
-          since: lastSuccessfulSyncAt,
-        });
-      } catch {
-        return createFailedResult('remote_read_failed');
-      }
-
-      let localData: LocalSyncData;
-
-      try {
-        localData = await dataSource.getSyncData();
-      } catch {
-        return createFailedResult('local_read_failed');
-      }
-
-      let plan: SyncPlan;
-
-      try {
-        plan = createSyncPlan({
-          localData,
-          remoteChanges,
-          since: lastSuccessfulSyncAt,
-        });
-      } catch {
-        return createFailedResult('remote_read_failed');
-      }
-
-      let appliedCounts: Pick<
-        SyncCounts,
-        'appliedCategoriesCount' | 'appliedTransactionsCount'
-      >;
-
-      try {
-        appliedCounts = await dataTarget.applyRemoteChanges(
-          plan.remoteChangesToApply,
-        );
-      } catch {
-        return createFailedResult('local_write_failed');
-      }
-
-      let pushedCounts: Pick<
-        SyncCounts,
-        'pushedCategoriesCount' | 'pushedTransactionsCount'
-      >;
-
-      try {
-        pushedCounts = await remoteAdapter.pushChanges({
-          userId,
-          transactions: plan.localTransactionsToPush.map((transaction) =>
-            mapLocalTransactionToRemote({ transaction, userId }),
-          ),
-          categories: plan.localCategoriesToPush.map((category) =>
-            mapLocalCategoryToRemote({ category, userId }),
-          ),
-        });
-      } catch {
-        return createFailedResult('remote_write_failed');
-      }
-
-      const completedAt = now();
-      const cursor = Math.max(completedAt, plan.cursorFloor);
-      const summary: SyncSummary = {
-        completedAt,
-        cursor,
-        pulledTransactionsCount: plan.pulledTransactionsCount,
-        pulledCategoriesCount: plan.pulledCategoriesCount,
-        appliedTransactionsCount: appliedCounts.appliedTransactionsCount,
-        appliedCategoriesCount: appliedCounts.appliedCategoriesCount,
-        pushedTransactionsCount: pushedCounts.pushedTransactionsCount,
-        pushedCategoriesCount: pushedCounts.pushedCategoriesCount,
-        ignoredTransactionTombstonesCount:
-          plan.ignoredTransactionTombstonesCount,
-        ignoredCategoryTombstonesCount: plan.ignoredCategoryTombstonesCount,
-        conflictsCount: plan.conflictsCount,
-      };
-
-      try {
-        await metadataStore.recordSuccess(summary);
-      } catch {
-        return createFailedResult('metadata_write_failed');
-      }
-
-      return {
-        status: 'succeeded',
-        lastSuccessfulSyncAt: cursor,
-        pulledTransactionsCount: summary.pulledTransactionsCount,
-        pulledCategoriesCount: summary.pulledCategoriesCount,
-        appliedTransactionsCount: summary.appliedTransactionsCount,
-        appliedCategoriesCount: summary.appliedCategoriesCount,
-        pushedTransactionsCount: summary.pushedTransactionsCount,
-        pushedCategoriesCount: summary.pushedCategoriesCount,
-        ignoredTransactionTombstonesCount:
-          summary.ignoredTransactionTombstonesCount,
-        ignoredCategoryTombstonesCount: summary.ignoredCategoryTombstonesCount,
-        conflictsCount: summary.conflictsCount,
-      };
+      return syncPromise;
     },
   };
 }

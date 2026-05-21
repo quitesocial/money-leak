@@ -604,6 +604,29 @@ function createEmptySyncMetadata(): SyncMetadata {
   };
 }
 
+function createCorruptedSyncMetadata(): SyncMetadata {
+  return {
+    lastSuccessfulSyncAt: Date.parse('2026-05-19T12:00:00.000Z'),
+    lastSyncErrorAt: null,
+    lastSyncSummary: {
+      completedAt: 'auth-user-test',
+      cursor: Date.parse('2026-05-20T12:00:00.000Z'),
+      pulledTransactionsCount: 'localOwnerId',
+      pulledCategoriesCount: 1,
+      appliedTransactionsCount: 1,
+      appliedCategoriesCount: 1,
+      pushedTransactionsCount: 1,
+      pushedCategoriesCount: 1,
+      ignoredTransactionTombstonesCount: 1,
+      ignoredCategoryTombstonesCount: 1,
+      conflictsCount: 1,
+      deviceId: 'deviceId',
+      ownerId: 'ownerId',
+      access_token: 'access_token',
+    } as unknown as SyncMetadata['lastSyncSummary'],
+  };
+}
+
 async function flushAsyncWork() {
   await act(async () => {
     await Promise.resolve();
@@ -1216,6 +1239,36 @@ describe('SettingsScreen sync section', () => {
     expect(getNodeText(renderer.root)).toContain('Sync now');
   });
 
+  it('ignores overlapping manual sync presses while a sync is already running', async () => {
+    const deferred = createDeferred<MockSyncRunResult>();
+
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockRunManualSync.mockReturnValueOnce(deferred.promise);
+
+    const renderer = await renderSettingsScreen();
+    const button = findButton(renderer, 'Sync now');
+
+    await act(async () => {
+      button.props.onPress();
+      button.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockRunManualSync).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      deferred.resolve(createSucceededSyncResult());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
+    expect(mockLoadCategories).toHaveBeenCalledTimes(1);
+  });
+
   it('shows safe manual sync summary counts after success', async () => {
     mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
@@ -1247,9 +1300,11 @@ describe('SettingsScreen sync section', () => {
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('localOwnerId');
     expect(text).not.toContain('deviceId');
+    expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
+    expect(mockLoadCategories).toHaveBeenCalledTimes(1);
   });
 
-  it('shows last successful sync from existing metadata', async () => {
+  it('shows last successful sync and safe summary counts from existing metadata', async () => {
     mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
@@ -1260,15 +1315,15 @@ describe('SettingsScreen sync section', () => {
       lastSyncSummary: {
         completedAt: Date.parse('2026-05-20T12:00:00.000Z'),
         cursor: Date.parse('2026-05-20T12:00:00.000Z'),
-        pulledTransactionsCount: 0,
-        pulledCategoriesCount: 0,
-        appliedTransactionsCount: 0,
-        appliedCategoriesCount: 0,
-        pushedTransactionsCount: 0,
-        pushedCategoriesCount: 0,
-        ignoredTransactionTombstonesCount: 0,
-        ignoredCategoryTombstonesCount: 0,
-        conflictsCount: 0,
+        pulledTransactionsCount: 2,
+        pulledCategoriesCount: 1,
+        appliedTransactionsCount: 3,
+        appliedCategoriesCount: 1,
+        pushedTransactionsCount: 4,
+        pushedCategoriesCount: 3,
+        ignoredTransactionTombstonesCount: 7,
+        ignoredCategoryTombstonesCount: 2,
+        conflictsCount: 5,
       },
     });
 
@@ -1276,7 +1331,37 @@ describe('SettingsScreen sync section', () => {
 
     await flushAsyncWork();
 
-    expect(getNodeText(renderer.root)).toContain('Last sync:');
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Last sync:');
+    expect(text).toContain(
+      'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
+    );
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+  });
+
+  it('ignores invalid persisted sync metadata safely', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockGetSyncMetadata.mockResolvedValue(createCorruptedSyncMetadata());
+
+    const renderer = await renderSettingsScreen();
+
+    await flushAsyncWork();
+
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Last sync:');
+    expect(text).not.toContain('Sync complete.');
+    expect(text).not.toContain('auth-user-test');
+    expect(text).not.toContain('localOwnerId');
+    expect(text).not.toContain('deviceId');
+    expect(text).not.toContain('ownerId');
+    expect(text).not.toContain('access_token');
   });
 
   it('shows generic sync failure copy for failed and skipped service results', async () => {
@@ -1309,6 +1394,9 @@ describe('SettingsScreen sync section', () => {
     expect(text).not.toContain('refresh_token');
     expect(text).not.toContain('provider_token');
     expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expect(text).not.toContain('Sync complete.');
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
 
     mockRunManualSync.mockResolvedValueOnce({
       status: 'skipped',
@@ -1322,6 +1410,9 @@ describe('SettingsScreen sync section', () => {
 
     expect(text).toContain("Couldn't sync. Try again.");
     expect(text).not.toContain('missing_session');
+    expect(text).not.toContain('Sync complete.');
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
   });
 
   it('does not render raw sync diagnostics when manual sync throws', async () => {
@@ -1355,6 +1446,9 @@ describe('SettingsScreen sync section', () => {
     expect(text).not.toContain('ownerId');
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('row payload');
+    expect(text).not.toContain('Sync complete.');
+    expect(mockLoadTransactions).not.toHaveBeenCalled();
+    expect(mockLoadCategories).not.toHaveBeenCalled();
   });
 });
 
