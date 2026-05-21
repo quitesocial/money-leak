@@ -1537,6 +1537,78 @@ Manual QA:
 - Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
   Restore, and Delete Account flows.
 
+## ML-76: Sync Status & Cross-device QA Hardening v1
+
+- `package.json.version` is bumped intentionally to `1.18.1`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.1`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Settings shows the `Sync` card only for authenticated users while
+  `featureFlags.incrementalSyncEnabled` is enabled.
+- Authenticated Settings shows `Auto sync: On` and
+  `Runs when you return to the app. Local tracking still works offline.`
+- Manual Settings `Sync now` remains available, shows `Syncing...` while
+  running, and still uses the existing manual sync service boundary.
+- Valid sync metadata can show `Last sync:` plus only aggregate pulled,
+  pushed, applied, conflicts, and ignored counts.
+- Invalid or corrupted persisted sync summaries are ignored safely and never
+  render raw values.
+- Failed, skipped, or thrown sync attempts show only
+  `Couldn't sync. Try again.`
+- No persisted manual/foreground attempt type was added.
+- No sync runs on cold start, login, session restore, sign out, background
+  execution, or transaction/category add/edit/delete.
+- Foreground auto sync remains limited to returning from `background` or
+  `inactive` to `active`, throttled by last successful sync metadata, and
+  routed through the existing sync service boundary.
+- Settings/root lifecycle code does not call Supabase remote sync adapters or
+  clients directly.
+- Settings sync UI never renders raw env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, row payloads, or raw backend errors.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- Backup, restore, Sign Out, Delete Account, import/export, auth providers,
+  navigation, and visual design remain unchanged.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.1`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, open Settings and confirm the `Sync` card is hidden.
+- Sign in with Google, open Settings, and confirm the `Sync` card shows
+  `Auto sync: On`, foreground-return copy, and `Sync now`.
+- Tap `Sync now` and confirm the button changes to `Syncing...`, then returns
+  to `Sync now`.
+- After a successful sync, reload Settings and confirm `Last sync:` plus only
+  aggregate counts are shown.
+- On two signed-in devices or simulators, create or edit data on device A,
+  sync device A, then return device B to the foreground after the throttle
+  window or tap `Sync now` and confirm remote changes appear.
+- Delete a transaction on device A, sync device A, then sync or foreground
+  device B and confirm the transaction is hidden locally on device B.
+- Force a recoverable sync failure and confirm Settings shows only
+  `Couldn't sync. Try again.` with no raw diagnostics.
+- Background/foreground within 15 minutes of the last successful sync and
+  confirm no repeated foreground sync batch is observed.
+- Add, edit, and delete local transactions/categories and confirm those local
+  mutations do not trigger sync until manual sync or a later eligible
+  foreground return.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
+  Restore, Delete Account, Sign Out, and local guest mode.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

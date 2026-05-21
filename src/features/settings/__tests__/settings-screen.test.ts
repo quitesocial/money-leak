@@ -191,6 +191,32 @@ const mockAuthSession: AuthSession = {
   },
 };
 
+const rawServiceRoleKeyValue = ['service', 'role', 'key'].join('-');
+const rawServiceRoleEnvValue = ['MONEY', 'LEAK', 'SERVICE', 'ROLE', 'KEY'].join(
+  '_',
+);
+
+const rawSyncUiForbiddenValues = [
+  'raw backend failure',
+  'https://example.supabase.co',
+  'ey-public-anon-key',
+  rawServiceRoleKeyValue,
+  rawServiceRoleEnvValue,
+  'oauth_client_secret',
+  'provider_secret',
+  'access_token',
+  'refresh_token',
+  'provider_token',
+  'apple-identity-token',
+  'EXPO_PUBLIC_SUPABASE_URL',
+  'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  'localOwnerId',
+  'deviceId',
+  'ownerId',
+  'auth-user-test',
+  'row payload',
+];
+
 const mockAuthStoreState: {
   status: AuthStatus;
   session: AuthSession | null;
@@ -523,6 +549,12 @@ function getLastAlertButtons() {
   return alertButtons;
 }
 
+function expectNoRawSyncUiValues(text: string) {
+  for (const value of rawSyncUiForbiddenValues) {
+    expect(text).not.toContain(value);
+  }
+}
+
 function createDeferred<T>() {
   let resolve: (value: T) => void = () => {};
   let reject: (reason?: unknown) => void = () => {};
@@ -622,7 +654,21 @@ function createCorruptedSyncMetadata(): SyncMetadata {
       conflictsCount: 1,
       deviceId: 'deviceId',
       ownerId: 'ownerId',
+      localOwnerId: 'localOwnerId',
+      serviceRoleKey: rawServiceRoleKeyValue,
+      serviceRoleEnv: rawServiceRoleEnvValue,
+      supabaseUrl: 'https://example.supabase.co',
+      supabaseAnonKey: 'ey-public-anon-key',
+      supabaseAnonEnv: 'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+      oauthClientSecret: 'oauth_client_secret',
+      providerSecret: 'provider_secret',
       access_token: 'access_token',
+      refresh_token: 'refresh_token',
+      provider_token: 'provider_token',
+      apple_identity_token: 'apple-identity-token',
+      rawUserId: 'auth-user-test',
+      rawBackendError: 'raw backend failure',
+      rowPayload: 'row payload',
     } as unknown as SyncMetadata['lastSyncSummary'],
   };
 }
@@ -1161,6 +1207,10 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).not.toContain('Sync now');
+    expect(text).not.toContain('Auto sync: On');
+    expect(text).not.toContain(
+      'Runs when you return to the app. Local tracking still works offline.',
+    );
     expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockGetSyncMetadata).not.toHaveBeenCalled();
   });
@@ -1174,6 +1224,10 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).not.toContain('Sync now');
+    expect(text).not.toContain('Auto sync: On');
+    expect(text).not.toContain(
+      'Runs when you return to the app. Local tracking still works offline.',
+    );
     expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockGetSyncMetadata).not.toHaveBeenCalled();
   });
@@ -1188,10 +1242,12 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Sync');
+    expect(text).toContain('Auto sync: On');
+    expect(text).toContain(
+      'Runs when you return to the app. Local tracking still works offline.',
+    );
     expect(text).toContain('Sync now');
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
+    expectNoRawSyncUiValues(text);
   });
 
   it('runs manual sync with authenticated context', async () => {
@@ -1297,9 +1353,7 @@ describe('SettingsScreen sync section', () => {
     expect(text).toContain(
       'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
     );
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
+    expectNoRawSyncUiValues(text);
     expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
     expect(mockLoadCategories).toHaveBeenCalledTimes(1);
   });
@@ -1337,9 +1391,7 @@ describe('SettingsScreen sync section', () => {
     expect(text).toContain(
       'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
     );
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
+    expectNoRawSyncUiValues(text);
   });
 
   it('ignores invalid persisted sync metadata safely', async () => {
@@ -1357,11 +1409,7 @@ describe('SettingsScreen sync section', () => {
 
     expect(text).toContain('Last sync:');
     expect(text).not.toContain('Sync complete.');
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
-    expect(text).not.toContain('ownerId');
-    expect(text).not.toContain('access_token');
+    expectNoRawSyncUiValues(text);
   });
 
   it('shows generic sync failure copy for failed and skipped service results', async () => {
@@ -1374,8 +1422,7 @@ describe('SettingsScreen sync section', () => {
       error: {
         code: 'remote_read_failed',
         isRecoverable: true,
-        message:
-          'raw backend failure auth-user-test localOwnerId deviceId access_token refresh_token provider_token EXPO_PUBLIC_SUPABASE_URL',
+        message: `raw backend failure https://example.supabase.co ey-public-anon-key ${rawServiceRoleKeyValue} ${rawServiceRoleEnvValue} oauth_client_secret provider_secret auth-user-test localOwnerId deviceId ownerId access_token refresh_token provider_token apple-identity-token EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY row payload`,
       },
     });
 
@@ -1386,14 +1433,7 @@ describe('SettingsScreen sync section', () => {
     let text = getNodeText(renderer.root);
 
     expect(text).toContain("Couldn't sync. Try again.");
-    expect(text).not.toContain('raw backend failure');
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
-    expect(text).not.toContain('access_token');
-    expect(text).not.toContain('refresh_token');
-    expect(text).not.toContain('provider_token');
-    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
+    expectNoRawSyncUiValues(text);
     expect(text).not.toContain('Sync complete.');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
@@ -1410,6 +1450,7 @@ describe('SettingsScreen sync section', () => {
 
     expect(text).toContain("Couldn't sync. Try again.");
     expect(text).not.toContain('missing_session');
+    expectNoRawSyncUiValues(text);
     expect(text).not.toContain('Sync complete.');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
@@ -1422,7 +1463,7 @@ describe('SettingsScreen sync section', () => {
     mockAuthStoreState.user = mockAuthSession.user;
     mockRunManualSync.mockRejectedValueOnce(
       new Error(
-        'raw backend failure https://example.supabase.co ey-public-anon-key access_token refresh_token provider_token apple-identity-token EXPO_PUBLIC_SUPABASE_URL localOwnerId deviceId ownerId auth-user-test row payload',
+        `raw backend failure https://example.supabase.co ey-public-anon-key ${rawServiceRoleKeyValue} ${rawServiceRoleEnvValue} oauth_client_secret provider_secret access_token refresh_token provider_token apple-identity-token EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY localOwnerId deviceId ownerId auth-user-test row payload`,
       ),
     );
 
@@ -1433,19 +1474,7 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain("Couldn't sync. Try again.");
-    expect(text).not.toContain('raw backend failure');
-    expect(text).not.toContain('https://example.supabase.co');
-    expect(text).not.toContain('ey-public-anon-key');
-    expect(text).not.toContain('access_token');
-    expect(text).not.toContain('refresh_token');
-    expect(text).not.toContain('provider_token');
-    expect(text).not.toContain('apple-identity-token');
-    expect(text).not.toContain('EXPO_PUBLIC_SUPABASE_URL');
-    expect(text).not.toContain('localOwnerId');
-    expect(text).not.toContain('deviceId');
-    expect(text).not.toContain('ownerId');
-    expect(text).not.toContain('auth-user-test');
-    expect(text).not.toContain('row payload');
+    expectNoRawSyncUiValues(text);
     expect(text).not.toContain('Sync complete.');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
