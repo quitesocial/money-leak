@@ -91,7 +91,7 @@ async function readJson(response: Response) {
 function createHandler(fetchImpl: typeof fetch) {
   return createDeleteAccountHandler({
     env: {
-      SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+      MONEY_LEAK_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
       SUPABASE_URL,
     },
     fetchImpl,

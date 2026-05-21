@@ -1173,8 +1173,11 @@ Manual owner QA:
 Manual owner deployment and QA:
 
 - Link the local Supabase project if needed with the Supabase CLI.
-- Set `SUPABASE_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
-  commit or expose the value.
+- Set `MONEY_LEAK_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
+  commit or expose the value:
+  `npx supabase secrets set MONEY_LEAK_SERVICE_ROLE_KEY=<service-role-or-secret-key>`
+- If any service role/secret key was exposed in code, logs, docs, screenshots,
+  or chat, rotate it before deployment.
 - Deploy the `delete-account` Edge Function.
 - Log in through Google or Apple on a device/build with Supabase auth
   configured.

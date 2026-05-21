@@ -1,5 +1,5 @@
 type DeleteAccountEnv = {
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+  MONEY_LEAK_SERVICE_ROLE_KEY?: string;
   SUPABASE_URL?: string;
 };
 
@@ -67,7 +67,7 @@ export function createDeleteAccountHandler({
     }
 
     const supabaseUrl = normalizeSupabaseUrl(env.SUPABASE_URL);
-    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? '';
+    const serviceRoleKey = env.MONEY_LEAK_SERVICE_ROLE_KEY?.trim() ?? '';
 
     if (!supabaseUrl || !serviceRoleKey) {
       return createSafeErrorResponse(500, 'server_misconfigured');

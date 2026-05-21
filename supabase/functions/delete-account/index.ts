@@ -10,7 +10,7 @@ declare const Deno: {
 Deno.serve(
   createDeleteAccountHandler({
     env: {
-      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      MONEY_LEAK_SERVICE_ROLE_KEY: Deno.env.get('MONEY_LEAK_SERVICE_ROLE_KEY'),
       SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
     },
   }),

@@ -46,12 +46,15 @@ Implementation notes
 Deployment note
 - Link the Supabase project with the Supabase CLI if the local workspace is not
   already linked.
-- Set `SUPABASE_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
-  commit or share the value.
+- Set `MONEY_LEAK_SERVICE_ROLE_KEY` as a Supabase Edge Function secret. Do not
+  commit or share the value:
+  `npx supabase secrets set MONEY_LEAK_SERVICE_ROLE_KEY=<service-role-or-secret-key>`
+- If any service role/secret key was exposed in code, logs, docs, screenshots,
+  or chat, rotate it before deployment.
 - Deploy the function with:
   `supabase functions deploy delete-account`
 - Confirm the function environment includes the platform-provided
-  `SUPABASE_URL` and the manually configured `SUPABASE_SERVICE_ROLE_KEY`.
+  `SUPABASE_URL` and the manually configured `MONEY_LEAK_SERVICE_ROLE_KEY`.
 
 Manual QA checklist
 - Log in through Google or Apple on a build with Supabase auth configured.
