@@ -49,7 +49,7 @@ export async function getSyncMetadata(): Promise<SyncMetadata> {
 }
 
 export async function recordSyncSuccess(summary: SyncSummary) {
-  validateSummary(summary);
+  const safeSummary = normalizeSummary(summary);
 
   await initDatabase();
 
@@ -61,15 +61,15 @@ export async function recordSyncSuccess(summary: SyncSummary) {
     await upsertMetadataValue({
       database: transactionDatabase,
       key: LAST_SUCCESSFUL_SYNC_AT_KEY,
-      timestamp: summary.completedAt,
-      value: String(Math.trunc(summary.cursor)),
+      timestamp: safeSummary.completedAt,
+      value: String(Math.trunc(safeSummary.cursor)),
     });
 
     await upsertMetadataValue({
       database: transactionDatabase,
       key: LAST_SYNC_SUMMARY_KEY,
-      timestamp: summary.completedAt,
-      value: JSON.stringify(summary),
+      timestamp: safeSummary.completedAt,
+      value: JSON.stringify(safeSummary),
     });
   });
 }
@@ -110,17 +110,13 @@ function parseStoredSummary(value: unknown): SyncSummary | null {
   try {
     const parsed = JSON.parse(value) as Partial<SyncSummary>;
 
-    validateSummary(parsed);
-
-    return parsed;
+    return normalizeSummary(parsed);
   } catch {
     return null;
   }
 }
 
-function validateSummary(
-  summary: Partial<SyncSummary>,
-): asserts summary is SyncSummary {
+function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
   const numericFields: (keyof SyncSummary)[] = [
     'completedAt',
     'cursor',
@@ -138,10 +134,27 @@ function validateSummary(
   for (const field of numericFields) {
     const value = summary[field];
 
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
       throw new Error('Sync summary must contain finite safe counts.');
     }
   }
+
+  const safeSummary = summary as SyncSummary;
+
+  return {
+    completedAt: safeSummary.completedAt,
+    cursor: safeSummary.cursor,
+    pulledTransactionsCount: safeSummary.pulledTransactionsCount,
+    pulledCategoriesCount: safeSummary.pulledCategoriesCount,
+    appliedTransactionsCount: safeSummary.appliedTransactionsCount,
+    appliedCategoriesCount: safeSummary.appliedCategoriesCount,
+    pushedTransactionsCount: safeSummary.pushedTransactionsCount,
+    pushedCategoriesCount: safeSummary.pushedCategoriesCount,
+    ignoredTransactionTombstonesCount:
+      safeSummary.ignoredTransactionTombstonesCount,
+    ignoredCategoryTombstonesCount: safeSummary.ignoredCategoryTombstonesCount,
+    conflictsCount: safeSummary.conflictsCount,
+  };
 }
 
 async function upsertMetadataValue({

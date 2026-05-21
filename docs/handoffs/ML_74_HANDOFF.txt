@@ -1,0 +1,83 @@
+ML-74 Incremental Sync Reliability QA + Edge Case Hardening v1 Handoff
+
+Summary
+- Hardened manual incremental sync reliability with targeted edge-case tests
+  and one narrow safe-summary metadata persistence fix.
+- Bumped the app patch version from 1.17.1 to 1.17.2 because this is
+  reliability/test hardening without new user-facing capability.
+- No sync UX, navigation, CSV, backup/restore, Delete Account, auth lifecycle,
+  or automatic sync behavior was added.
+
+What changed
+- Added explicit sync-service coverage for transaction LWW behavior, equal
+  timestamp conflicts, transaction tombstones, orphan tombstones, repeated sync,
+  skipped sync, failure paths, success metadata timing, and category active /
+  archived behavior.
+- Added native persistence coverage for repeated transaction/category sync
+  upserts, stale transaction tombstones, and orphan tombstones.
+- Hardened native sync metadata persistence so stored summaries are normalized
+  to known non-negative numeric aggregate fields and corrupted summaries are
+  ignored safely.
+- Added ML-74 manual QA coverage to docs/mvp-qa-checklist.md.
+- Added npm run release:preflight to AGENTS.md as a recurring release
+  validation command.
+
+What was tested
+- PASS targeted sync/native metadata suites:
+  npm test -- --runInBand src/lib/sync/__tests__/sync-service.test.ts
+  src/db/__tests__/transactions.native.test.ts
+  src/db/__tests__/categories.native.test.ts
+  src/db/__tests__/sync-status.native.test.ts
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+- PASS targeted regressions: CSV v1 header, bottom tab names, pushed
+  Add Transaction / Shame Card routes, no dynamic process.env[...] additions,
+  no service-role/admin mobile usage, Settings raw-value safety tests, and no
+  @expo/ui / BlurView / expo-blur / Liquid Glass additions.
+
+Intentionally not changed
+- No automatic sync.
+- No background sync.
+- No sync on app start, login, session restore, sign out, or local
+  transaction/category add/edit/delete.
+- No conflict UI.
+- No category tombstone product implementation.
+- No backup/restore redesign.
+- No Delete Account behavior changes.
+- No CSV v2.
+- No navigation changes.
+- No visual redesign.
+- No new dependencies.
+- No service-role/admin Supabase code or keys in mobile app code/config.
+
+Known limitations
+- Sync is still manual-only through Settings -> Sync now.
+- Category tombstones remain out of scope; active and archived category rows
+  sync, while remote category tombstones are counted/ignored safely.
+- Conflict handling remains deterministic LWW with local preservation on equal
+  timestamps; there is no user-facing conflict review UI.
+- Two-device behavior still needs owner/manual validation against real
+  authenticated devices or simulators.
+
+Owner manual QA checklist
+- In guest/local mode, open Settings and confirm the Sync card is hidden.
+- Sign in with Google, open Settings, and confirm the Sync card is visible.
+- Tap Sync now once and confirm it enters and exits Syncing... state.
+- Repeatedly tap Sync now quickly and confirm only one sync operation runs.
+- Add, edit, and delete a transaction, then run Sync now and confirm expected
+  aggregate counts and no duplicate visible rows.
+- On two signed-in devices or simulators, create/edit data on device A, sync A,
+  sync B, and confirm pull/push sanity.
+- Delete a transaction on device A, sync A, sync B, and confirm delete
+  propagation hides the row on device B.
+- Create a deterministic conflict and confirm newer updatedAt wins; for equal
+  timestamps, confirm local is preserved and conflict count increments.
+- Run manual Backup and Restore flows and confirm they still work.
+- Tap Sign Out and confirm local data remains visible in guest/local mode.
+- Run Delete Account through the existing confirmation flow and confirm local
+  data remains on device.
