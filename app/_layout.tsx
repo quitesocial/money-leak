@@ -6,10 +6,12 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 
 import { initDatabase } from '@/db/transactions';
+import { useForegroundAutoSync } from '@/lib/sync/use-foreground-auto-sync';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function RootLayout() {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  useForegroundAutoSync();
 
   const [areFontsLoaded, fontLoadError] = useFonts({
     NewYork: require('../assets/fonts/NewYork.ttf'),

@@ -639,6 +639,37 @@ describe('incremental sync service', () => {
     expect(metadataStore.successes).toHaveLength(1);
   });
 
+  it('reports whether incremental sync is in flight', async () => {
+    const deferredData = createDeferred<{
+      categories: Category[];
+      transactions: Transaction[];
+    }>();
+    const dataSource: LocalSyncDataSource = {
+      getSyncData: jest.fn(() => deferredData.promise),
+    };
+    const service = createService({
+      dataSource,
+    });
+
+    const syncPromise = service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(service.isIncrementalSyncInFlight()).toBe(true);
+
+    deferredData.resolve({
+      categories: [],
+      transactions: [],
+    });
+
+    await syncPromise;
+
+    expect(service.isIncrementalSyncInFlight()).toBe(false);
+  });
+
   it('uses LWW when the local active transaction is newer than the remote active row', async () => {
     const remoteAdapter = createFakeRemoteSyncAdapter({
       sessionUserId: TEST_USER_ID,

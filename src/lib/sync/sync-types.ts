@@ -249,5 +249,6 @@ export type LocalSyncMetadataStore = {
 };
 
 export type SyncService = {
+  isIncrementalSyncInFlight: () => boolean;
   runIncrementalSync: (input: { auth: SyncAuthContext }) => Promise<SyncResult>;
 };

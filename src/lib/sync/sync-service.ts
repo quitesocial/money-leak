@@ -225,6 +225,10 @@ export function createSyncService({
   }
 
   return {
+    isIncrementalSyncInFlight() {
+      return incrementalSyncPromise !== null;
+    },
+
     runIncrementalSync(input) {
       if (incrementalSyncPromise) return incrementalSyncPromise;
 

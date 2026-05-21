@@ -1473,6 +1473,70 @@ Manual QA:
 - Run Delete Account only through the existing confirmation flow and confirm
   local data remains on the device and the flow is not broken.
 
+## ML-75: Foreground Auto Sync v1
+
+- `package.json.version` is bumped intentionally to `1.18.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.0`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Authenticated users get an opportunistic foreground sync only when the app
+  returns from `background` or `inactive` to `active`.
+- Foreground sync skips guest/local mode, missing user id, disabled
+  `featureFlags.incrementalSyncEnabled`, recent last successful sync within
+  15 minutes, and any already in-flight sync.
+- Foreground sync does not run on cold start, login, session restore, sign
+  out, background execution, or transaction/category add/edit/delete.
+- Successful foreground sync refreshes local transaction and category stores
+  after sync succeeds; failed or skipped foreground sync stays silent and does
+  not refresh success state.
+- Manual Settings `Sync now` remains authenticated-only, unthrottled by the
+  foreground 15-minute window, and protected by the shared in-flight sync
+  boundary.
+- Settings sync UI still shows only safe aggregate counts and generic sync
+  errors, never raw backend errors, env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, or row payloads.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- Backup, restore, Sign Out, Delete Account, import/export, navigation, and
+  visual design remain unchanged.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.0`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, background and foreground the app and confirm no sync UI
+  appears and local add/edit/delete stays available.
+- Sign in with Google, run `Sync now` once, then background and foreground the
+  app within 15 minutes and confirm no repeated sync batch is observed.
+- After 15+ minutes from the last successful sync, background and foreground
+  the app and confirm fresh remote changes can appear without tapping
+  `Sync now`.
+- Force a recoverable network/backend sync failure, return the app to
+  foreground, and confirm local add/edit/delete still works with no raw
+  diagnostics shown.
+- Start a manual `Sync now`, immediately background/foreground the app, and
+  confirm only one sync operation runs.
+- Tap Sign Out and confirm sync does not run and local data remains visible
+  after returning to guest/local mode.
+- Add, edit, and delete local transactions/categories and confirm those local
+  mutations do not trigger sync until manual sync or a later eligible
+  foreground return.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
+  Restore, and Delete Account flows.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
