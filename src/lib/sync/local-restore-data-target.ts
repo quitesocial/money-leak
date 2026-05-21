@@ -4,11 +4,14 @@ import {
   restoreTransactionTombstones,
   restoreTransactions,
 } from '@/db/transactions';
+import {
+  mapRemoteCategoryToLocalInput,
+  mapRemoteTransactionToLocalInput,
+  mapRemoteTransactionTombstoneToLocalInput,
+} from '@/lib/sync/sync-mappers';
 import type {
   LocalRestoreDataTarget,
   LocalRestoreWriteResult,
-  RemoteCategory,
-  RemoteTransaction,
   RestorePayload,
 } from '@/lib/sync/sync-types';
 import type { Category, CategoryInput } from '@/types/category';
@@ -81,57 +84,4 @@ function isActiveRemoteRow(row: { deletedAt: string | null }) {
 
 function isDeletedRemoteRow(row: { deletedAt: string | null }) {
   return row.deletedAt !== null;
-}
-
-function mapRemoteCategoryToLocalInput(
-  category: RemoteCategory,
-): CategoryInput {
-  return {
-    id: category.id,
-    name: category.name,
-    createdAt: parseRemoteTimestamp(category.createdAt),
-    updatedAt: parseRemoteTimestamp(category.updatedAt),
-    isDefault: category.isDefault,
-    isArchived: category.isArchived,
-    sortOrder: category.sortOrder,
-  };
-}
-
-function mapRemoteTransactionToLocalInput(
-  transaction: RemoteTransaction,
-): TransactionRestoreInput {
-  return {
-    id: transaction.id,
-    amount: transaction.amount,
-    category: transaction.categoryId,
-    isLeak: transaction.isLeak,
-    leakReason: transaction.leakReason,
-    note: transaction.note,
-    createdAt: parseRemoteTimestamp(transaction.createdAt),
-    updatedAt: parseRemoteTimestamp(transaction.updatedAt),
-  };
-}
-
-function mapRemoteTransactionTombstoneToLocalInput(
-  transaction: RemoteTransaction,
-): TransactionTombstoneRestoreInput {
-  if (transaction.deletedAt === null) {
-    throw new Error('Remote restore transaction tombstone is missing.');
-  }
-
-  return {
-    id: transaction.id,
-    updatedAt: parseRemoteTimestamp(transaction.updatedAt),
-    deletedAt: parseRemoteTimestamp(transaction.deletedAt),
-  };
-}
-
-function parseRemoteTimestamp(timestamp: string) {
-  const parsedTimestamp = Date.parse(timestamp);
-
-  if (!Number.isFinite(parsedTimestamp)) {
-    throw new Error('Remote restore timestamp is invalid.');
-  }
-
-  return parsedTimestamp;
 }

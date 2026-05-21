@@ -20,6 +20,13 @@ type TransactionsModule = {
   restoreTransactionTombstones: (
     tombstones: TransactionTombstoneRestoreInput[],
   ) => Promise<number>;
+  applyTransactionSyncChanges: (input: {
+    upserts: TransactionRestoreInput[];
+    tombstones: TransactionTombstoneRestoreInput[];
+  }) => Promise<{
+    upsertedTransactionsCount: number;
+    deletedTransactionsCount: number;
+  }>;
   updateTransaction: (transaction: TransactionInput) => Promise<void>;
   getTransactions: () => Promise<Transaction[]>;
   getTransactionsForBackup: () => Promise<Transaction[]>;
@@ -35,6 +42,7 @@ export const {
   importTransactions,
   restoreTransactions,
   restoreTransactionTombstones,
+  applyTransactionSyncChanges,
   updateTransaction,
   getTransactions,
   getTransactionsForBackup,

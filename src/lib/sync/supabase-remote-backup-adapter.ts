@@ -1,46 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getSupabaseClient } from '@/lib/supabase/supabase-client';
-import type {
-  BackupPayload,
-  RemoteBackupAdapter,
-  RemoteCategory,
-  RemoteTransaction,
-} from '@/lib/sync/sync-types';
+import {
+  mapRemoteCategoryToRow,
+  mapRemoteTransactionToRow,
+} from '@/lib/sync/supabase-remote-row-mappers';
+import type { BackupPayload, RemoteBackupAdapter } from '@/lib/sync/sync-types';
 
 type SupabaseRemoteBackupClient = Pick<SupabaseClient, 'from'>;
 
 type SupabaseRemoteBackupAdapterOptions = {
   getClient?: () => SupabaseRemoteBackupClient | null;
-};
-
-type RemoteTransactionRow = {
-  user_id: string;
-  id: string;
-  amount: number;
-  category_id: string;
-  is_leak: boolean;
-  leak_reason: RemoteTransaction['leakReason'];
-  note: string | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-  schema_version: number;
-  source_device_id: string | null;
-};
-
-type RemoteCategoryRow = {
-  user_id: string;
-  id: string;
-  name: string;
-  is_default: boolean;
-  is_archived: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-  schema_version: number;
-  source_device_id: string | null;
 };
 
 type SupabaseWriteResult = {
@@ -87,7 +57,7 @@ async function upsertRemoteCategories({
   categories,
   client,
 }: {
-  categories: RemoteCategory[];
+  categories: BackupPayload['categories'];
   client: SupabaseRemoteBackupClient;
 }) {
   if (categories.length === 0) return;
@@ -106,7 +76,7 @@ async function upsertRemoteTransactions({
   transactions,
 }: {
   client: SupabaseRemoteBackupClient;
-  transactions: RemoteTransaction[];
+  transactions: BackupPayload['transactions'];
 }) {
   if (transactions.length === 0) return;
 
@@ -117,39 +87,4 @@ async function upsertRemoteTransactions({
     })) as SupabaseWriteResult;
 
   if (result.error) throw new Error(GENERIC_REMOTE_BACKUP_ERROR_MESSAGE);
-}
-
-function mapRemoteTransactionToRow(
-  transaction: RemoteTransaction,
-): RemoteTransactionRow {
-  return {
-    user_id: transaction.userId,
-    id: transaction.id,
-    amount: transaction.amount,
-    category_id: transaction.categoryId,
-    is_leak: transaction.isLeak,
-    leak_reason: transaction.leakReason,
-    note: transaction.note,
-    created_at: transaction.createdAt,
-    updated_at: transaction.updatedAt,
-    deleted_at: transaction.deletedAt,
-    schema_version: transaction.schemaVersion,
-    source_device_id: transaction.sourceDeviceId,
-  };
-}
-
-function mapRemoteCategoryToRow(category: RemoteCategory): RemoteCategoryRow {
-  return {
-    user_id: category.userId,
-    id: category.id,
-    name: category.name,
-    is_default: category.isDefault,
-    is_archived: category.isArchived,
-    sort_order: category.sortOrder,
-    created_at: category.createdAt,
-    updated_at: category.updatedAt,
-    deleted_at: category.deletedAt,
-    schema_version: category.schemaVersion,
-    source_device_id: category.sourceDeviceId,
-  };
 }

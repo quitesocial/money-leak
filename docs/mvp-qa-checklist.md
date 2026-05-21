@@ -1198,6 +1198,88 @@ Manual owner deployment and QA:
   account data or calling the Edge Function.
 - Confirm no automatic backup/restore/sync runs during or after deletion.
 
+## ML-71: Incremental Sync Prototype v1
+
+- `featureFlags.incrementalSyncEnabled` remains `false` by default.
+- Incremental sync exists only as a hidden/manual service boundary; no Settings
+  Sync UI, automatic background sync, login sync, session-restore sync, app
+  start sync, or sign-out sync was added.
+- Guest/local mode skips incremental sync safely and remains permanently
+  available with no login wall.
+- Missing user id, missing Supabase session, and session/user mismatch skip
+  incremental sync safely before local or remote mutation.
+- Incremental sync uses the existing authenticated Supabase anon client and RLS;
+  no service-role/admin client or key is used in mobile app code/config.
+- Local sync metadata is stored in `app_metadata` separately from manual backup
+  metadata and includes last success, last error, and safe count summary values.
+- Pull/apply/push structure covers transactions and categories.
+- Remote-only active transactions and categories can be pulled into local
+  SQLite without wiping local-only rows.
+- Local new/edited transactions are pushed to `remote_transactions`.
+- Local transaction tombstones are pushed to `remote_transactions`.
+- Remote transaction tombstones soft-delete matching local transactions.
+- Remote transaction tombstones with no matching local row do not create visible
+  local transactions.
+- Local new/edited/archived categories are pushed to `remote_categories`.
+- Category tombstones are explicitly not fully supported in ML-71; remote
+  category tombstones are ignored safely and counted, while archived categories
+  remain resolvable for old transactions.
+- Conflicts use deterministic last-write-wins by `updatedAt`; transaction
+  tombstones compare `deletedAt` when present, and equal-timestamp differences
+  keep the local row.
+- `createdAt` and stable IDs are preserved during sync applies.
+- Repeated sync does not duplicate remote or local rows.
+- `SyncResult` exposes only safe status/count fields and generic recoverable
+  failures; it does not return rows, raw backend errors, env values, Supabase
+  URL, anon key, service-role key, OAuth/provider secrets, tokens, localOwnerId,
+  deviceId, ownerId, or raw user IDs.
+- Manual backup, restore, auth, sign out, and delete account behavior remains
+  unchanged.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `package.json.version` is bumped intentionally to `1.16.2`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.16.2`.
+- `app.config.js` and `eas.json` are unchanged.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.16.2`.
+- `git diff --check` passes.
+
+Manual/dev QA:
+
+- In the default build, confirm no Sync UI appears in Settings and no sync runs
+  on app start, login, session restore, sign out, backup, restore, or delete
+  account.
+- In a dev harness with `incrementalSyncEnabled` enabled, run the manual sync
+  service in guest mode and confirm it skips before local/remote mutation.
+- In authenticated mode with a Supabase session, create local transactions and
+  categories, run manual sync, and confirm rows upsert remotely without
+  duplicates.
+- Add or edit a remote transaction/category for the same account, run manual
+  sync, and confirm it is pulled locally without deleting local-only rows.
+- Delete a local transaction, run manual sync, and confirm the remote row becomes
+  a tombstone.
+- Create a remote transaction tombstone for an existing local row, run manual
+  sync, and confirm the local row is soft-deleted.
+- Create a remote transaction tombstone for a missing local row, run manual
+  sync, and confirm no visible local row appears.
+- Archive a category locally, run manual sync, and confirm the remote category
+  remains present with `is_archived`.
+- Exercise equal and newer timestamp conflicts and confirm local tie-wins and
+  newer LWW behavior.
+- Confirm UI/logs/tests/docs do not expose raw backend errors, env values,
+  Supabase URL, anon key, service-role key, OAuth/provider secrets, tokens,
+  localOwnerId, deviceId, ownerId, or raw user IDs.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

@@ -7,6 +7,7 @@ import type {
 } from '@/types/transaction';
 
 import {
+  applyTransactionSyncChanges,
   createTransaction,
   deleteTransaction,
   getTransactions,
@@ -68,8 +69,13 @@ class FakeTransactionsDatabase {
     }
 
     if (source.includes('amount = ?')) {
-      this.updateTransaction(params);
-      return { changes: 1 };
+      return {
+        changes: this.updateTransaction(params, {
+          includeDeleted: source.includes('deleted_at = NULL'),
+        })
+          ? 1
+          : 0,
+      };
     }
 
     if (source.includes('deleted_at = ?')) {
@@ -158,7 +164,10 @@ class FakeTransactionsDatabase {
     return true;
   }
 
-  private updateTransaction(params: unknown[]) {
+  private updateTransaction(
+    params: unknown[],
+    { includeDeleted }: { includeDeleted: boolean },
+  ) {
     const [
       amount,
       category,
@@ -172,10 +181,11 @@ class FakeTransactionsDatabase {
 
     const transaction = this.transactions.find(
       (currentTransaction) =>
-        currentTransaction.id === id && currentTransaction.deleted_at === null,
+        currentTransaction.id === id &&
+        (includeDeleted || currentTransaction.deleted_at === null),
     );
 
-    if (!transaction) return;
+    if (!transaction) return false;
 
     transaction.amount = amount as number;
     transaction.category = category as string;
@@ -183,7 +193,10 @@ class FakeTransactionsDatabase {
     transaction.leak_reason = leakReason as string | null;
     transaction.note = note as string | null;
     transaction.updated_at = updatedAt as number;
+    transaction.deleted_at = null;
     transaction.source_device_id = sourceDeviceId as string;
+
+    return true;
   }
 
   private softDeleteTransaction(params: unknown[]) {
@@ -488,6 +501,138 @@ describe('native transaction persistence', () => {
       amount: 3,
       category: 'transport',
       deleted_at: null,
+    });
+    expect(database.transactions.some((row) => row.id === 'txn-missing')).toBe(
+      false,
+    );
+  });
+
+  it('applies sync transaction upserts with LWW overwrite semantics', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-existing',
+        amount: 7,
+        category: 'food',
+        createdAt: 500,
+      }),
+    );
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-deleted',
+        amount: 3,
+        category: 'transport',
+        createdAt: 600,
+      }),
+    );
+    await deleteTransaction('txn-deleted');
+
+    await expect(
+      applyTransactionSyncChanges({
+        upserts: [
+          createTransactionRestoreInput({
+            id: 'txn-existing',
+            amount: 99,
+            category: 'shopping',
+            isLeak: true,
+            leakReason: 'impulse',
+            note: 'Remote winner',
+            createdAt: 9999,
+            updatedAt: 9000,
+          }),
+          createTransactionRestoreInput({
+            id: 'txn-deleted',
+            amount: 11,
+            category: 'coffee',
+            createdAt: 600,
+            updatedAt: 9100,
+          }),
+          createTransactionRestoreInput({
+            id: 'txn-new',
+            amount: 12,
+            category: 'snacks',
+            createdAt: 7000,
+            updatedAt: 9200,
+          }),
+        ],
+        tombstones: [],
+      }),
+    ).resolves.toEqual({
+      upsertedTransactionsCount: 3,
+      deletedTransactionsCount: 0,
+    });
+
+    expect(
+      database.transactions.find((row) => row.id === 'txn-existing'),
+    ).toMatchObject({
+      amount: 99,
+      category: 'shopping',
+      created_at: 500,
+      updated_at: 9000,
+      deleted_at: null,
+    });
+    expect(
+      database.transactions.find((row) => row.id === 'txn-deleted'),
+    ).toMatchObject({
+      amount: 11,
+      category: 'coffee',
+      created_at: 600,
+      updated_at: 9100,
+      deleted_at: null,
+    });
+    expect(
+      database.transactions.find((row) => row.id === 'txn-new'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      amount: 12,
+      category: 'snacks',
+      created_at: 7000,
+      updated_at: 9200,
+      deleted_at: null,
+    });
+    expect(mockEnsureArchivedCategoriesForIds).toHaveBeenCalledWith([
+      'shopping',
+      'coffee',
+      'snacks',
+    ]);
+  });
+
+  it('applies sync transaction tombstones without creating visible orphan rows', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-delete-me',
+        amount: 7,
+        category: 'food',
+        createdAt: 500,
+      }),
+    );
+
+    await expect(
+      applyTransactionSyncChanges({
+        upserts: [],
+        tombstones: [
+          {
+            id: 'txn-delete-me',
+            updatedAt: 9000,
+            deletedAt: 9000,
+          },
+          {
+            id: 'txn-missing',
+            updatedAt: 9100,
+            deletedAt: 9100,
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      upsertedTransactionsCount: 0,
+      deletedTransactionsCount: 1,
+    });
+
+    expect(await getTransactions()).toEqual([]);
+    expect(
+      database.transactions.find((row) => row.id === 'txn-delete-me'),
+    ).toMatchObject({
+      deleted_at: 9000,
+      updated_at: 9000,
     });
     expect(database.transactions.some((row) => row.id === 'txn-missing')).toBe(
       false,

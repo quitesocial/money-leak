@@ -139,6 +139,8 @@ export type BackupAuthContext = {
   userId: string | null | undefined;
 };
 
+export type SyncAuthContext = BackupAuthContext;
+
 export type BackupService = {
   prepareBackupPayload: (input: { userId: string }) => Promise<BackupPayload>;
   runBackup: (input: { auth: BackupAuthContext }) => Promise<BackupResult>;
@@ -147,4 +149,105 @@ export type BackupService = {
 export type RestoreService = {
   hasLocalData: () => Promise<boolean>;
   runRestore: (input: { auth: BackupAuthContext }) => Promise<RestoreResult>;
+};
+
+export type SyncSkippedReason =
+  | 'sync_disabled'
+  | 'guest_mode'
+  | 'missing_user_id'
+  | 'missing_session'
+  | 'session_user_mismatch';
+
+export type SyncErrorCode =
+  | 'metadata_read_failed'
+  | 'local_read_failed'
+  | 'remote_read_failed'
+  | 'local_write_failed'
+  | 'remote_write_failed'
+  | 'metadata_write_failed';
+
+export type SyncCounts = {
+  pulledTransactionsCount: number;
+  pulledCategoriesCount: number;
+  appliedTransactionsCount: number;
+  appliedCategoriesCount: number;
+  pushedTransactionsCount: number;
+  pushedCategoriesCount: number;
+  ignoredTransactionTombstonesCount: number;
+  ignoredCategoryTombstonesCount: number;
+  conflictsCount: number;
+};
+
+export type SyncSummary = SyncCounts & {
+  completedAt: number;
+  cursor: number;
+};
+
+export type SyncMetadata = {
+  lastSuccessfulSyncAt: number | null;
+  lastSyncErrorAt: number | null;
+  lastSyncSummary: SyncSummary | null;
+};
+
+export type SyncResult =
+  | ({
+      status: 'succeeded';
+      lastSuccessfulSyncAt: number;
+    } & SyncCounts)
+  | {
+      status: 'skipped';
+      skippedReason: SyncSkippedReason;
+      isRecoverable: true;
+    }
+  | {
+      status: 'failed';
+      error: {
+        code: SyncErrorCode;
+        isRecoverable: true;
+        message: string;
+      };
+    };
+
+export type RemoteSyncChanges = {
+  transactions: RemoteTransaction[];
+  categories: RemoteCategory[];
+};
+
+export type RemoteSyncPushResult = {
+  pushedTransactionsCount: number;
+  pushedCategoriesCount: number;
+};
+
+export type RemoteSyncAdapter = {
+  getAuthenticatedUserId: () => Promise<string | null>;
+  pullChanges: (input: {
+    userId: string;
+    since: number | null;
+  }) => Promise<RemoteSyncChanges>;
+  pushChanges: (input: {
+    userId: string;
+    transactions: RemoteTransaction[];
+    categories: RemoteCategory[];
+  }) => Promise<RemoteSyncPushResult>;
+};
+
+export type LocalSyncWriteResult = {
+  appliedTransactionsCount: number;
+  appliedCategoriesCount: number;
+};
+
+export type LocalSyncDataTarget = {
+  applyRemoteChanges: (
+    changes: RemoteSyncChanges,
+  ) => Promise<LocalSyncWriteResult>;
+};
+
+export type LocalSyncMetadataStore = {
+  getMetadata: () => Promise<SyncMetadata>;
+  recordSuccess: (summary: SyncSummary) => Promise<void>;
+  recordFailure: (timestamp: number) => Promise<void>;
+};
+
+export type SyncService = {
+  runIncrementalSync: (input: { auth: SyncAuthContext }) => Promise<SyncResult>;
 };

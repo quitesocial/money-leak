@@ -32,6 +32,16 @@ export async function restoreTransactionTombstones(
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function applyTransactionSyncChanges(_input: {
+  upserts: TransactionRestoreInput[];
+  tombstones: TransactionTombstoneRestoreInput[];
+}): Promise<{
+  upsertedTransactionsCount: number;
+  deletedTransactionsCount: number;
+}> {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function updateTransaction(_transaction: TransactionInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
