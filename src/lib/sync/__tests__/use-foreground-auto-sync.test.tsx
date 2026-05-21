@@ -109,6 +109,7 @@ function createMetadata(overrides: Partial<SyncMetadata> = {}): SyncMetadata {
     lastSuccessfulSyncAt: null,
     lastSyncErrorAt: null,
     lastSyncSummary: null,
+    lastSuccessfulSyncSource: null,
     ...overrides,
   };
 }
@@ -302,6 +303,7 @@ describe('useForegroundAutoSync', () => {
         status: 'authenticated',
         userId: TEST_USER_ID,
       },
+      source: 'foreground',
     });
     expect(refreshAfterSuccess).toHaveBeenCalledTimes(1);
   });

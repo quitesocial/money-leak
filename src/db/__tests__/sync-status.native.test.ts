@@ -93,18 +93,20 @@ describe('native sync metadata persistence', () => {
       lastSuccessfulSyncAt: null,
       lastSyncErrorAt: null,
       lastSyncSummary: null,
+      lastSuccessfulSyncSource: null,
     });
   });
 
   it('records and reads the last successful sync cursor and safe summary', async () => {
     const summary = createSummary();
 
-    await recordSyncSuccess(summary);
+    await recordSyncSuccess({ source: 'manual', summary });
 
     await expect(getSyncMetadata()).resolves.toEqual({
       lastSuccessfulSyncAt: 2000,
       lastSyncErrorAt: null,
       lastSyncSummary: summary,
+      lastSuccessfulSyncSource: 'manual',
     });
     expect(
       database.appMetadata.get('last_successful_incremental_sync_at'),
@@ -116,15 +118,33 @@ describe('native sync metadata persistence', () => {
       value: JSON.stringify(summary),
       updated_at: 1000,
     });
+    expect(
+      database.appMetadata.get('last_successful_incremental_sync_source'),
+    ).toEqual({
+      value: 'manual',
+      updated_at: 1000,
+    });
   });
 
   it('records the last sync error timestamp independently from success', async () => {
-    await recordSyncSuccess(createSummary());
+    await recordSyncSuccess({ source: 'foreground', summary: createSummary() });
     await recordSyncFailure(3000);
 
     await expect(getSyncMetadata()).resolves.toMatchObject({
       lastSuccessfulSyncAt: 2000,
       lastSyncErrorAt: 3000,
+      lastSuccessfulSyncSource: 'foreground',
+    });
+  });
+
+  it('ignores unknown stored sync sources safely', async () => {
+    database.appMetadata.set('last_successful_incremental_sync_source', {
+      value: 'access_token',
+      updated_at: 1000,
+    });
+
+    await expect(getSyncMetadata()).resolves.toMatchObject({
+      lastSuccessfulSyncSource: null,
     });
   });
 
@@ -173,7 +193,7 @@ describe('native sync metadata persistence', () => {
       ownerId: 'owner_test',
     } as SyncSummary;
 
-    await recordSyncSuccess(summary);
+    await recordSyncSuccess({ source: 'manual', summary });
 
     const storedSummary = database.appMetadata.get(
       'last_incremental_sync_summary',
@@ -182,10 +202,12 @@ describe('native sync metadata persistence', () => {
     expect(storedSummary?.value).not.toContain('access_token');
     expect(storedSummary?.value).not.toContain('deviceId');
     expect(storedSummary?.value).not.toContain('ownerId');
+    expect(storedSummary?.value).not.toContain('manual');
     await expect(getSyncMetadata()).resolves.toEqual({
       lastSuccessfulSyncAt: 2000,
       lastSyncErrorAt: null,
       lastSyncSummary: createSummary(),
+      lastSuccessfulSyncSource: 'manual',
     });
   });
 });

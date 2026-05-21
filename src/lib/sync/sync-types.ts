@@ -183,10 +183,13 @@ export type SyncSummary = SyncCounts & {
   cursor: number;
 };
 
+export type SyncAttemptSource = 'manual' | 'foreground';
+
 export type SyncMetadata = {
   lastSuccessfulSyncAt: number | null;
   lastSyncErrorAt: number | null;
   lastSyncSummary: SyncSummary | null;
+  lastSuccessfulSyncSource: SyncAttemptSource | null;
 };
 
 export type SyncResult =
@@ -244,11 +247,17 @@ export type LocalSyncDataTarget = {
 
 export type LocalSyncMetadataStore = {
   getMetadata: () => Promise<SyncMetadata>;
-  recordSuccess: (summary: SyncSummary) => Promise<void>;
+  recordSuccess: (input: {
+    source: SyncAttemptSource;
+    summary: SyncSummary;
+  }) => Promise<void>;
   recordFailure: (timestamp: number) => Promise<void>;
 };
 
 export type SyncService = {
   isIncrementalSyncInFlight: () => boolean;
-  runIncrementalSync: (input: { auth: SyncAuthContext }) => Promise<SyncResult>;
+  runIncrementalSync: (input: {
+    auth: SyncAuthContext;
+    source: SyncAttemptSource;
+  }) => Promise<SyncResult>;
 };

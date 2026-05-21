@@ -1609,6 +1609,68 @@ Manual QA:
 - Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
   Restore, Delete Account, Sign Out, and local guest mode.
 
+## ML-77: Sync Attempt Source Metadata v1
+
+- `package.json.version` is bumped intentionally to `1.18.2`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.2`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Incremental sync calls now pass an explicit safe source: `manual` from
+  Settings `Sync now` and `foreground` from foreground auto sync.
+- Successful sync metadata persists only the safe source enum separately from
+  the aggregate-only sync summary.
+- Unknown or corrupted stored sync source values are ignored safely.
+- Settings shows `Last sync: <date> · Manual` or
+  `Last sync: <date> · Auto` only when both timestamp and source are valid.
+- Settings falls back to the old `Last sync:` copy when source is missing or
+  invalid.
+- Failed, skipped, or thrown sync attempts still show only
+  `Couldn't sync. Try again.`
+- Guest/local mode still hides the Sync card and cannot trigger sync.
+- No sync runs on cold start, login, session restore, sign out, background
+  execution, or transaction/category add/edit/delete.
+- Foreground auto sync remains limited to returning from `background` or
+  `inactive` to `active`, throttled by last successful sync metadata, and
+  routed through the existing sync service boundary.
+- Settings/root lifecycle code does not call Supabase remote sync adapters or
+  clients directly.
+- Settings sync UI never renders raw env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, row payloads, or raw backend errors.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.2`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, open Settings and confirm the `Sync` card is hidden.
+- Sign in, tap `Sync now`, and confirm Settings later shows
+  `Last sync: ... · Manual`.
+- After the foreground throttle window, background/foreground the app and
+  confirm Settings later can show `Last sync: ... · Auto`.
+- Corrupt or unknown stored source should fall back to plain `Last sync:` with
+  no source label.
+- Force a sync failure and confirm Settings shows only
+  `Couldn't sync. Try again.` with no raw diagnostics.
+- Add, edit, and delete local transactions/categories and confirm those local
+  mutations do not trigger sync until manual sync or a later eligible
+  foreground return.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
+  Restore, Delete Account, Sign Out, and local guest mode.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
