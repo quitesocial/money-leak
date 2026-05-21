@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import {
   Alert,
@@ -47,7 +47,7 @@ import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
 import { manualBackupService } from '@/lib/sync/manual-backup-service';
 import { manualRestoreService } from '@/lib/sync/manual-restore-service';
 import { manualSyncService } from '@/lib/sync/manual-sync-service';
-import type { SyncResult } from '@/lib/sync/sync-types';
+import type { SyncResult, SyncSummary } from '@/lib/sync/sync-types';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -165,6 +165,72 @@ function createSyncUiResult(
   };
 }
 
+function createSyncUiResultFromSummary(
+  summary: SyncSummary | Partial<SyncSummary> | null | undefined,
+) {
+  if (!summary || typeof summary !== 'object') return null;
+
+  const pulledTransactionsCount = getSafeSyncCount(
+    summary.pulledTransactionsCount,
+  );
+  const pulledCategoriesCount = getSafeSyncCount(summary.pulledCategoriesCount);
+  const pushedTransactionsCount = getSafeSyncCount(
+    summary.pushedTransactionsCount,
+  );
+  const pushedCategoriesCount = getSafeSyncCount(summary.pushedCategoriesCount);
+  const appliedTransactionsCount = getSafeSyncCount(
+    summary.appliedTransactionsCount,
+  );
+  const appliedCategoriesCount = getSafeSyncCount(
+    summary.appliedCategoriesCount,
+  );
+  const conflictsCount = getSafeSyncCount(summary.conflictsCount);
+  const ignoredTransactionTombstonesCount = getSafeSyncCount(
+    summary.ignoredTransactionTombstonesCount,
+  );
+  const ignoredCategoryTombstonesCount = getSafeSyncCount(
+    summary.ignoredCategoryTombstonesCount,
+  );
+
+  if (
+    pulledTransactionsCount === null ||
+    pulledCategoriesCount === null ||
+    pushedTransactionsCount === null ||
+    pushedCategoriesCount === null ||
+    appliedTransactionsCount === null ||
+    appliedCategoriesCount === null ||
+    conflictsCount === null ||
+    ignoredTransactionTombstonesCount === null ||
+    ignoredCategoryTombstonesCount === null
+  )
+    return null;
+
+  return {
+    appliedCount: appliedTransactionsCount + appliedCategoriesCount,
+    conflictsCount,
+    ignoredCount:
+      ignoredTransactionTombstonesCount + ignoredCategoryTombstonesCount,
+    pulledCount: pulledTransactionsCount + pulledCategoriesCount,
+    pushedCount: pushedTransactionsCount + pushedCategoriesCount,
+  };
+}
+
+function getSafeSyncCount(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return value;
+}
+
+function getSafeSyncTimestamp(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
 function getAccountDisplayName(user: AuthUser) {
   if (user.email) return user.email;
   if (user.displayName) return user.displayName;
@@ -229,6 +295,8 @@ export function SettingsScreen() {
   );
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<SyncUiResult | null>(null);
+  const [persistedSyncResult, setPersistedSyncResult] =
+    useState<SyncUiResult | null>(null);
   const [isRestoreEmpty, setIsRestoreEmpty] = useState(false);
   const [lastSuccessfulBackupAt, setLastSuccessfulBackupAtState] = useState<
     number | null
@@ -243,6 +311,7 @@ export function SettingsScreen() {
 
   const [reminderPermissionStatus, setReminderPermissionStatus] =
     useState<ReminderPermissionStatus>('undetermined');
+  const isSyncInFlightRef = useRef(false);
 
   const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
   const isImportUnsupported = Platform.OS === 'web';
@@ -300,6 +369,7 @@ export function SettingsScreen() {
 
   const lastSyncText =
     lastSuccessfulSyncAt === null ? null : formatLastSync(lastSuccessfulSyncAt);
+  const visibleSyncResult = syncResult ?? persistedSyncResult;
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
@@ -368,6 +438,7 @@ export function SettingsScreen() {
   useEffect(() => {
     if (!shouldShowSync) {
       setLastSuccessfulSyncAtState(null);
+      setPersistedSyncResult(null);
 
       return;
     }
@@ -381,14 +452,17 @@ export function SettingsScreen() {
         if (!isMounted) return;
 
         setLastSuccessfulSyncAtState(
-          metadata.lastSyncSummary?.completedAt ??
-            metadata.lastSuccessfulSyncAt ??
-            null,
+          getSafeSyncTimestamp(metadata.lastSyncSummary?.completedAt) ??
+            getSafeSyncTimestamp(metadata.lastSuccessfulSyncAt),
+        );
+        setPersistedSyncResult(
+          createSyncUiResultFromSummary(metadata.lastSyncSummary),
         );
       } catch {
         if (!isMounted) return;
 
         setLastSuccessfulSyncAtState(null);
+        setPersistedSyncResult(null);
       }
     })();
 
@@ -655,11 +729,14 @@ export function SettingsScreen() {
   }
 
   async function handleSyncPress() {
+    if (isSyncInFlightRef.current) return;
     if (isSyncDisabled) return;
 
+    isSyncInFlightRef.current = true;
     setIsSyncing(true);
     setSyncError(null);
     setSyncResult(null);
+    setPersistedSyncResult(null);
 
     try {
       const result = await manualSyncService.runIncrementalSync({
@@ -676,14 +753,20 @@ export function SettingsScreen() {
       }
 
       setSyncResult(createSyncUiResult(result));
+      setPersistedSyncResult(null);
+
+      await Promise.all([loadTransactions(), loadCategories()]);
 
       try {
         const metadata = await getSyncMetadata();
 
         setLastSuccessfulSyncAtState(
-          metadata.lastSyncSummary?.completedAt ??
-            metadata.lastSuccessfulSyncAt ??
+          getSafeSyncTimestamp(metadata.lastSyncSummary?.completedAt) ??
+            getSafeSyncTimestamp(metadata.lastSuccessfulSyncAt) ??
             result.lastSuccessfulSyncAt,
+        );
+        setPersistedSyncResult(
+          createSyncUiResultFromSummary(metadata.lastSyncSummary),
         );
       } catch {
         setLastSuccessfulSyncAtState(result.lastSuccessfulSyncAt);
@@ -691,6 +774,7 @@ export function SettingsScreen() {
     } catch {
       setSyncError("Couldn't sync. Try again.");
     } finally {
+      isSyncInFlightRef.current = false;
       setIsSyncing(false);
     }
   }
@@ -1041,9 +1125,9 @@ export function SettingsScreen() {
               <Text style={styles.metaText}>{lastSyncText}</Text>
             ) : null}
 
-            {syncResult ? (
+            {visibleSyncResult ? (
               <Text style={styles.infoText}>
-                {formatSyncResult(syncResult)}
+                {formatSyncResult(visibleSyncResult)}
               </Text>
             ) : null}
 

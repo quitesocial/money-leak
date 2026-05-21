@@ -1341,6 +1341,67 @@ Manual QA:
 - Run manual backup, restore, and Delete Account flows and confirm they do not
   trigger sync.
 
+## ML-73: Manual Sync Hardening & Cross-Screen Refresh v1
+
+- `package.json.version` is bumped intentionally to `1.17.1`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.17.1`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Settings still shows the `Sync` card only for authenticated users while
+  `featureFlags.incrementalSyncEnabled` is enabled.
+- Guest/local mode still does not show the `Sync` card and cannot trigger sync.
+- A fast double tap on `Sync now` starts only one manual sync operation.
+- A successful manual sync refreshes local transaction and category stores so
+  pulled remote changes are visible without restarting the app.
+- Failed, skipped, or thrown manual sync attempts show only
+  `Couldn't sync. Try again.` and do not run success-only store refresh.
+- Existing persisted sync metadata can show `Last sync:` and safe aggregate
+  pulled, pushed, applied, conflicts, and ignored counts after Settings reload.
+- Missing, invalid, or corrupted sync metadata summary is ignored safely and
+  does not render raw values.
+- Sign Out, Delete Account, backup, restore, import/export, app start, login,
+  session restore, background behavior, and transaction/category mutations do
+  not trigger sync automatically.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- Settings sync UI does not render raw backend errors, env values, Supabase
+  URLs, anon keys, service-role keys, OAuth/provider secrets, access tokens,
+  refresh tokens, provider tokens, Apple identity tokens, localOwnerId,
+  deviceId, ownerId, raw user IDs, or row payloads.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.17.1`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, open Settings and confirm the `Sync` card is hidden.
+- Sign in with Google, open Settings, and confirm the `Sync` card is visible.
+- Tap `Sync now` once and confirm the button changes to `Syncing...`, then
+  returns to `Sync now`.
+- Fast double tap `Sync now` and confirm only one sync operation runs.
+- After a successful sync that pulls remote transaction/category changes,
+  confirm Home, Analytics, transaction forms, and category-dependent UI show
+  the fresh local data without app restart.
+- Force a recoverable sync failure or missing session and confirm Settings
+  shows only `Couldn't sync. Try again.` with no success summary from that
+  attempt.
+- Reload Settings after a successful sync and confirm only aggregate summary
+  counts appear when valid metadata exists.
+- Tap Sign Out and confirm sync does not run and local data remains visible
+  after returning to guest/local mode.
+- Run manual backup, restore, and Delete Account flows and confirm they do not
+  trigger sync.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
