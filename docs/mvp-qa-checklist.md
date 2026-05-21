@@ -1402,6 +1402,77 @@ Manual QA:
 - Run manual backup, restore, and Delete Account flows and confirm they do not
   trigger sync.
 
+## ML-74: Incremental Sync Reliability QA + Edge Case Hardening v1
+
+- `package.json.version` is bumped intentionally to `1.17.2`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.17.2`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Manual incremental sync remains authenticated-only and Settings-only.
+- No automatic sync was added on app start, login, session restore, sign out,
+  background behavior, or transaction/category add/edit/delete.
+- LWW transaction conflicts are deterministic: newer local active rows push,
+  newer remote active rows apply, and equal `updatedAt` conflicts preserve the
+  local row while counting a conflict.
+- Transaction tombstones follow the same timestamp behavior: newer local
+  tombstones push, newer remote tombstones soft-delete local active rows, and
+  orphan remote tombstones are ignored without creating visible rows.
+- Repeated sync does not duplicate local or remote rows.
+- Failed pull does not apply local changes or push local rows.
+- Failed local apply, failed push, skipped sync, and recoverable failures do
+  not write success metadata.
+- Successful sync writes `last_successful_incremental_sync_at` and a safe
+  aggregate summary only after pull, local apply, and push all complete.
+- Corrupted, invalid, negative, or raw-field persisted sync summaries are
+  ignored or normalized safely.
+- Category active and archived changes apply safely; category tombstones remain
+  out of product scope and are only counted/ignored safely.
+- Settings sync UI still shows only safe aggregate counts and generic sync
+  errors, never raw backend errors, env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, or row payloads.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- Backup, restore, Sign Out, Delete Account, import/export, auth lifecycle,
+  navigation, and visual design remain unchanged.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.17.2`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, open Settings and confirm the `Sync` card is hidden.
+- Sign in with Google, open Settings, and confirm the `Sync` card is visible.
+- Tap `Sync now` once and confirm the button changes to `Syncing...`, then
+  returns to `Sync now`.
+- Fast tap `Sync now` repeatedly and confirm only one sync operation runs.
+- Add, edit, and delete a transaction locally, then run `Sync now` and confirm
+  the expected aggregate pushed/applied counts with no duplicate visible rows.
+- On two signed-in devices or simulators, create or edit data on device A,
+  sync device A, then sync device B and confirm pull/push sanity.
+- Delete a transaction on device A, sync device A, then sync device B and
+  confirm the transaction is hidden locally on device B.
+- Create a deterministic conflict on two devices and confirm the newer
+  `updatedAt` row wins; for equal timestamps, confirm the local row is
+  preserved and the conflict count increments.
+- Run manual Backup and Restore flows and confirm they still work and do not
+  trigger sync automatically.
+- Tap Sign Out and confirm local data remains visible after returning to
+  guest/local mode.
+- Run Delete Account only through the existing confirmation flow and confirm
+  local data remains on the device and the flow is not broken.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

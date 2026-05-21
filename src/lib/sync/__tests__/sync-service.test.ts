@@ -7,6 +7,7 @@ import type {
   LocalSyncDataTarget,
   LocalSyncMetadataStore,
   RemoteCategory,
+  RemoteSyncAdapter,
   RemoteSyncChanges,
   RemoteTransaction,
   SyncMetadata,
@@ -232,7 +233,7 @@ function createService({
   dataTarget?: LocalSyncDataTarget;
   isSyncEnabled?: boolean;
   metadataStore?: LocalSyncMetadataStore;
-  remoteAdapter?: ReturnType<typeof createFakeRemoteSyncAdapter>;
+  remoteAdapter?: RemoteSyncAdapter;
 } = {}) {
   return createSyncService({
     dataSource,
@@ -247,9 +248,11 @@ function createService({
 describe('incremental sync service', () => {
   it('skips safely when the feature flag is disabled', async () => {
     const dataSource = createDataSource();
+    const metadataStore = createMetadataStore();
     const service = createService({
       dataSource,
       isSyncEnabled: false,
+      metadataStore,
     });
 
     await expect(
@@ -265,13 +268,16 @@ describe('incremental sync service', () => {
       isRecoverable: true,
     });
     expect(dataSource.getSyncData).not.toHaveBeenCalled();
+    expect(metadataStore.failures).toEqual([]);
+    expect(metadataStore.successes).toEqual([]);
   });
 
   it('skips safely for guest mode, missing user id, missing session, and mismatched session', async () => {
     const remoteAdapter = createFakeRemoteSyncAdapter({
       sessionUserId: null,
     });
-    const service = createService({ remoteAdapter });
+    const metadataStore = createMetadataStore();
+    const service = createService({ metadataStore, remoteAdapter });
 
     await expect(
       service.runIncrementalSync({
@@ -322,6 +328,8 @@ describe('incremental sync service', () => {
       status: 'skipped',
       skippedReason: 'session_user_mismatch',
     });
+    expect(metadataStore.failures).toEqual([]);
+    expect(metadataStore.successes).toEqual([]);
   });
 
   it('pulls remote-only active transactions and categories into local apply', async () => {
@@ -516,6 +524,62 @@ describe('incremental sync service', () => {
     });
   });
 
+  it('does not reapply already-pulled remote rows on repeated sync', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [createRemoteTransaction()],
+    });
+    const dataTarget = createDataTarget();
+    const metadataStore = createMetadataStore({
+      initialMetadata: {
+        lastSuccessfulSyncAt: null,
+        lastSyncErrorAt: null,
+        lastSyncSummary: null,
+      },
+    });
+    const service = createService({
+      dataSource: createDataSource(),
+      dataTarget,
+      metadataStore,
+      remoteAdapter,
+    });
+
+    const firstResult = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+    const secondResult = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(firstResult).toMatchObject({
+      status: 'succeeded',
+      pulledTransactionsCount: 1,
+      appliedTransactionsCount: 1,
+    });
+    expect(secondResult).toMatchObject({
+      status: 'succeeded',
+      pulledTransactionsCount: 0,
+      appliedTransactionsCount: 0,
+    });
+    expect(dataTarget.appliedChanges).toEqual([
+      {
+        transactions: [expect.objectContaining({ id: 'txn-1' })],
+        categories: [],
+      },
+      {
+        transactions: [],
+        categories: [],
+      },
+    ]);
+    expect(metadataStore.successes).toHaveLength(2);
+  });
+
   it('shares one in-flight sync operation for overlapping service calls', async () => {
     const deferredData = createDeferred<{
       categories: Category[];
@@ -575,7 +639,53 @@ describe('incremental sync service', () => {
     expect(metadataStore.successes).toHaveLength(1);
   });
 
-  it('uses LWW when the remote active row is newer', async () => {
+  it('uses LWW when the local active transaction is newer than the remote active row', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [
+        createRemoteTransaction({
+          amount: 20,
+          updatedAt: '2026-05-21T10:00:00.000Z',
+        }),
+      ],
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [
+          createTransaction({
+            amount: 10,
+            updatedAt: Date.parse('2026-05-21T11:00:00.000Z'),
+          }),
+        ],
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedTransactionsCount: 0,
+      pushedTransactionsCount: 1,
+      conflictsCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0].transactions).toEqual([]);
+    expect(remoteAdapter.getTransactions()).toEqual([
+      expect.objectContaining({
+        amount: 10,
+        updatedAt: '2026-05-21T11:00:00.000Z',
+      }),
+    ]);
+  });
+
+  it('uses LWW when the remote active transaction is newer than the local active row', async () => {
     const remoteAdapter = createFakeRemoteSyncAdapter({
       sessionUserId: TEST_USER_ID,
       transactions: [
@@ -613,6 +723,11 @@ describe('incremental sync service', () => {
       conflictsCount: 1,
     });
     expect(dataTarget.appliedChanges[0].transactions).toEqual([
+      expect.objectContaining({
+        amount: 20,
+      }),
+    ]);
+    expect(remoteAdapter.getTransactions()).toEqual([
       expect.objectContaining({
         amount: 20,
       }),
@@ -659,6 +774,136 @@ describe('incremental sync service', () => {
         amount: 10,
       }),
     ]);
+  });
+
+  it('pushes a newer local transaction tombstone over a remote active row', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [
+        createRemoteTransaction({
+          id: 'txn-delete-local',
+          updatedAt: '2026-05-21T10:00:00.000Z',
+          deletedAt: null,
+        }),
+      ],
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [
+          createTransaction({
+            id: 'txn-delete-local',
+            updatedAt: Date.parse('2026-05-21T11:30:00.000Z'),
+            deletedAt: Date.parse('2026-05-21T11:30:00.000Z'),
+          }),
+        ],
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedTransactionsCount: 0,
+      pushedTransactionsCount: 1,
+      conflictsCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0].transactions).toEqual([]);
+    expect(remoteAdapter.getTransactions()).toEqual([
+      expect.objectContaining({
+        id: 'txn-delete-local',
+        deletedAt: '2026-05-21T11:30:00.000Z',
+      }),
+    ]);
+  });
+
+  it('applies a newer remote transaction tombstone over a local active row', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [
+        createRemoteTransaction({
+          id: 'txn-delete-remote',
+          updatedAt: '2026-05-21T11:30:00.000Z',
+          deletedAt: '2026-05-21T11:30:00.000Z',
+        }),
+      ],
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [
+          createTransaction({
+            id: 'txn-delete-remote',
+            updatedAt: Date.parse('2026-05-21T10:00:00.000Z'),
+            deletedAt: null,
+          }),
+        ],
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedTransactionsCount: 1,
+      pushedTransactionsCount: 0,
+      conflictsCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0].transactions).toEqual([
+      expect.objectContaining({
+        id: 'txn-delete-remote',
+        deletedAt: '2026-05-21T11:30:00.000Z',
+      }),
+    ]);
+  });
+
+  it('ignores remote transaction tombstones with no local matching row', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [
+        createRemoteTransaction({
+          id: 'txn-orphan-tombstone',
+          updatedAt: '2026-05-21T11:30:00.000Z',
+          deletedAt: '2026-05-21T11:30:00.000Z',
+        }),
+      ],
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource(),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedTransactionsCount: 0,
+      pushedTransactionsCount: 0,
+      ignoredTransactionTombstonesCount: 1,
+      conflictsCount: 0,
+    });
+    expect(dataTarget.appliedChanges[0].transactions).toEqual([]);
   });
 
   it('uses transaction tombstone timestamps against active rows', async () => {
@@ -771,6 +1016,169 @@ describe('incremental sync service', () => {
     ]);
   });
 
+  it('applies newer remote category active and archived changes through LWW', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      categories: [
+        createRemoteCategory({
+          id: 'coffee',
+          name: 'Remote Coffee',
+          isArchived: true,
+          updatedAt: '2026-05-21T11:00:00.000Z',
+        }),
+      ],
+      sessionUserId: TEST_USER_ID,
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        categories: [
+          createCategory({
+            id: 'coffee',
+            name: 'Local Coffee',
+            isArchived: false,
+            updatedAt: Date.parse('2026-05-21T10:00:00.000Z'),
+          }),
+        ],
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedCategoriesCount: 1,
+      pushedCategoriesCount: 0,
+      conflictsCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0].categories).toEqual([
+      expect.objectContaining({
+        id: 'coffee',
+        name: 'Remote Coffee',
+        isArchived: true,
+      }),
+    ]);
+  });
+
+  it('does not apply local changes, push, or write success metadata when pull fails', async () => {
+    const metadataStore = createMetadataStore();
+    const dataTarget = createDataTarget();
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      shouldFailPull: true,
+    });
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [createTransaction({ id: 'txn-local-only' })],
+      }),
+      dataTarget,
+      metadataStore,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'remote_read_failed',
+        isRecoverable: true,
+      },
+    });
+    expect(dataTarget.applyRemoteChanges).not.toHaveBeenCalled();
+    expect(remoteAdapter.getTransactions()).toEqual([]);
+    expect(metadataStore.successes).toEqual([]);
+    expect(metadataStore.failures).toEqual([TEST_NOW]);
+  });
+
+  it('does not push or write success metadata when local apply fails', async () => {
+    const metadataStore = createMetadataStore();
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      transactions: [createRemoteTransaction({ id: 'txn-remote-only' })],
+    });
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [createTransaction({ id: 'txn-local-only' })],
+      }),
+      dataTarget: createDataTarget({ shouldFail: true }),
+      metadataStore,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'local_write_failed',
+        isRecoverable: true,
+      },
+    });
+    expect(remoteAdapter.getTransactions()).toEqual([
+      expect.objectContaining({ id: 'txn-remote-only' }),
+    ]);
+    expect(remoteAdapter.getTransactions()).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'txn-local-only' }),
+      ]),
+    );
+    expect(metadataStore.successes).toEqual([]);
+    expect(metadataStore.failures).toEqual([TEST_NOW]);
+  });
+
+  it('does not write success metadata when push fails after local apply', async () => {
+    const metadataStore = createMetadataStore();
+    const dataTarget = createDataTarget();
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      shouldFailPush: true,
+    });
+    const service = createService({
+      dataSource: createDataSource({
+        transactions: [createTransaction({ id: 'txn-local-only' })],
+      }),
+      dataTarget,
+      metadataStore,
+      remoteAdapter,
+    });
+
+    const result = await service.runIncrementalSync({
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'remote_write_failed',
+        isRecoverable: true,
+      },
+    });
+    expect(dataTarget.applyRemoteChanges).toHaveBeenCalledTimes(1);
+    expect(remoteAdapter.getTransactions()).toEqual([]);
+    expect(metadataStore.successes).toEqual([]);
+    expect(metadataStore.failures).toEqual([TEST_NOW]);
+  });
+
   it('returns safe failures without raw backend or token values', async () => {
     const metadataStore = createMetadataStore();
     const remoteAdapter = createFakeRemoteSyncAdapter({
@@ -823,11 +1231,20 @@ describe('incremental sync service', () => {
     });
     expect(metadataStore.successes).toEqual([
       expect.objectContaining({
+        appliedCategoriesCount: 0,
+        appliedTransactionsCount: 0,
         completedAt: TEST_NOW,
+        conflictsCount: 0,
         cursor: TEST_NOW,
+        ignoredCategoryTombstonesCount: 0,
+        ignoredTransactionTombstonesCount: 0,
+        pulledCategoriesCount: 0,
+        pulledTransactionsCount: 0,
+        pushedCategoriesCount: 0,
         pushedTransactionsCount: 1,
       }),
     ]);
+    expect(metadataStore.failures).toEqual([]);
 
     const failingMetadataStore = createMetadataStore({
       shouldFailWrite: true,

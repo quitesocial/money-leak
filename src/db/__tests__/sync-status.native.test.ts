@@ -138,4 +138,54 @@ describe('native sync metadata persistence', () => {
       lastSyncSummary: null,
     });
   });
+
+  it('ignores non-finite or negative stored summary values safely', async () => {
+    database.appMetadata.set('last_incremental_sync_summary', {
+      value: JSON.stringify({
+        ...createSummary(),
+        conflictsCount: -1,
+      }),
+      updated_at: 1000,
+    });
+
+    await expect(getSyncMetadata()).resolves.toMatchObject({
+      lastSyncSummary: null,
+    });
+
+    database.appMetadata.set('last_incremental_sync_summary', {
+      value: JSON.stringify({
+        ...createSummary(),
+        pulledTransactionsCount: null,
+      }),
+      updated_at: 1000,
+    });
+
+    await expect(getSyncMetadata()).resolves.toMatchObject({
+      lastSyncSummary: null,
+    });
+  });
+
+  it('stores only known numeric summary fields on success', async () => {
+    const summary = {
+      ...createSummary(),
+      access_token: 'raw-token',
+      deviceId: 'device_test',
+      ownerId: 'owner_test',
+    } as SyncSummary;
+
+    await recordSyncSuccess(summary);
+
+    const storedSummary = database.appMetadata.get(
+      'last_incremental_sync_summary',
+    );
+
+    expect(storedSummary?.value).not.toContain('access_token');
+    expect(storedSummary?.value).not.toContain('deviceId');
+    expect(storedSummary?.value).not.toContain('ownerId');
+    await expect(getSyncMetadata()).resolves.toEqual({
+      lastSuccessfulSyncAt: 2000,
+      lastSyncErrorAt: null,
+      lastSyncSummary: createSummary(),
+    });
+  });
 });

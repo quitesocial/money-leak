@@ -79,7 +79,7 @@ class FakeTransactionsDatabase {
     }
 
     if (source.includes('deleted_at = ?')) {
-      return { changes: this.softDeleteTransaction(params) ? 1 : 0 };
+      return { changes: this.softDeleteTransaction(source, params) ? 1 : 0 };
     }
 
     return { changes: 0 };
@@ -199,14 +199,32 @@ class FakeTransactionsDatabase {
     return true;
   }
 
-  private softDeleteTransaction(params: unknown[]) {
+  private softDeleteTransaction(source: string, params: unknown[]) {
     const [deletedAt, updatedAt, sourceDeviceId, id] = params;
     const transaction = this.transactions.find(
-      (currentTransaction) =>
-        currentTransaction.id === id && currentTransaction.deleted_at === null,
+      (currentTransaction) => currentTransaction.id === id,
     );
 
     if (!transaction) return false;
+    if (
+      transaction.deleted_at !== null &&
+      !source.includes('OR deleted_at < ?')
+    ) {
+      return false;
+    }
+
+    if (source.includes('OR deleted_at < ?')) {
+      const tombstoneDeletedAt = params[4];
+      const tombstoneUpdatedAt = params[5];
+      const isNewerTombstone =
+        transaction.deleted_at === null ||
+        (typeof tombstoneDeletedAt === 'number' &&
+          transaction.deleted_at < tombstoneDeletedAt) ||
+        (typeof tombstoneUpdatedAt === 'number' &&
+          transaction.updated_at < tombstoneUpdatedAt);
+
+      if (!isNewerTombstone) return false;
+    }
 
     transaction.deleted_at = deletedAt as number;
     transaction.updated_at = updatedAt as number;
@@ -596,6 +614,44 @@ describe('native transaction persistence', () => {
     ]);
   });
 
+  it('keeps repeated sync transaction upserts idempotent by stable row id', async () => {
+    await applyTransactionSyncChanges({
+      upserts: [
+        createTransactionRestoreInput({
+          id: 'txn-repeated',
+          amount: 12,
+          category: 'coffee',
+          createdAt: 7000,
+          updatedAt: 9200,
+        }),
+      ],
+      tombstones: [],
+    });
+
+    await applyTransactionSyncChanges({
+      upserts: [
+        createTransactionRestoreInput({
+          id: 'txn-repeated',
+          amount: 12,
+          category: 'coffee',
+          createdAt: 7000,
+          updatedAt: 9200,
+        }),
+      ],
+      tombstones: [],
+    });
+
+    expect(
+      database.transactions.filter((row) => row.id === 'txn-repeated'),
+    ).toHaveLength(1);
+    expect(database.transactions[0]).toMatchObject({
+      id: 'txn-repeated',
+      amount: 12,
+      category: 'coffee',
+      deleted_at: null,
+    });
+  });
+
   it('applies sync transaction tombstones without creating visible orphan rows', async () => {
     await createTransaction(
       createTransactionInput({
@@ -637,5 +693,64 @@ describe('native transaction persistence', () => {
     expect(database.transactions.some((row) => row.id === 'txn-missing')).toBe(
       false,
     );
+  });
+
+  it('ignores stale sync tombstones without resurrecting or rewriting newer local tombstones', async () => {
+    await createTransaction(
+      createTransactionInput({
+        id: 'txn-delete-me',
+        amount: 7,
+        category: 'food',
+        createdAt: 500,
+      }),
+    );
+
+    await expect(
+      applyTransactionSyncChanges({
+        upserts: [],
+        tombstones: [
+          {
+            id: 'txn-delete-me',
+            updatedAt: 9000,
+            deletedAt: 9000,
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      upsertedTransactionsCount: 0,
+      deletedTransactionsCount: 1,
+    });
+
+    await expect(
+      applyTransactionSyncChanges({
+        upserts: [],
+        tombstones: [
+          {
+            id: 'txn-delete-me',
+            updatedAt: 8000,
+            deletedAt: 8000,
+          },
+          {
+            id: 'txn-stale-missing',
+            updatedAt: 8000,
+            deletedAt: 8000,
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      upsertedTransactionsCount: 0,
+      deletedTransactionsCount: 0,
+    });
+
+    expect(await getTransactions()).toEqual([]);
+    expect(
+      database.transactions.find((row) => row.id === 'txn-delete-me'),
+    ).toMatchObject({
+      deleted_at: 9000,
+      updated_at: 9000,
+    });
+    expect(
+      database.transactions.some((row) => row.id === 'txn-stale-missing'),
+    ).toBe(false);
   });
 });

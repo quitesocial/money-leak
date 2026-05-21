@@ -352,4 +352,43 @@ describe('native category persistence', () => {
       sort_order: 11,
     });
   });
+
+  it('keeps repeated sync category upserts idempotent by stable row id', async () => {
+    await applyCategorySyncChanges([
+      {
+        id: 'snacks',
+        name: 'Snacks',
+        createdAt: 7000,
+        updatedAt: 8000,
+        isDefault: false,
+        isArchived: true,
+        sortOrder: 11,
+      },
+    ]);
+
+    await applyCategorySyncChanges([
+      {
+        id: 'snacks',
+        name: 'Snacks',
+        createdAt: 7000,
+        updatedAt: 8000,
+        isDefault: false,
+        isArchived: true,
+        sortOrder: 11,
+      },
+    ]);
+
+    expect(
+      database.categories.filter((row) => row.id === 'snacks'),
+    ).toHaveLength(1);
+    expect(
+      database.categories.find((row) => row.id === 'snacks'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      name: 'Snacks',
+      is_archived: 1,
+      deleted_at: null,
+      sort_order: 11,
+    });
+  });
 });

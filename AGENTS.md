@@ -108,6 +108,12 @@ Test:
 npm test
 ```
 
+Release preflight:
+
+```sh
+npm run release:preflight
+```
+
 Format:
 
 ```sh
@@ -124,6 +130,7 @@ npx tsc --noEmit
 
 After code changes, prefer to run the smallest relevant checks:
 
+- `npm run release:preflight`
 - `npm test`
 - `npx tsc --noEmit`
 - `npm run lint`
