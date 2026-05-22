@@ -337,6 +337,9 @@ export function SettingsScreen() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [externalLinkError, setExternalLinkError] = useState<string | null>(
+    null,
+  );
 
   const [reminderPermissionStatus, setReminderPermissionStatus] =
     useState<ReminderPermissionStatus>('undetermined');
@@ -946,25 +949,27 @@ export function SettingsScreen() {
   }
 
   async function handleOpenExternalLink({
-    url,
     emptyMessage,
+    url,
   }: {
-    url: string;
     emptyMessage: string;
+    url: string;
   }) {
     const trimmedUrl = url.trim();
 
     if (trimmedUrl.length === 0) {
-      Alert.alert(emptyMessage);
+      setExternalLinkError(emptyMessage);
 
       return;
     }
 
+    setExternalLinkError(null);
+
     try {
       await Linking.openURL(trimmedUrl);
-    } catch (error) {
-      console.error('Failed to open external link', error);
-      Alert.alert("Couldn't open this link right now.");
+    } catch {
+      console.error('Failed to open external link');
+      setExternalLinkError("Couldn't open this link right now.");
     }
   }
 
@@ -1375,7 +1380,7 @@ export function SettingsScreen() {
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Support & Legal</Text>
+            <Text style={styles.sectionTitle}>Privacy & Support</Text>
 
             <Text style={styles.sectionBody}>
               Review the privacy policy or get in touch if the app behaves
@@ -1388,8 +1393,8 @@ export function SettingsScreen() {
               accessibilityRole="button"
               onPress={() => {
                 void handleOpenExternalLink({
-                  url: APP_LINKS.PRIVACY_POLICY,
-                  emptyMessage: 'Privacy policy is not available yet.',
+                  emptyMessage: 'Privacy policy is not available right now.',
+                  url: APP_LINKS.privacyPolicyUrl,
                 });
               }}
               style={[styles.dataButton, styles.supportButton]}
@@ -1403,17 +1408,21 @@ export function SettingsScreen() {
               accessibilityRole="button"
               onPress={() => {
                 void handleOpenExternalLink({
-                  url: APP_LINKS.SUPPORT_EMAIL,
-                  emptyMessage: 'Support contact is not configured.',
+                  emptyMessage: 'Support contact is not available right now.',
+                  url: APP_LINKS.supportUrl,
                 });
               }}
               style={[styles.dataButton, styles.supportButton]}
             >
               <Text style={[styles.dataButtonText, styles.supportButtonText]}>
-                Contact Support
+                Support
               </Text>
             </Pressable>
           </View>
+
+          {externalLinkError ? (
+            <Text style={styles.errorText}>{externalLinkError}</Text>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
