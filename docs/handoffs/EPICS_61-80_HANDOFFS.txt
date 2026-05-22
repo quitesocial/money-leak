@@ -1,0 +1,3236 @@
+Money Leak — Detailed Summary of Epics 61–80
+Combined handoff file generated from individual epic handoff notes.
+Included source files:
+- Epic 61: ML_61_HANDOFF.txt
+- Epic 62: ML_62_HANDOFF.txt
+- Epic 63: ML_63_HANDOFF.txt
+- Epic 64: ML_64_HANDOFF.txt
+- Epic 65: ML_65_HANDOFF.txt
+- Epic 66: ML_66_HANDOFF.txt
+- Epic 67: ML_67_HANDOFF.txt
+- Epic 68: ML_68_HANDOFF.txt
+- Epic 69: ML_69_HANDOFF.txt
+- Epic 70: ML_70_HANDOFF.txt
+- Epic 71: ML_71_HANDOFF.txt
+- Epic 72: ML_72_HANDOFF.txt
+- Epic 73: ML_73_HANDOFF.txt
+- Epic 74: ML_74_HANDOFF.txt
+- Epic 75: ML_75_HANDOFF.txt
+- Epic 76: ML_76_HANDOFF.txt
+- Epic 77: ML_77_HANDOFF.txt
+- Epic 78: ML_78_HANDOFF.txt
+- Epic 79: ML_79_HANDOFF.txt
+- Epic 80: ML_80_HANDOFF.txt
+
+================================================================================
+
+EPIC 61 — SOURCE: ML_61_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-61 Handoff: Supabase Session Restore & Auth Bootstrap Hardening
+
+Date: 2026-05-20
+Project: Money Leak
+
+Purpose
+-------
+This handoff summarizes the completed ML-61 work so a future AI agent can plan
+the next auth/local-first steps without rediscovering the current baseline.
+
+Product constraints that remained enforced
+------------------------------------------
+- Money Leak remains local-first.
+- Guest/local mode remains permanent.
+- There is no login wall.
+- Bottom tabs remain exactly Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens, not tabs.
+- CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No Apple Sign-In was added.
+- No backup, restore, sync, Supabase database tables, RLS, backend profile
+  logic, account linking, or delete-account flow was added.
+- No raw env values, Supabase URL, anon key, OAuth secrets, provider secrets,
+  tokens, or raw EXPO_PUBLIC_* values were added to UI/logs/tests/docs.
+- The temporary Account diagnostics UI from ML-59/ML-60 was not restored.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, glass styling, or Liquid
+  Glass imitation was added.
+
+Implementation completed
+------------------------
+- Added a Supabase-aware AuthService implementation:
+  src/lib/auth/supabase-auth-service.ts
+- Made that Supabase-aware service the default auth service in:
+  src/store/auth-store.ts
+- Moved Supabase Session -> Money Leak AuthSession mapping into:
+  src/lib/auth/supabase-auth-session.ts
+- Updated Google auth adapter to reuse that mapper:
+  src/lib/auth/google-auth-adapter.ts
+- Updated Supabase client auth config to persist Supabase Auth session through
+  SecureStore using an explicit app-owned storage key:
+  money-leak-supabase-auth-session-v1
+- Kept Money Leak AuthSession storage token-free and separate from Supabase's
+  SDK auth session storage.
+- Added helpers to inspect/clear the Supabase auth storage boundary:
+  src/lib/supabase/supabase-secure-storage.ts
+
+Auth restore behavior after ML-61
+---------------------------------
+- App startup still calls initializeAuth() from app/_layout.tsx without
+  blocking local DB initialization, onboarding, navigation, transactions,
+  categories, import, or export.
+- If Supabase config/client is unavailable:
+  - stale Money Leak display auth is cleared;
+  - Supabase auth storage boundary is cleared;
+  - app enters guest/local mode.
+- If Supabase has no session:
+  - stale Money Leak display auth is cleared;
+  - Supabase auth storage boundary is cleared;
+  - app enters guest/local mode.
+- If Supabase session restores successfully:
+  - Supabase user is normalized into Money Leak AuthSession/AuthUser;
+  - only token-free Money Leak AuthSession is persisted;
+  - auth store enters authenticated state.
+- If Supabase restore is corrupted, revoked, invalid, or fails:
+  - Supabase and Money Leak auth storage are cleared;
+  - auth store falls back to guest/local mode through the existing safe
+    recoverable session_restore_failed path;
+  - no crash is expected.
+- If getUser validation fails with a retryable network error:
+  - an otherwise valid cached Supabase session is kept;
+  - token-free Money Leak display session is refreshed from cached session data;
+  - offline startup remains locally usable.
+
+Sign Out behavior after ML-61
+-----------------------------
+- Sign Out calls Supabase auth.signOut({ scope: 'local' }) when a client is
+  available.
+- Sign Out then clears:
+  - Supabase SecureStore auth session boundary;
+  - Money Leak token-free display auth session.
+- Sign Out does not delete or mutate transactions/categories.
+- Sign Out does not change ownerId, localOwnerId, device identity, or local data
+  ownership.
+- Sign Out does not trigger backup/sync/linking behavior.
+
+Settings/UI behavior after ML-61
+--------------------------------
+- Continue with Google remains gated exactly by:
+  featureFlags.googleAuthEnabled && googleAuthAdapter.isEnabled
+- Guest copy remains safe when config is unavailable.
+- No Account diagnostics labels are rendered in production Settings UI.
+- No raw env values, URLs, keys, tokens, or secrets are rendered.
+
+Versioning
+----------
+- package.json version was bumped from 1.12.6 to 1.12.7.
+- package-lock.json top-level and root package version fields were bumped from
+  1.12.6 to 1.12.7.
+- The bump is patch-level because ML-61 is auth/session hardening, not a new
+  user-facing product capability.
+- app.config.js remains the source consumer of package.json.version and was not
+  changed.
+- app.json and eas.json were not changed.
+
+Tests added or updated
+----------------------
+- Added Supabase auth service tests for:
+  - valid Supabase session restores authenticated Money Leak auth state;
+  - missing Supabase session returns guest and clears stale display auth;
+  - corrupted stored Supabase session clears auth and fails safely;
+  - Supabase restore error clears auth and fails safely;
+  - retryable getUser/network error keeps valid cached session for offline use;
+  - unavailable config clears auth and returns guest;
+  - setSession persists only token-free Money Leak AuthSession;
+  - signOut calls Supabase local signOut and clears auth storage;
+  - signOut still clears local auth storage when Supabase signOut reports an
+    error;
+  - auth restore/signOut do not call transaction/category DB actions.
+- Added Supabase secure storage tests for:
+  - explicit app-owned storage key;
+  - SecureStore read/write behavior;
+  - stored session boundary lookup;
+  - boundary clear behavior;
+  - unavailable SecureStore no-op behavior.
+- Added Supabase client test for:
+  - persistSession true;
+  - skipAutoInitialize true;
+  - explicit storageKey;
+  - SecureStore-backed storage.
+- Updated existing auth tests to strengthen no-token persistence assertions.
+- Existing Settings tests still cover:
+  - Continue with Google visibility with enabled adapter;
+  - hidden Google button when adapter/config unavailable;
+  - no diagnostics labels in production UI;
+  - signOut does not touch local data actions.
+
+Docs updated
+------------
+- docs/mvp-qa-checklist.md now has an ML-61 section with manual QA coverage for:
+  - Google login;
+  - restart after login;
+  - cold start after login;
+  - offline startup;
+  - Sign Out;
+  - local data preserved after login/logout/restart/cold start/offline startup;
+  - Continue with Google visible when config is valid;
+  - no diagnostics UI;
+  - no raw env/tokens/secrets visible.
+
+Validation completed
+--------------------
+The following checks passed after implementation:
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed.
+- npm test -- --runInBand
+  Result: 24 test suites passed, 146 tests passed.
+- npm run typecheck
+  Result: passed.
+- npm run lint
+  Result: passed.
+- npm run format:check
+  Result: passed.
+- npx expo config --json
+  Result: passed and resolved Expo version 1.12.7.
+- git diff --check
+  Result: passed.
+
+Manual QA outcome
+-----------------
+The owner manually tested the ML-61 flows after implementation and reported
+that everything required was OK.
+
+Important next-agent notes
+--------------------------
+- Do not spend the next epic re-solving TestFlight/env availability unless code
+  shows a new real bug. The owner already verified the current build can show
+  Continue with Google and complete Google login.
+- Treat Supabase Auth as optional identity only. It must not become a login
+  wall.
+- Do not infer that authenticated state means local data should be linked,
+  uploaded, backed up, merged, restored, or synced.
+- localOwnerId/ownerId behavior remains local-first and unchanged by ML-61.
+- Money Leak AuthSession is intentionally token-free. Do not add access tokens,
+  refresh tokens, provider tokens, OAuth secrets, or raw env values to it.
+- If future work needs account linking, backup, restore, sync, Supabase tables,
+  RLS, or backend profile logic, that must be a separate explicitly scoped epic.
+
+================================================================================
+
+EPIC 62 — SOURCE: ML_62_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-62 Local Account Linking v1 Handoff
+
+Current status
+- ML-62 is implemented, committed, automatically validated, and manually tested by the owner.
+- Current ML-62 implementation commit: 45ac7c1 ML-62 Add native local account linking with SQLite support.
+- Owner confirmed after implementation that all required manual testing was completed and everything is OK.
+- This file is intended as context for the next AI agent or planning pass.
+
+Summary
+- Added native local account linking that runs after successful auth restore or Google login.
+- The linking path relinks local SQLite transactions/categories from localOwnerId to the authenticated Money Leak user id from AuthSession.user.id.
+- The app remains local-first: no backend tables, RLS, sync, upload, backup, restore, remote merge, account deletion, or login wall was added.
+
+Files changed
+- package.json
+- package-lock.json
+- src/db/account-linking.ts
+- src/db/account-linking.native.ts
+- src/db/account-linking.web.ts
+- src/db/__tests__/account-linking.native.test.ts
+- src/store/auth-store.ts
+- src/store/__tests__/auth-store.test.ts
+- src/types/auth.ts
+- src/features/settings/__tests__/settings-screen.test.ts
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_62_HANDOFF.txt
+
+Invariants preserved
+- Sign Out clears auth state only; it does not unlink or mutate transaction/category owner_id values.
+- Linking updates only rows owned by the current localOwnerId and does not touch rows owned by another owner id.
+- Linking preserves row ids, row contents, and soft-deleted transaction deleted_at tombstones.
+- Repeated linking is idempotent and does not duplicate rows.
+- CSV v1 remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain root Stack screens.
+- No raw owner ids, local owner ids, device ids, access tokens, refresh tokens, provider tokens, OAuth secrets, raw env values, or raw EXPO_PUBLIC_* values are rendered in Account UI.
+- Temporary Account diagnostics UI was not restored.
+- Google Auth adapter, Supabase config, app.config.js, app.json, and eas.json were not changed.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, glass styling, or Liquid Glass imitation was added.
+
+Implementation notes
+- Native linking lives in src/db/account-linking.native.ts and uses SQLite app_metadata, transactions, and categories.
+- Web linking returns a skipped result because local SQLite persistence is native-only in this build.
+- app_metadata markers account_linked_app_user_id and account_linked_at are non-secret and do not prevent future relinking of new guest rows.
+- Auth store sets authenticated state first, then starts linking as a recoverable post-auth operation.
+- A linking error keeps the user authenticated and stores safe recoverable copy without raw technical details.
+- AuthSession.user.id is treated as the authenticated Money Leak app user id for ML-62 because no backend profile/account table exists in scope.
+- Linking runs only at auth boundaries: successful auth restore and successful login/setSession.
+- Transaction/category creation APIs were not changed to become auth-aware; this was an explicit v1 scope decision.
+
+Validation
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 25 suites and 155 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.12.8.
+- git diff --check: passed.
+
+Search checks
+- CSV v1 header unchanged: passed.
+- No raw secrets/env values/tokens in Account UI or app route UI: passed.
+- No dynamic process.env[...] access in src/app: passed.
+- Bottom tabs remain Home, Analytics & Leaks, Settings: passed.
+- Add Transaction and Shame Card are not tabs: passed.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, glass styling in src/app/package files: passed.
+- Temporary Account diagnostics UI not restored: passed.
+
+Not done
+- No Supabase remote tables, RLS, backup, restore, sync, upload, remote merge, backend profile logic, account deletion, or Apple Sign-In.
+- No Google Auth adapter, Supabase redirect/config, TestFlight visibility, or environment handling changes.
+- No new Account screen or diagnostics UI.
+- No new dependencies.
+
+Manual baseline completed by owner before Codex
+- Settings -> Account shows Continue with Google.
+- Google login works.
+- Authenticated state, email, and user info are visible after login.
+- Sign Out works.
+- Sign Out preserves local transactions/categories.
+- A guest transaction added after Sign Out remains visible after the next Google login.
+
+Manual QA completed by owner after ML-62 implementation
+- Owner manually tested the post-ML-62 build.
+- Owner confirmed all required manual checks are OK.
+- Account linking did not break Google login, authenticated Account state, Sign Out, guest/local mode, or local transaction/category visibility.
+- No additional manual follow-up is currently pending for ML-62.
+
+Version bump
+- package.json is the source of truth and app.config.js reads package.json.version.
+- Version bumped from 1.12.7 to 1.12.8 as a patch release because ML-62 is a scoped local persistence/auth-boundary improvement with no public API, dependency, config, or backend contract expansion.
+- package-lock.json top-level and root package version fields were updated to 1.12.8 for consistency.
+
+Planning context for the next agent
+- Treat ML-62 as done unless new regressions are reported.
+- Do not rework Google Auth, Supabase env/config, redirects, TestFlight visibility, or diagnostics UI based on ML-62.
+- Do not add sync, backup, restore, Supabase remote tables, RLS, backend profile logic, account deletion, Apple Sign-In, or auth walls as a continuation of ML-62.
+- Future work can build on the local owner_id relink foundation, but should preserve the local-first/guest-permanent product guardrail.
+
+================================================================================
+
+EPIC 63 — SOURCE: ML_63_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak Next Agent Context After ML-63
+
+Purpose
+- This file summarizes what was completed in this thread so a future AI agent
+  can plan the next epic without rediscovering ML-63 status.
+
+Project state
+- Repository: /Users/quitesocial/Code/money-leak
+- App: Money Leak, Expo / React Native / TypeScript / Expo Router / Zustand.
+- Current app version after ML-63: 1.12.9.
+- Guest/local mode remains permanently available.
+- There is no login wall.
+- Bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens, not tabs.
+- CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+
+Latest completed epic
+- ML-63 Supabase Backend User Profile / RLS Foundation v1.
+- ML-63 built the minimal remote identity/profile foundation needed before any
+  future backup/sync work.
+- ML-63 did not add transaction/category backup, restore, sync, upload, remote
+  merge, delete account, account deletion, Apple Sign-In, or Account diagnostics
+  UI.
+
+Supabase migration added
+- File:
+  supabase/migrations/20260520000000_create_profiles.sql
+- Creates public.profiles with:
+  id uuid primary key references auth.users(id) on delete cascade
+  email text null
+  display_name text null
+  avatar_url text null
+  provider text null
+  created_at timestamptz not null default now()
+  updated_at timestamptz not null default now()
+- Enables Row Level Security.
+- Revokes public/anonymous table access.
+- Grants authenticated select, insert, and update.
+- Adds own-row RLS policies:
+  authenticated users can select only auth.uid() = id
+  authenticated users can insert only auth.uid() = id
+  authenticated users can update only auth.uid() = id
+- Adds a fixed-search-path updated_at trigger.
+- Does not create any remote transaction/category/settings tables.
+
+App profile service added
+- File:
+  src/lib/supabase/supabase-profile-service.ts
+- Exports:
+  ensureUserProfile(sessionOrUser)
+  Profile
+  ProfileResult
+- Uses the existing Supabase anon client from getSupabaseClient().
+- Never uses a service role key.
+- Accepts the existing token-free Money Leak AuthSession/AuthUser.
+- Upserts into profiles with onConflict: id, then selects the profile row.
+- Stores only non-sensitive profile fields:
+  id, email, display_name, avatar_url, provider.
+- Does not persist or expose raw Supabase tokens, OAuth secrets, raw env values,
+  local owner IDs, device IDs, or service credentials.
+- If unauthenticated, it returns skipped.
+- If Supabase config/client is unavailable, it returns a recoverable failed
+  result.
+- If Supabase returns an error or throws, it returns a recoverable failed result
+  with safe copy only.
+- It does not import or mutate local transaction/category DB or stores.
+
+Auth integration changed
+- File:
+  src/store/auth-store.ts
+- createAuthStore now accepts an injectable ensureProfile function, defaulting
+  to ensureUserProfile.
+- After successful auth restore, the store sets authenticated state first, then
+  starts profile ensure as a fire-and-forget recoverable post-auth task.
+- After successful Google login/setSession, the store sets authenticated state
+  first, then starts profile ensure as a fire-and-forget recoverable post-auth
+  task.
+- Existing ML-62 local account linking remains independent and unchanged in
+  behavior.
+- Profile ensure failure does not sign the user out, clear session state, block
+  navigation/startup/SQLite initialization, hide local data, or override local
+  account-linking behavior.
+
+Tests added/updated
+- Added:
+  src/lib/supabase/__tests__/supabase-profile-service.test.ts
+- Updated:
+  src/store/__tests__/auth-store.test.ts
+- Covered:
+  authenticated profile upsert/select
+  unauthenticated skip
+  unavailable Supabase client/config safe failure
+  Supabase errors/throws safe failure
+  repeated ensure uses same id and onConflict path
+  sensitive extra session fields are not persisted or returned
+  service does not touch local transaction/category DB/store actions
+  auth restore triggers profile ensure after authenticated state
+  Google login/setSession triggers profile ensure after authenticated state
+  profile failure keeps authenticated mode and does not sign out
+  existing account-linking failure behavior remains intact
+
+Docs updated
+- docs/mvp-qa-checklist.md now includes ML-63 automated and manual QA coverage.
+- docs/handoffs/ML_63_HANDOFF.txt includes the full ML-63 handoff, validation
+  results, manual Supabase steps, and completed owner manual QA.
+- .prettierignore now ignores supabase/migrations/*.sql because this repo has
+  no configured Prettier SQL parser.
+
+Version bump
+- package.json version bumped from 1.12.8 to 1.12.9.
+- package-lock.json top-level and root package version fields bumped to 1.12.9.
+- app.config.js was not edited and continues to read package.json.version.
+- app.json and eas.json were not changed.
+
+Automated validation completed
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 26 suites and 164 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.12.9.
+- git diff --check: passed.
+
+Regression checks completed
+- CSV header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- No dynamic process.env indexed access found in src/app.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling imports/dependencies were added.
+- New profile foundation files contain no transaction/category backup or sync
+  implementation.
+- Changed lines contain no raw secret, env, token, or internal owner/device
+  value patterns.
+
+Manual owner QA completed after applying SQL
+- Owner applied the SQL migration manually in Supabase.
+- Owner opened a dev/TestFlight build.
+- Owner signed out first when needed.
+- Owner logged in with Google from Settings -> Account.
+- Owner verified authenticated Account state appears.
+- Owner opened Supabase Table Editor -> profiles.
+- Owner verified a profile row appeared for the current user.
+- Owner restarted the app.
+- Owner verified session restore still works and the profile row was not
+  duplicated.
+- Owner signed out.
+- Owner verified local transactions/categories remained.
+- Owner logged in again.
+- Owner verified a duplicate profile row was not created.
+
+Important constraints for next planning
+- Do not rework Google Auth, Supabase env/config, redirects, TestFlight
+  visibility, or Account diagnostics UI unless there is a concrete regression.
+- Do not add Apple Sign-In unless a future task explicitly asks for it.
+- Do not add backup, restore, sync, transaction upload, category upload, remote
+  merge, delete account, or account deletion unless that is the next epic's
+  explicit scope.
+- Do not expose raw env values, Supabase URL, anon key, OAuth secrets, provider
+  secrets, tokens, raw EXPO_PUBLIC_* values, local owner IDs, device IDs, or
+  owner IDs in UI/logs/tests/docs.
+- Keep local-first behavior: auth/profile/backend failures must not make local
+  expense tracking unusable.
+- Keep implementation small. Avoid speculative abstractions and new
+  dependencies unless the next task clearly requires them.
+
+Recommended next planning direction
+- The next agent can treat ML-63 as complete.
+- A sensible next epic would start from the validated profiles/RLS foundation
+  and plan a narrow remote data contract or manual backup/sync v1.
+- That next epic should explicitly decide whether it is only a plan/design
+  document or an implementation of remote transaction/category backup.
+
+================================================================================
+
+EPIC 64 — SOURCE: ML_64_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-64 Completion Summary for Next Planning Agent
+
+Project
+- Money Leak is an Expo / React Native / TypeScript / Expo Router app.
+- App remains local-first.
+- Guest/local mode is permanent and must remain available.
+- There is no login wall.
+- Current app version after ML-64 is 1.12.10.
+- package.json is the version source of truth; app.config.js reads
+  package.json.version.
+
+ML-64 Goal Completed
+- Implemented Backup/Sync Foundation Layer v1.
+- This was foundation work only.
+- It prepares Supabase schema and app-side contracts for a future explicit
+  manual backup flow.
+- It does not add production backup, restore, sync, or merge behavior.
+
+Code / Files Added
+- supabase/migrations/20260520010000_create_remote_backup_tables.sql
+- src/lib/sync/sync-types.ts
+- src/lib/sync/local-backup-data-source.ts
+- src/lib/sync/backup-service.ts
+- src/lib/sync/fake-remote-backup-adapter.ts
+- src/lib/sync/__tests__/backup-service.test.ts
+- docs/handoffs/ML_64_HANDOFF.txt
+- docs/handoffs/ML_64_COMPLETION_SUMMARY.txt
+
+Code / Files Updated
+- docs/sync-data-contract.md
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+Supabase Schema Added
+- Added public.remote_transactions.
+- Added public.remote_categories.
+- Did not add remote_settings.
+- Did not add sync_metadata.
+- Both tables use user-owned rows:
+  - user_id uuid not null references auth.users(id) on delete cascade
+  - id text not null
+  - primary key (user_id, id)
+- Composite keys were chosen to prevent cross-user local ID collisions.
+- Remote timestamps use timestamptz.
+- App-side foundation maps local epoch milliseconds to ISO strings for remote
+  timestamptz writes.
+- Both tables include deleted_at for future soft-delete-compatible sync.
+- Physical delete is allowed by RLS policy only for future account/privacy or
+  manual cleanup needs. ML-64 app code does not call physical delete.
+
+RLS / Security Foundation
+- RLS enabled on remote_transactions and remote_categories.
+- Anonymous/public table access revoked.
+- Authenticated users can select, insert, update, and delete only their own rows.
+- Policies use auth.uid() ownership checks against user_id.
+- No service role key is used.
+- No service role code was added to the mobile app.
+- No raw Supabase URL, anon key, service key, owner ID, localOwnerId, deviceId,
+  OAuth secret, provider token, access token, or refresh token was added to UI,
+  logs, docs, or runtime code.
+
+App-Side Sync Foundation
+- Added narrow sync/backup types:
+  - RemoteTransaction
+  - RemoteCategory
+  - BackupPayload
+  - BackupResult
+  - RestoreResult placeholder
+  - RemoteBackupAdapter
+  - BackupService
+- Added local read boundary:
+  - defaults to existing getTransactions() and getCategories() DB boundaries
+  - does not mutate local data
+  - filters deleted rows defensively
+  - includes active transactions only
+  - includes non-deleted categories, including archived categories
+  - does not include tombstones in normal ML-64 backup payloads
+- Added backup service skeleton:
+  - manual-call only
+  - not wired to Settings
+  - not wired to auth-store
+  - not run on login
+  - not run on session restore
+  - skips when backup feature flag is disabled
+  - skips in guest mode
+  - requires non-empty authenticated user id before adapter writes
+  - maps local transaction.category to remote categoryId
+  - returns safe recoverable results without raw backend/local error details
+- Added fake in-memory adapter for unit tests:
+  - upserts by (userId, id)
+  - supports simulated failures
+  - makes no live Supabase network calls
+- No real Supabase backup adapter was added in ML-64.
+
+Tests Added / Covered
+- Local backup data source reads configured boundaries without tombstones.
+- Local transaction/category mapping into remote backup payload.
+- category maps to categoryId.
+- Authenticated user id is required before remote writes.
+- Guest mode never attempts backup and does not read/upload local data.
+- Backup is disabled by default via existing feature flag state.
+- Preparing backup payload does not mutate local objects.
+- Deleted rows are excluded.
+- Archived categories are included.
+- Fake adapter accepts repeated writes without duplicates by (userId, id).
+- Local read failures return safe recoverable BackupResult values.
+- Adapter failures return safe recoverable BackupResult values.
+- No live Supabase network calls are required in unit tests.
+
+Validation Run
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 27 suites and 174 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.12.10.
+- git diff --check: passed.
+
+Manual Supabase Work Completed by Owner
+- Owner manually applied:
+  supabase/migrations/20260520010000_create_remote_backup_tables.sql
+- Supabase path used:
+  Project -> SQL Editor -> New query -> pasted migration SQL -> Run
+- Owner verified tables exist:
+  - remote_transactions
+  - remote_categories
+- Owner verified minimal RLS state manually:
+  - tables exist in Table Editor
+  - RLS enabled
+  - policies are only own-row policies
+
+Manual App QA Completed by Owner
+- Opened Settings -> Account.
+- Completed Google login.
+- Confirmed local data remained visible.
+- Signed out.
+- Confirmed local data remained after Sign Out.
+- Confirmed backup UI did not appear.
+- Owner reported manual testing is OK.
+
+Important Preserved Invariants
+- Guest/local mode remains available.
+- No login wall.
+- Local tracking does not depend on network/auth/backend availability.
+- ML-63 profile foundation was not reworked.
+- Google Auth was not reworked.
+- Supabase env/config was not reworked.
+- Redirect/TestFlight visibility logic was not reworked.
+- Account diagnostics UI was not restored.
+- Bottom tabs remain exactly:
+  - Home
+  - Analytics & Leaks
+  - Settings
+- Add Transaction remains a pushed root Stack screen, not a bottom tab.
+- Shame Card remains a pushed root Stack screen, not a bottom tab.
+- CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- app.config.js was not changed.
+- No new dependencies were added.
+
+Intentionally Not Implemented in ML-64
+- No production backup button.
+- No backup UI in Settings.
+- No restore prompt.
+- No restore UI.
+- No automatic sync.
+- No background sync.
+- No incremental sync.
+- No upload on login.
+- No upload on session restore.
+- No remote merge.
+- No remote-to-local SQLite restore.
+- No delete account.
+- No Apple Sign-In.
+- No real Supabase backup adapter.
+- No remote_settings table.
+- No sync_metadata table.
+- No service role code or service role key.
+- No CSV format changes.
+- No Account diagnostics UI.
+
+Current Feature Flag State
+- googleAuthEnabled: true
+- appleAuthEnabled: false
+- backupEnabled: false
+- restoreEnabled: false
+- incrementalSyncEnabled: false
+
+Planning Notes for Next Agent
+- The next logical epic can plan an explicit manual backup flow.
+- Manual backup must be triggered only by clear user action.
+- Do not add automatic backup/sync on login or session restore.
+- Do not block guest/local mode.
+- Do not add restore/merge until a separate restore contract and UX are planned.
+- A future real Supabase adapter should implement RemoteBackupAdapter and should
+  be covered by mocked tests first.
+- A future backup button should remain hidden behind an explicit product decision
+  and feature flag change.
+- If backup writes are added later, preserve safe recoverable failures and never
+  expose raw backend errors, IDs, URLs, keys, tokens, or device identifiers in UI
+  or logs.
+
+================================================================================
+
+EPIC 65 — SOURCE: ML_65_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-65 Manual Backup MVP - Agent Context For Future Planning
+
+Current status
+- ML-65 is implemented and manually verified by the owner.
+- Current app version is 1.13.0.
+- package.json remains the source of truth for app version.
+- app.config.js still reads package.json.version.
+- The app remains local-first.
+- Guest/local mode remains permanent and available.
+- There is no login wall.
+- Local data remains the source of truth and is never deleted, overwritten,
+  restored, merged, or uploaded automatically by ML-65.
+
+What ML-65 added
+- Authenticated users can manually create a remote backup from Settings.
+- Settings shows a Backup card only when:
+  - the user is authenticated;
+  - featureFlags.backupEnabled is true.
+- Guest mode does not show or trigger manual backup.
+- Backup button label is "Create backup now".
+- Running state is "Creating backup...".
+- Success state shows uploaded counts:
+  "Backup created. X transactions and Y categories saved."
+- Failure state uses only safe generic copy:
+  "Couldn't create backup. Try again."
+- Last successful backup timestamp is stored locally and displayed as
+  "Last backup: ..." when available.
+
+Remote backup implementation
+- Added real Supabase RemoteBackupAdapter:
+  src/lib/sync/supabase-remote-backup-adapter.ts
+- Added production service singleton:
+  src/lib/sync/manual-backup-service.ts
+- The adapter implements the existing ML-64 RemoteBackupAdapter contract.
+- It uses the existing Supabase anon client from:
+  src/lib/supabase/supabase-client.ts
+- It relies on the existing persisted Supabase auth session.
+- It never uses a service role key.
+- It upserts categories first into public.remote_categories.
+- It upserts transactions second into public.remote_transactions.
+- Both table writes use:
+  onConflict: "user_id,id"
+- This makes repeated manual backups safe and prevents duplicates by
+  (user_id, id).
+- Local transaction.category remains mapped to remote category_id.
+- The adapter maps existing camelCase backup payload fields to snake_case
+  Supabase columns.
+- Adapter and UI intentionally do not expose raw Supabase errors, raw env
+  values, anon keys, tokens, auth IDs, localOwnerId, deviceId, OAuth secrets, or
+  backend identifiers.
+
+Local last-backup status
+- Added backup status DB boundary:
+  src/db/backup-status.ts
+  src/db/backup-status.native.ts
+  src/db/backup-status.web.ts
+- Native implementation stores the timestamp in existing SQLite app_metadata:
+  key = last_successful_backup_at
+- Web implementation returns null and no-ops safely.
+- Timestamp is written only after successful remote backup.
+- Timestamp is a local convenience marker, not remote sync metadata.
+
+Feature flags after ML-65
+- googleAuthEnabled: unchanged, currently true.
+- appleAuthEnabled: false.
+- backupEnabled: true.
+- restoreEnabled: false.
+- incrementalSyncEnabled: false.
+
+Settings UI after ML-65
+- Backup card was added immediately after the existing Data card.
+- Backup card is hidden for guest/local mode.
+- Backup card is hidden if backupEnabled is false.
+- No Account diagnostics UI was added.
+- No raw config, token, account, owner, localOwnerId, or deviceId values are
+  rendered in Settings.
+- Sign Out behavior is unchanged and does not touch local transaction/category
+  data.
+
+Tests added or updated
+- Added:
+  src/lib/sync/__tests__/supabase-remote-backup-adapter.test.ts
+- Updated:
+  src/lib/sync/__tests__/backup-service.test.ts
+  src/features/settings/__tests__/settings-screen.test.ts
+- Coverage includes:
+  - authenticated manual backup path through createBackupService with mocked
+    Supabase client;
+  - adapter upserts remote_categories and remote_transactions;
+  - upsert conflict target is user_id,id;
+  - repeated adapter backup does not duplicate mocked rows;
+  - categoryId maps to category_id;
+  - Supabase client unavailable returns safe recoverable service failure;
+  - remote write failure returns safe recoverable service failure;
+  - guest mode does not trigger remote writes;
+  - backup feature disabled skips/hides backup;
+  - local read failure returns safe recoverable failure;
+  - Settings renders backup UI only in authenticated + enabled state;
+  - Settings loading, success, generic failure, and last-backup states;
+  - Settings does not render raw env values, tokens, backend errors, auth IDs,
+    owner IDs, localOwnerId, or deviceId;
+  - Sign Out does not trigger backup/import/export or mutate local data.
+
+Docs updated
+- Updated:
+  docs/mvp-qa-checklist.md
+- Added:
+  docs/handoffs/ML_65_HANDOFF.txt
+  docs/handoffs/ML_65_AGENT_CONTEXT.txt
+
+Version bump
+- package.json version changed from 1.12.10 to 1.13.0.
+- package-lock.json root/top-level version fields changed from 1.12.10 to
+  1.13.0.
+- Reason: ML-65 adds user-facing manual backup functionality, and README
+  versioning policy says user-facing epics use a minor bump.
+- app.config.js was not edited.
+- app.json was not edited.
+- eas.json was not edited.
+
+Automated validation completed
+- npm run release:preflight: passed.
+- npm test -- --runInBand: passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.13.0.
+- git diff --check: passed.
+
+Targeted invariant checks completed
+- No service-role usage found in mobile app code.
+- No raw env/token/provider secret exposure found in production Settings/UI.
+- No dynamic process.env[...] access found in src or app.
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a pushed root Stack screen, not a bottom tab.
+- Shame Card remains a pushed root Stack screen, not a bottom tab.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling additions were found.
+
+Owner manual QA completed successfully
+- Opened the app.
+- Went to Settings -> Account.
+- Logged in through Google.
+- Confirmed backup card and "Create backup now" button appeared.
+- Pressed "Create backup now".
+- Confirmed success state appeared.
+- Opened Supabase Table Editor.
+- Checked remote_transactions.
+- Checked remote_categories.
+- Confirmed rows appeared for the current authenticated user.
+- Pressed backup again.
+- Confirmed duplicate rows were not created.
+- Added a new local transaction.
+- Pressed backup again.
+- Confirmed the new transaction appeared in Supabase.
+- Signed out.
+- Confirmed local data remained present.
+- In guest mode, confirmed backup does not run.
+
+Manual Supabase verification result
+- remote_transactions receives current user's local transactions.
+- remote_categories receives current user's categories.
+- Re-running backup upserts existing rows instead of duplicating them.
+- Adding local data and backing up again uploads the new row.
+- Sign Out does not delete or mutate local data.
+
+Intentionally not implemented in ML-65
+- Restore backup.
+- Restore prompt.
+- Merge local + remote.
+- Replace local data from remote.
+- Automatic backup on login.
+- Automatic backup on session restore.
+- Background sync.
+- Incremental sync.
+- Push/pull sync loop.
+- Delete account.
+- Apple Sign-In.
+- Account diagnostics UI.
+- CSV v2.
+- CSV v1 format changes.
+- Bottom tab/navigation changes.
+- Visual redesign.
+- @expo/ui, SwiftUI wrapper, BlurView, expo-blur, glass styling, or Liquid
+  Glass imitation.
+
+Important planning guidance for the next agent
+- Treat ML-65 as complete and verified.
+- Do not re-plan or reimplement manual backup foundation unless a bug is found.
+- Future restore/sync work should build on:
+  - src/lib/sync/sync-types.ts
+  - src/lib/sync/backup-service.ts
+  - src/lib/sync/local-backup-data-source.ts
+  - src/lib/sync/supabase-remote-backup-adapter.ts
+  - supabase/migrations/20260520010000_create_remote_backup_tables.sql
+- Preserve local-first behavior.
+- Preserve guest mode.
+- Do not add a login wall.
+- Do not mutate local transactions/categories on Sign Out.
+- Do not expose raw backend errors, env values, tokens, auth IDs, localOwnerId,
+  deviceId, OAuth secrets, or provider secrets in UI/logs/docs.
+
+================================================================================
+
+EPIC 66 — SOURCE: ML_66_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-66 Restore Backup MVP - Agent Context
+
+Purpose
+- This file summarizes what was implemented and verified for ML-66 so a future
+  AI agent can plan follow-up work without rediscovering the same context.
+
+Current release state
+- Money Leak version is now 1.14.0.
+- package.json is the version source of truth.
+- app.config.js reads package.json.version.
+- app.config.js, app.json, and eas.json were not changed for ML-66.
+- featureFlags.restoreEnabled is true.
+- featureFlags.backupEnabled remains true.
+- featureFlags.incrementalSyncEnabled remains false.
+- featureFlags.appleAuthEnabled remains false.
+
+ML-66 implemented behavior
+- Authenticated users can manually restore their remote backup from Settings.
+- Restore is manual only.
+- There is no auto-restore on login.
+- There is no auto-restore on session restore.
+- There is no background sync.
+- There is no incremental sync.
+- There is no replace-local-with-cloud behavior.
+- Restore is merge-only:
+  - remote categories are restored first;
+  - remote transactions are restored second;
+  - existing local rows with the same stable id are not duplicated;
+  - existing local rows with the same stable id are not overwritten;
+  - local rows not present in remote remain untouched.
+- Guest/local mode remains permanent and has no restore UI.
+- If local DB has existing non-deleted transactions or categories, Settings
+  shows this confirmation before restore:
+  "This will merge your cloud backup into this device. Existing local data will not be deleted."
+- Empty remote backup copy is:
+  "No backup found for this account."
+- Restore failure copy is:
+  "Couldn't restore backup. Try again."
+- Success copy is:
+  "Backup restored. X transactions and Y categories restored."
+
+Main files added
+- src/lib/sync/supabase-remote-restore-adapter.ts
+- src/lib/sync/local-restore-data-target.ts
+- src/lib/sync/restore-service.ts
+- src/lib/sync/manual-restore-service.ts
+- src/lib/sync/__tests__/restore-service.test.ts
+- src/lib/sync/__tests__/local-restore-data-target.test.ts
+- src/lib/sync/__tests__/supabase-remote-restore-adapter.test.ts
+- docs/handoffs/ML_66_HANDOFF.txt
+
+Main files updated
+- src/lib/sync/sync-types.ts
+- src/lib/feature-flags.ts
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/db/categories.ts
+- src/db/categories.native.ts
+- src/db/categories.web.ts
+- src/db/transactions.ts
+- src/db/transactions.native.ts
+- src/db/transactions.web.ts
+- src/db/__tests__/categories.native.test.ts
+- src/db/__tests__/transactions.native.test.ts
+- src/features/export/__tests__/export-transactions-csv.test.ts
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+- src/types/transaction.ts
+
+Implementation details
+- Supabase restore adapter uses the existing anon client from
+  src/lib/supabase/supabase-client.ts.
+- Supabase restore reads only:
+  - public.remote_categories
+  - public.remote_transactions
+- Remote reads use explicit column lists and filter by user_id.
+- The adapter relies on current authenticated Supabase session and RLS.
+- No service role key or service role client was added.
+- Snake_case Supabase rows are mapped back to app sync camelCase payloads.
+- Restore service skips guest mode, disabled flag, and missing authenticated
+  user id.
+- Restore service returns a safe empty state when remote active categories and
+  active transactions are both empty.
+- Restore service returns safe recoverable failures for remote read and local
+  write failure.
+- Local restore target filters remote tombstones out for ML-66 restore v1.
+- Local restore target converts remote ISO timestamps to epoch milliseconds.
+- Transaction remote categoryId/category_id is mapped back to local
+  transaction.category.
+- Native DB restore helpers use INSERT OR IGNORE.
+- Web DB restore helpers throw native-only persistence errors, which are
+  handled by the restore service/UI as safe restore failure.
+- After successful restore, Settings refreshes transactions and categories.
+
+Tests added or updated
+- Restore service tests cover:
+  - guest mode skip;
+  - disabled feature flag skip;
+  - missing user id skip;
+  - empty remote backup;
+  - successful restore counts;
+  - safe remote read failure;
+  - safe local write failure.
+- Supabase restore adapter tests cover:
+  - explicit remote table reads;
+  - user_id filtering;
+  - snake_case to camelCase mapping;
+  - Supabase client unavailable safe failure;
+  - remote read failure safe failure;
+  - empty remote backup.
+- Local restore target tests cover:
+  - local data presence detection;
+  - category-before-transaction writes;
+  - remote category_id to local transaction.category mapping;
+  - remote tombstone filtering;
+  - invalid timestamp failure path.
+- Native DB tests cover:
+  - restoreCategories is idempotent and does not overwrite existing categories;
+  - restoreTransactions is idempotent and does not overwrite existing
+    transactions;
+  - local-only rows are preserved.
+- Settings tests cover:
+  - guest mode has no restore UI and cannot run restore;
+  - authenticated users see restore UI when enabled;
+  - restoreEnabled false hides restore UI;
+  - loading/success/empty/failure UI states;
+  - non-empty local DB confirmation before restore;
+  - safe copy without raw backend/env/token/auth/local owner/device values;
+  - Sign Out does not trigger restore or mutate local data.
+- CSV test explicitly keeps CSV v1 header unchanged.
+
+Automated validation run
+- npm run release:preflight: passed.
+- npm test -- --runInBand: passed, 31 suites and 212 tests.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.14.0.
+- git diff --check: passed.
+
+Regression checks completed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home, Analytics & Leaks, Settings
+- Add Transaction and Shame Card remain pushed root Stack screens, not bottom
+  tabs.
+- No service-role usage was found in mobile app code.
+- No raw env/token/provider secret exposure was found in production Settings UI
+  or sync production code.
+- No dynamic process.env[...] access was found in src or app.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling additions were made.
+
+Manual QA completed by owner
+- Built dev/TestFlight build.
+- Logged in with Google.
+- Confirmed Restore card appears for authenticated user.
+- On clean install/new simulator:
+  - logged in with the same Google account;
+  - tapped Restore from backup;
+  - confirmed categories and transactions appeared.
+- On a device with existing local data:
+  - tapped restore;
+  - confirmed merge prompt;
+  - confirmed local data did not disappear.
+- Ran restore repeatedly and confirmed no duplicates from repeated restore.
+- Signed out and confirmed local data remained.
+- Checked guest mode and confirmed Restore card is hidden.
+
+Known follow-up found during manual QA
+- Deletion propagation is not handled yet.
+- Current local delete writes a local tombstone, but ML-65 backup excludes
+  deleted rows/tombstones.
+- Because tombstones are not uploaded, remote backup can still keep an older
+  active row that was deleted locally.
+- If the user deletes a transaction locally and later creates a similar
+  transaction with a new id, restore can merge the old remote row plus the new
+  local row, which looks like a duplicate expense.
+- This is not a repeated-restore duplicate by stable id. It is a
+  tombstone/delete propagation gap.
+- Recommended next ticket:
+  ML-67 Delete Tombstone Backup/Restore MVP
+
+Suggested ML-67 scope
+- Include deleted transaction tombstones in manual backup.
+- Upsert transaction tombstones remotely.
+- Decide whether category tombstones stay out of scope or are included.
+- Restore tombstones safely by stable id.
+- Do not delete unrelated local data.
+- Keep local-first behavior.
+- Keep CSV v1 unchanged.
+- Do not add full incremental sync, background sync, conflict UI, or
+  replace-local-with-cloud behavior.
+
+Important non-goals still not implemented
+- Apple Sign-In.
+- Delete account.
+- Automatic restore on login.
+- Restore prompt on login.
+- Replace local data with cloud data.
+- Destructive merge.
+- Background sync.
+- Incremental sync.
+- Conflict UI.
+- CSV v2.
+- Visual redesign.
+- Account diagnostics UI.
+- New bottom tabs.
+
+================================================================================
+
+EPIC 67 — SOURCE: ML_67_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-67 Agent Context For Future Planning
+
+Status
+- ML-67 Delete Tombstone Backup/Restore MVP has been implemented.
+- Automated validation passed.
+- Owner completed manual QA and reported everything is OK.
+- Current app version is 1.14.1.
+
+What changed
+- Manual backup now uploads deleted transaction tombstones as well as active
+  transactions.
+- Manual restore now applies remote transaction tombstones by stable transaction
+  id.
+- A restored transaction tombstone soft-deletes a matching active local
+  transaction so it remains hidden from normal UI reads.
+- A remote transaction tombstone with no matching local transaction id is
+  ignored and does not create a visible transaction.
+- Restore remains merge-only and does not delete unrelated local-only rows.
+- Repeated backup remains idempotent through remote upsert by (user_id, id).
+- Repeated restore remains idempotent because active rows use INSERT OR IGNORE
+  and tombstones only update active matching rows.
+
+Important implementation details
+- package.json is still the app version source of truth.
+- package.json and package-lock.json were bumped from 1.14.0 to 1.14.1.
+- app.config.js was not changed; it already reads package.json.version.
+- No Supabase migration was added because remote_transactions.deleted_at
+  already existed.
+- No new dependencies were added.
+- Settings UI behavior was intentionally kept unchanged.
+- No full sync, background sync, automatic backup/restore, replace-local with
+  cloud, destructive merge, conflict UI, CSV change, navigation change, Apple
+  Sign-In, Delete Account, or service-role usage was added.
+
+Primary code boundaries touched
+- src/types/transaction.ts
+  - Added TransactionTombstoneRestoreInput.
+- src/db/transactions.ts
+  - Exports getTransactionsForBackup and restoreTransactionTombstones.
+- src/db/transactions.native.ts
+  - getTransactionsForBackup returns active and soft-deleted transactions.
+  - restoreTransactionTombstones updates only matching active local rows by id.
+- src/db/transactions.web.ts
+  - Keeps native-only stubs aligned with the transaction API.
+- src/lib/sync/local-backup-data-source.ts
+  - Uses getTransactionsForBackup by default.
+  - Still filters category tombstones out.
+- src/lib/sync/backup-service.ts
+  - Sets includesTombstones to true.
+  - Stops filtering deleted transactions from backup payloads.
+- src/lib/sync/local-restore-data-target.ts
+  - Restores active categories, active transactions, then transaction
+    tombstones.
+  - Counts applied transaction tombstones in restoredTransactionsCount.
+- src/lib/sync/restore-service.ts
+  - Treats transaction tombstone-only remote payloads as restorable, not empty.
+- src/lib/sync/sync-types.ts
+  - BackupPayload.includesTombstones is now boolean.
+
+Category tombstone decision
+- Category tombstones are explicitly out of scope for ML-67.
+- Current category deletion behavior remains archive, not tombstone delete.
+- Archived categories continue to back up and restore as normal category records
+  with isArchived / is_archived preserved.
+- Remote category rows with deleted_at continue to be ignored by local restore.
+
+Tests added or updated
+- Local backup data source includes deleted transaction tombstones.
+- Backup service sends tombstones and sets includesTombstones to true.
+- Supabase backup adapter upserts transaction tombstones with deleted_at.
+- Supabase restore adapter maps remote deleted_at transaction rows.
+- Local restore target applies transaction tombstones after active rows.
+- Native transaction DB applies matching tombstones, ignores missing ids,
+  preserves unrelated local rows, hides deleted rows from getTransactions, and
+  remains idempotent.
+- Restore service handles tombstone-only remote payloads.
+- Existing guest mode, category archive behavior, Settings safe-copy behavior,
+  and CSV v1 header coverage remain in place.
+
+Validation run
+- npm run release:preflight: passed, 9 checks passed and 0 failed.
+- npm test -- --runInBand: passed, 31 suites and 217 tests passed.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.14.1.
+- git diff --check: passed.
+
+Invariant checks
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No service-role usage was found in mobile app code.
+- No dynamic process.env[...] access was found in src or app.
+- No raw env/token/provider secret exposure was found in production
+  Settings/sync code.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens, not bottom
+  tabs.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling additions were introduced.
+
+Manual QA completed by owner
+- Owner tested the ML-67 flow manually after implementation.
+- Owner reported that everything required by manual testing is OK.
+- Manual QA included the intended delete -> backup -> restore behavior where a
+  locally deleted transaction does not reappear.
+
+Useful next-planning notes
+- ML-67 fixes delete propagation only for manual backup/restore transaction
+  tombstones.
+- This is not incremental sync; there are still no sync cursors, revisions,
+  conflict resolution, background jobs, or automatic session-triggered
+  backup/restore flows.
+- If planning a later sync epic, preserve guest/local mode and avoid login
+  walls.
+- If planning category delete sync, first make an explicit product decision
+  separate from archive behavior.
+- If planning cloud replace/cleanup/delete-account behavior, treat it as a
+  separate destructive-data-management feature with explicit user confirmation.
+
+================================================================================
+
+EPIC 68 — SOURCE: ML_68_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-68 Native Apple Sign-In v1 - Agent Context
+
+Purpose
+- This file summarizes what was implemented, fixed, validated, and manually
+  checked for ML-68 so a future AI agent can plan from the current state
+  without rediscovering the whole thread.
+
+Current version
+- package.json version: 1.15.1
+- package-lock.json top-level version: 1.15.1
+- package-lock.json root package version: 1.15.1
+- app.config.js still reads package.json.version.
+- 1.15.0 was the intended ML-68 minor release bump.
+- 1.15.1 was added as a patch bump after CI did not trigger/release from the
+  previous push.
+
+Implemented app changes
+- Added native Apple Sign-In as a second optional auth provider beside Google.
+- Apple login is available only in Settings -> Account, guest mode, iOS, when
+  featureFlags.appleAuthEnabled is true and the native Apple auth adapter reports
+  availability.
+- Continue with Google remains visible and functional.
+- Continue with Apple is hidden for authenticated users and non-iOS/unavailable
+  paths.
+- Successful Apple login calls the existing authStore setSession flow.
+- Existing post-auth behavior is reused:
+  - local account linking;
+  - profile ensure;
+  - authenticated state.
+- Sign Out remains auth-only and does not delete, unlink, backup, restore, sync,
+  or otherwise mutate local transactions/categories.
+- Guest/local mode remains permanent; no login wall was added.
+
+Native Apple auth implementation
+- New file: src/lib/auth/apple-auth-adapter.ts
+- Uses expo-apple-authentication for the native Apple sheet.
+- Uses expo-crypto for nonce generation/hash.
+- Generates a cryptographically random raw nonce.
+- Sends SHA-256 nonce hash to AppleAuthentication.signInAsync.
+- Sends the raw nonce to Supabase:
+  supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token,
+    nonce
+  })
+- Requests Apple EMAIL and FULL_NAME scopes.
+- Accepts null email and null fullName.
+- Accepts Apple private relay email.
+- User cancel returns null and does not save a session.
+- Missing identityToken, native/provider failure, and Supabase exchange failure
+  map to safe generic user-facing copy.
+- No Apple OAuth browser redirect flow was added.
+- No Services ID, Apple OAuth client secret, or .p8 key is required by app code.
+
+Provider/session normalization
+- Updated src/lib/auth/supabase-auth-session.ts.
+- Auth provider is inferred from Supabase app_metadata / identities when
+  possible.
+- Apple sessions normalize as provider "apple".
+- Google sessions normalize as provider "google".
+- Google remains the legacy fallback for old/missing provider metadata.
+- Apple first-login fullName can be used as a display name override when
+  Supabase user metadata has no name.
+
+Feature flags and config
+- featureFlags.appleAuthEnabled is now true.
+- package.json dependencies now include:
+  - expo-apple-authentication
+  - expo-crypto
+- app.json plugins now include:
+  - expo-apple-authentication
+- app.json ios now includes:
+  - usesAppleSignIn: true
+- This usesAppleSignIn entry was added after CI failed because the provisioning
+  profile did not support the Sign in with Apple capability.
+
+CI / signing issue resolved manually
+- CI initially failed in the Xcode build step because the old App Store
+  provisioning profile did not include:
+  com.apple.developer.applesignin
+- The app config was updated with ios.usesAppleSignIn = true.
+- Expo config introspection confirmed the generated iOS entitlements include:
+  com.apple.developer.applesignin: ["Default"]
+- The owner deleted the old App Store provisioning profile from EAS project
+  credentials.
+- The owner ran EAS credentials setup so EAS generated/assigned a new active
+  App Store provisioning profile.
+- EAS credentials screen reported all credentials ready to build.
+- Future CI release builds should use the regenerated provisioning profile.
+
+Automated validation performed
+- npm run release:preflight: passed for 1.15.1.
+- npm test -- --runInBand: passed after implementation, 33 suites and 235 tests.
+- npm run typecheck: passed.
+- npm run lint: passed.
+- npm run format:check: passed.
+- npx expo config --json: passed and resolved version 1.15.0 during ML-68
+  validation, then release:preflight confirmed 1.15.1 after patch bump.
+- npx expo config --type introspect --json: confirmed Apple entitlement after
+  adding usesAppleSignIn.
+- git diff --check: passed.
+
+Targeted regression checks performed
+- CSV v1 header remained:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remained exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Shame Card remained pushed root Stack screens, not bottom
+  tabs.
+- No service-role usage was added in mobile app code/config.
+- No dynamic process.env[...] access was added in src/app.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- No Apple signInWithOAuth browser flow was added.
+- No raw Supabase env values, anon key, OAuth secrets, provider secrets,
+  access/refresh tokens, provider tokens, Apple identity tokens, localOwnerId,
+  deviceId, or ownerId are intentionally shown in Settings/Auth UI.
+
+Tests added/updated
+- Added src/lib/auth/__tests__/apple-auth-adapter.test.ts.
+- Added src/lib/auth/__tests__/supabase-auth-session.test.ts.
+- Updated src/features/settings/__tests__/settings-screen.test.ts.
+- Test coverage includes:
+  - Apple adapter success mapping;
+  - Apple cancel returns null;
+  - missing identityToken safe error;
+  - provider/Supabase failure safe generic error;
+  - nonce hash/raw nonce behavior;
+  - null Apple email/fullName;
+  - Apple button visible on iOS when enabled/available;
+  - Apple button hidden on non-iOS/unavailable/authenticated paths;
+  - Google login visibility/behavior not regressed;
+  - Sign Out does not touch local data/backup/restore/import/export paths;
+  - no raw sensitive values in Settings/Auth UI tests.
+
+Manual QA completed by owner
+- Built dev/TestFlight iOS build.
+- Opened Settings -> Account.
+- Confirmed Continue with Google remained visible.
+- Confirmed Continue with Apple appeared on iOS.
+- Tapped Continue with Apple and cancelled; no fatal error.
+- Repeated and completed Apple login.
+- Confirmed authenticated state.
+- Confirmed local transactions/categories remained after Apple login.
+- Tapped Sign Out.
+- Confirmed local transactions/categories remained after Sign Out.
+- Signed in again with Google and confirmed Google still worked.
+- Signed out and signed in again with Apple and confirmed Apple still worked.
+- Confirmed Backup/Restore cards are visible only for authenticated users.
+- Confirmed guest mode still works without a login wall.
+- Owner reported all required manual setup and manual testing are complete.
+
+Known caveat for future planning
+- The app does not call linkIdentity, unlinkIdentity, or match Google and Apple
+  users by email.
+- Supabase Auth may automatically link OAuth identities with the same verified
+  email on the backend. This behavior is outside the mobile client and should be
+  considered when planning provider/account UX.
+
+Important non-goals already preserved
+- No backend/auth wall/cloud sync was added beyond existing Supabase Auth use.
+- No database schema migrations, RLS changes, or new remote tables were added.
+- No automatic backup/restore after login was added.
+- No incremental sync was added.
+- No Delete Account or provider account-linking UI was added.
+- No CSV v2 or CSV schema change was added.
+- No bottom tab/navigation changes were added.
+- No Supabase service role key is used in the mobile app.
+
+Recommended next-agent starting point
+- Treat ML-68 as implemented and manually verified.
+- If planning a release follow-up, start from version 1.15.1 and confirm CI uses
+  the regenerated EAS App Store provisioning profile.
+- If planning auth/provider UX, account linking, or backup behavior, explicitly
+  account for Supabase backend same-email identity auto-link behavior.
+- If planning additional Apple auth hardening, test only on real iPhone/TestFlight
+  for final success/failure proof; simulator is useful only for UI/cancel/safe
+  error checks.
+
+================================================================================
+
+EPIC 69 — SOURCE: ML_69_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-69 Agent Context: Delete Account / Privacy Controls v1
+
+Date
+- 2026-05-20
+
+Repository
+- /Users/quitesocial/Code/money-leak
+
+Purpose
+- This file summarizes the ML-69 work already completed so a future AI agent can
+  plan follow-up work without re-discovering the implementation state.
+
+Status
+- ML-69 implementation is complete.
+- Automated validation passed.
+- The user reported manual testing was completed successfully and everything
+  looked OK.
+- Changes are present in the working tree; this summary does not imply a commit
+  or PR was created.
+
+Implemented Behavior
+- Authenticated users now see a separate Settings Privacy section with a
+  destructive Delete Account control.
+- Guest/local users do not see Delete Account UI.
+- Delete Account remains separate from Sign Out.
+- Sign Out behavior remains unchanged.
+- Confirmed Delete Account deletes app-owned cloud data for the current
+  authenticated user and then calls the existing auth signOut flow.
+- After successful delete, the app returns to guest/local mode.
+- Local SQLite transactions/categories are not deleted, overwritten, unlinked,
+  imported, exported, restored, backed up, or otherwise mutated by Delete
+  Account.
+- No automatic backup, restore, sync, upload, or remote merge runs as part of
+  Delete Account.
+
+Remote Delete Scope
+- The app deletes rows owned by the current authenticated user from:
+  - public.remote_transactions by user_id
+  - public.remote_categories by user_id
+  - public.profiles by id
+- Delete order is remote_transactions, remote_categories, profiles.
+- The implementation uses the existing Supabase anon client and authenticated
+  RLS.
+- No service-role key or admin client was added to mobile app code.
+- Full Supabase Auth auth.users hard-delete is intentionally out of scope for
+  ML-69. Future hard-delete should be planned as an Edge Function or other
+  server-side admin/service-role task.
+
+Files Added
+- src/lib/account/delete-account-service.ts
+- src/lib/account/supabase-delete-account-adapter.ts
+- src/lib/account/__tests__/delete-account-service.test.ts
+- supabase/migrations/20260520020000_add_profiles_delete_policy.sql
+- docs/handoffs/ML_69_HANDOFF.txt
+- docs/handoffs/ML_69_AGENT_CONTEXT.txt
+
+Files Updated
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+RLS / Migration Notes
+- Existing remote_transactions and remote_categories tables already had
+  authenticated owner delete policies.
+- profiles did not previously grant/delete through RLS.
+- Added migration:
+  supabase/migrations/20260520020000_add_profiles_delete_policy.sql
+- Migration grants delete on public.profiles to authenticated and adds
+  profiles_delete_own using auth.uid() = id.
+
+UI Details
+- Settings authenticated state now includes a Privacy card.
+- Button label: Delete Account
+- Loading label: Deleting account...
+- Failure copy: Couldn't delete account. Try again.
+- Confirmation title: Delete account data?
+- Confirmation body states that cloud account data and cloud backup are deleted,
+  while local transactions/categories on this device stay here.
+- Delete Account uses destructive button styling, but Settings was not broadly
+  redesigned.
+
+Service Boundary
+- createDeleteAccountService accepts an adapter and exposes runDeleteAccount.
+- Input auth context includes status and userId.
+- Guest mode returns a safe skipped result without calling the adapter.
+- Missing authenticated user id returns a safe skipped result.
+- Remote/client failures return safe recoverable failures.
+- Raw Supabase/backend errors are never surfaced to Settings UI.
+
+Tests Added / Updated
+- Service tests cover:
+  - authenticated delete calls all three remote deletes in order
+  - user id trimming
+  - guest/no-user skip behavior
+  - missing Supabase client failure
+  - remote delete returned error
+  - remote delete thrown error
+  - safe output without raw backend/token/id values
+- Settings tests cover:
+  - guest users do not see Delete Account
+  - authenticated users see Privacy/Delete Account
+  - cancellation does not call delete service
+  - confirmed delete calls delete service and then signOut
+  - loading state
+  - failure state with generic copy only
+  - Sign Out does not call delete service
+  - Delete Account does not call backup, restore, import, export, transaction
+    load, category load, or local data mutation actions
+  - Settings UI does not render sensitive raw values
+
+Versioning
+- package.json bumped from 1.15.1 to 1.16.0.
+- package-lock.json root/top-level version fields bumped from 1.15.1 to 1.16.0.
+- app.config.js was not changed; it still reads package.json.version.
+- eas.json was not changed.
+
+Automated Validation Passed
+- npm run release:preflight
+  - 9 passed, 0 failed
+- npm test -- --runInBand
+  - 34 suites passed
+  - 247 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved version 1.16.0
+- git diff --check
+
+Targeted Regression Checks Passed
+- No service-role usage in mobile app code:
+  rg -n "service[_-]?role|SERVICE_ROLE" src app package.json app.config.js eas.json
+- No dynamic process.env[...] access in src/app:
+  rg -n "process\\.env\\[" src app
+- No banned UI/dependency/styling strings:
+  rg -n "@expo/ui|SwiftUI|BlurView|expo-blur|Liquid Glass|glass" src app package.json app.config.js eas.json
+- No sensitive Settings/UI token/env/id strings rendered:
+  checked Settings and app route UI for EXPO_PUBLIC, access_token,
+  refresh_token, provider_token, identityToken, localOwnerId, deviceId, ownerId,
+  auth-user, SUPABASE/Supabase, anon key, secret, raw backend.
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home, Analytics & Leaks, Settings
+- Add Transaction remains a pushed root Stack screen.
+- Shame Card remains a pushed root Stack screen.
+
+Manual QA Reported By User
+- The user reported that all required manual work/testing was completed and
+  everything was OK.
+
+Preserved Non-Goals / Constraints
+- No login wall.
+- Guest/local mode remains permanently available.
+- No backend/admin auth.users deletion from the mobile app.
+- No service-role key in mobile app code.
+- No Google Auth rework.
+- No Apple Auth rework.
+- No Supabase config/env handling rework.
+- No backup/restore rework.
+- No local account-linking rework.
+- No local SQLite transaction/category mutation.
+- No CSV format change.
+- No bottom tab change.
+- No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
+  styling.
+
+Recommended Future Planning Topics
+- If product needs true Supabase Auth user hard-delete, design a server-side
+  Edge Function/admin path that deletes auth.users after app-owned rows are
+  removed.
+- Decide whether Delete Account should eventually revoke provider identities or
+  expose a provider-specific account deletion completion state.
+- Decide whether privacy docs/support copy should mention that ML-69 deletes
+  app-owned cloud data but does not hard-delete the Supabase Auth user.
+
+================================================================================
+
+EPIC 70 — SOURCE: ML_70_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-70 Next Agent Context
+Date: 2026-05-21
+
+Purpose
+- This file summarizes what was already implemented, validated, and manually
+  tested for ML-70 so a future AI agent can plan from the current state instead
+  of rediscovering the completed work.
+
+Completed scope
+- Added full account deletion backend finalization through a Supabase Edge
+  Function named delete-account.
+- Delete Account now deletes app-owned cloud rows and then deletes the
+  Supabase Auth user through a server-side service-role boundary.
+- Mobile app code does not contain a service-role key or Supabase admin client.
+- Delete Account remains authenticated-only.
+- Guest/local mode remains permanently available with no login wall.
+- Sign Out remains separate and does not call Delete Account or the Edge
+  Function.
+- Local SQLite transactions/categories remain untouched.
+
+Implemented files and behavior
+- supabase/functions/delete-account/handler.ts
+  - Verifies the incoming bearer JWT through Supabase Auth.
+  - Derives the user id from verified auth context.
+  - Ignores any request body user id.
+  - Deletes public.remote_transactions by user_id.
+  - Deletes public.remote_categories by user_id.
+  - Deletes public.profiles by id.
+  - Deletes the Supabase Auth user through the admin endpoint.
+  - Treats zero app-owned rows as success.
+  - Treats missing Auth user on delete as safely complete.
+  - If app-owned row deletion fails, does not delete the Auth user.
+  - Returns only small safe JSON responses.
+- supabase/functions/delete-account/index.ts
+  - Serves the handler with Deno.
+  - Reads the platform-provided SUPABASE_URL.
+  - Reads the custom secret MONEY_LEAK_SERVICE_ROLE_KEY.
+- src/lib/account/supabase-delete-account-adapter.ts
+  - Calls client.functions.invoke('delete-account') through the existing
+    authenticated Supabase anon client.
+  - Does not pass a raw user id or request body.
+  - Maps errors to the existing safe recoverable result shape.
+- src/lib/account/delete-account-service.ts
+  - Keeps guest and missing-authenticated-user skips.
+  - Uses auth presence instead of passing a raw user id into the delete service.
+- src/features/settings/settings-screen.tsx
+  - Confirmed Delete Account calls the delete service and then the existing
+    signOut flow.
+  - Failure UI remains exactly: Couldn't delete account. Try again.
+  - Delete Account catch no longer logs raw error objects.
+
+Secret naming correction
+- Supabase CLI rejects custom Edge Function secrets that start with SUPABASE_.
+- The admin key env var was renamed from SUPABASE_SERVICE_ROLE_KEY to
+  MONEY_LEAK_SERVICE_ROLE_KEY everywhere in active ML-70 code, tests, and docs.
+- Deployment docs now use:
+  npx supabase secrets set MONEY_LEAK_SERVICE_ROLE_KEY=<service-role-or-secret-key>
+- No real secret value was committed.
+- Docs mention that if any service role/secret key was exposed in code, logs,
+  docs, screenshots, or chat, it must be rotated before deployment.
+
+Docs updated
+- docs/handoffs/ML_70_HANDOFF.txt
+  - Includes implementation notes, deployment steps, manual QA checklist,
+    validation commands, targeted regression checks, non-goals, and version
+    bump rationale.
+- docs/mvp-qa-checklist.md
+  - Includes ML-70 QA and deployment notes.
+- AGENTS.md
+  - Adds durable rule that Supabase service-role/admin operations belong only
+    in server-side Supabase Edge Functions.
+  - Corrects current app route structure for Settings, Add Transaction, and
+    Shame Card.
+- .gitignore
+  - Adds supabase/.temp/ because it is Supabase CLI local state and should not
+    be committed.
+
+Version
+- App version was bumped from 1.16.0 to 1.16.1.
+- package.json remains the version source of truth.
+- package-lock.json root version fields were updated to 1.16.1.
+- app.config.js reads package.json.version and was not changed.
+- eas.json was not changed.
+
+Automated validation already passed
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+- Targeted Edge Function test:
+  npm test -- --runInBand supabase/functions/delete-account/__tests__/handler.test.ts
+
+Targeted checks already performed
+- rg confirmed old SUPABASE_SERVICE_ROLE_KEY references were removed from the
+  active repo, excluding ignored/generated folders.
+- rg confirmed MONEY_LEAK_SERVICE_ROLE_KEY is present only in the Edge Function
+  code/tests and ML-70 docs.
+- Confirmed no service-role/admin Supabase usage in mobile app code/config.
+- Confirmed no dynamic process.env[...] access was added in src/app.
+- Confirmed Settings/account/delete production code does not expose raw env
+  values, tokens, provider secrets, ids, or backend errors.
+- Confirmed CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Confirmed bottom tabs remain Home, Analytics & Leaks, Settings.
+- Confirmed Add Transaction and Shame Card remain root Stack screens.
+- Confirmed no @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass,
+  or glass styling was added.
+
+Manual QA completed by project owner
+- Logged in.
+- Created/confirmed backup.
+- Ran Delete Account.
+- Verified Supabase app-owned tables were cleaned.
+- Verified Supabase Authentication -> Users no longer contained the Auth user.
+- Verified local SQLite data remained on the device.
+- Owner reported manual testing completed successfully.
+
+Important constraints to preserve
+- No backend beyond explicitly scoped Supabase Edge Functions.
+- No auth/login wall.
+- Guest/local mode must stay permanently available.
+- No cloud sync or bank integrations.
+- Do not add service-role/admin code to src, app, app config, or package config.
+- Do not expose raw env values, Supabase URL, anon key, service-role key,
+  OAuth/provider secrets, access tokens, refresh tokens, provider tokens, Apple
+  identity tokens, localOwnerId, deviceId, ownerId, or raw backend errors in
+  UI/logs/tests/docs.
+- Do not mutate local SQLite transactions/categories during Delete Account.
+- Do not trigger backup/restore/import/export during Delete Account.
+- Sign Out alone must not call Delete Account or the Edge Function.
+- CSV v1 must remain exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs must remain exactly Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card must remain pushed root Stack screens.
+- Do not reintroduce @expo/ui, SwiftUI wrappers, BlurView, expo-blur, glass
+  styling, or Liquid Glass imitation.
+
+Likely next planning considerations
+- Treat ML-70 as complete unless new product requirements appear.
+- If future work touches account deletion, first preserve the Edge Function as
+  the server-side admin boundary.
+- If future work changes Supabase deployment, keep MONEY_LEAK_SERVICE_ROLE_KEY
+  as the custom secret name unless Supabase CLI rules change.
+- If future work handles release notes or PR text, include that ML-70 has both
+  automated validation and owner manual QA completed.
+
+================================================================================
+
+EPIC 71 — SOURCE: ML_71_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-71 Agent Context / Incremental Sync Prototype v1
+
+Purpose
+- This file summarizes what was implemented and verified during ML-71 so a
+  future AI agent can plan the next sync/auth/data task without rediscovering
+  the baseline.
+
+Current status
+- ML-71 is implemented.
+- Automatic production sync is still not enabled.
+- Manual/dev-callable incremental sync service exists.
+- No Settings Sync UI or user-facing Sync Now control was added.
+- Feature flag remains:
+  featureFlags.incrementalSyncEnabled = false
+- App version was bumped:
+  1.16.1 -> 1.16.2
+- package.json remains the version source of truth.
+- app.config.js still reads package.json.version.
+
+Main implementation added
+- Incremental sync contracts were added to:
+  src/lib/sync/sync-types.ts
+- Sync orchestration was added in:
+  src/lib/sync/sync-service.ts
+- Manual/dev service entrypoint was added in:
+  src/lib/sync/manual-sync-service.ts
+- Supabase remote incremental sync adapter was added in:
+  src/lib/sync/supabase-remote-sync-adapter.ts
+- Deterministic fake remote adapter for tests was added in:
+  src/lib/sync/fake-remote-sync-adapter.ts
+- Local sync source/target/metadata store were added in:
+  src/lib/sync/local-sync-data-source.ts
+  src/lib/sync/local-sync-data-target.ts
+  src/lib/sync/sync-metadata-store.ts
+- Shared sync mappers were added/extracted in:
+  src/lib/sync/sync-mappers.ts
+  src/lib/sync/supabase-remote-row-mappers.ts
+- Existing backup/restore code now reuses shared mappers where practical.
+
+Local database additions
+- Sync metadata storage was added using app_metadata:
+  src/db/sync-status.ts
+  src/db/sync-status.native.ts
+  src/db/sync-status.web.ts
+- Stored metadata keys:
+  last_successful_incremental_sync_at
+  last_incremental_sync_error_at
+  last_incremental_sync_summary
+- Native transaction sync apply helper was added:
+  applyTransactionSyncChanges
+- Native category sync apply helper was added:
+  applyCategorySyncChanges
+- Web variants remain native-only safe boundaries and throw/skip consistently
+  with the existing web persistence limitations.
+
+Sync behavior implemented
+- runIncrementalSync skips safely when:
+  sync flag is disabled
+  auth status is guest
+  user id is missing
+  Supabase session is missing
+  Supabase session user does not match auth display user
+- Sync flow:
+  1. Read last successful local sync cursor.
+  2. Pull remote transaction/category changes since cursor.
+  3. Read local transaction/category sync snapshot.
+  4. Resolve conflicts with ML-71 LWW policy.
+  5. Apply remote winners locally.
+  6. Push local winners remotely.
+  7. Write safe sync metadata summary after success.
+  8. Write last sync error timestamp when recoverable failures occur.
+- SyncResult exposes safe counts/status only, not row payloads, raw backend
+  errors, env values, tokens, device IDs, local owner IDs, owner IDs, or raw
+  user IDs.
+
+Conflict policy implemented
+- Last-write-wins by updatedAt.
+- Transaction tombstones compare deletedAt when present.
+- If a transaction deletedAt is newer than the competing active updatedAt,
+  deletion wins.
+- Equal timestamp conflicts keep the local row and are counted as conflicts.
+- createdAt is preserved when remote winners update existing local rows.
+- Stable IDs remain stable.
+- No conflict UI was added.
+
+Transaction sync behavior
+- Remote active transaction with no matching local row is inserted locally.
+- Remote active transaction newer than local row overwrites mutable fields
+  locally while preserving local createdAt.
+- Local new/edited transaction is pushed to remote.
+- Local transaction tombstone is pushed to remote.
+- Remote transaction tombstone soft-deletes a matching local row.
+- Remote transaction tombstone with no matching local row is ignored and does
+  not create a visible local row.
+- Repeated sync does not duplicate rows.
+
+Category sync behavior
+- Remote active/archived category with no matching local row is inserted
+  locally.
+- Remote category newer than local category overwrites mutable fields locally
+  while preserving local createdAt.
+- Local new/edited/archived category is pushed to remote.
+- Archived categories remain stored/resolvable for old transactions.
+- Category tombstones are an explicit ML-71 limitation:
+  remote category tombstones are ignored safely and counted.
+- Category delete semantics beyond archive were not added.
+
+Remote/Supabase behavior
+- Existing Supabase anon client is used.
+- Existing authenticated session is required.
+- RLS is expected to restrict rows to authenticated user-owned rows.
+- No service-role/admin client or service-role key was added to mobile code,
+  app config, or package config.
+- Remote tables used:
+  public.remote_transactions
+  public.remote_categories
+
+Tests added/updated
+- New sync service tests:
+  src/lib/sync/__tests__/sync-service.test.ts
+- New Supabase sync adapter tests:
+  src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+- New sync metadata DB tests:
+  src/db/__tests__/sync-status.native.test.ts
+- Native transaction DB tests updated for sync upsert/tombstone apply.
+- Native category DB tests updated for sync category apply.
+- Existing backup/restore tests continue to pass after mapper extraction.
+
+Automated validation completed
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+  38 test suites passed.
+  278 tests passed.
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+  Resolved version: 1.16.2
+- PASS git diff --check
+
+Targeted regression checks completed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a pushed root Stack screen.
+- Shame Card remains a pushed root Stack screen.
+- No dynamic process.env[...] access was added in src or app.
+- No @expo/ui, @expo/ui/swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- Settings/account/sync paths do not expose raw env values, tokens, provider
+  secrets, IDs, or backend errors.
+
+Manual QA completed by user
+- Guest mode:
+  opened app without login;
+  confirmed sync did not run and UI stayed stable.
+- Authenticated mode:
+  signed in with Google;
+  created a transaction;
+  ran manual backup;
+  confirmed no dev/manual Sync UI action was added;
+  confirmed local data remained visible.
+- Supabase:
+  checked remote_transactions;
+  confirmed rows did not duplicate;
+  checked updated_at and deleted_at.
+- Delete/tombstone scenario:
+  deleted a transaction locally;
+  ran sync;
+  confirmed tombstone was written remotely;
+  confirmed local UI no longer showed the deleted transaction.
+- Regression:
+  Sign Out did not delete local data;
+  Delete Account still works through the Edge Function boundary;
+  CSV export/import header did not change;
+  tabs remained Home / Analytics & Leaks / Settings.
+
+Docs updated
+- Main handoff:
+  docs/handoffs/ML_71_HANDOFF.txt
+- QA checklist:
+  docs/mvp-qa-checklist.md
+- Durable project rule:
+  AGENTS.md
+- Added AGENTS.md rule:
+  Keep incremental sync behind featureFlags.incrementalSyncEnabled; do not run
+  sync automatically on app start, login, session restore, sign out, or in the
+  background unless a task explicitly asks for that behavior.
+
+Known limitations / non-goals
+- Incremental sync remains hidden and disabled by default.
+- No production automatic sync.
+- No background sync.
+- No sync on login/session restore/app start/sign out.
+- No Settings Sync UI.
+- No conflict UI.
+- No category tombstone delete semantics beyond safe ignore/count.
+- No backend schema changes were added in ML-71.
+- No database wipe, replace-local-with-cloud, auth wall, CSV v2, navigation
+  change, or visual redesign.
+
+Suggested next planning topics
+- Decide whether ML-72 should add a dev-only/manual Sync Now trigger or keep
+  service-only invocation.
+- Decide when and how incremental sync should become user-facing.
+- Decide whether category tombstones need full support or whether archive-only
+  behavior remains the durable product policy.
+- Decide whether sync should ever run automatically, and if so, exactly which
+  lifecycle events are allowed.
+- Define monitoring/debug strategy that preserves the no-raw-secrets/no-raw-IDs
+  rule.
+
+================================================================================
+
+EPIC 72 — SOURCE: ML_72_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-72 Agent Context For Future Planning
+
+Purpose
+- This file summarizes the completed ML-72 work so a future AI agent can plan
+  from the current state without rediscovering or redoing the same work.
+- Treat ML-72 Manual Sync Now UI v1 as implemented, automatically validated,
+  and manually checked by the owner.
+
+Project state after ML-72
+- App version is 1.17.0.
+- package.json remains the version source of truth.
+- app.config.js reads package.json.version.
+- app.config.js and eas.json were not changed for ML-72.
+- featureFlags.incrementalSyncEnabled is true.
+- Incremental sync is now user-facing only through Settings manual Sync.
+- Sync remains manual-only. There is still no automatic sync on app start,
+  login, session restore, sign out, background behavior, or local
+  transaction/category mutation.
+
+Implemented ML-72 behavior
+- Settings shows a Sync card only when both conditions are true:
+  authenticated user and featureFlags.incrementalSyncEnabled === true.
+- Guest/local mode does not show Sync UI and cannot trigger sync.
+- The Sync card has a button with:
+  idle label: "Sync now"
+  loading label: "Syncing..."
+- The button is disabled while syncing.
+- Pressing Sync now calls the existing manual sync boundary:
+  src/lib/sync/manual-sync-service.ts
+  manualSyncService.runIncrementalSync({ auth: { status, userId } })
+- Settings reads last sync time through the existing metadata boundary:
+  src/db/sync-status.ts
+  getSyncMetadata()
+- Last sync is displayed as "Last sync:" when existing metadata provides a
+  valid timestamp.
+- Successful sync renders only safe aggregate counts:
+  pulled, pushed, applied, conflicts, ignored.
+- Failed, skipped, or thrown sync attempts render only:
+  "Couldn't sync. Try again."
+- No raw rows, raw backend errors, env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, or row payloads are rendered in Settings sync UI.
+
+Files changed for ML-72
+- AGENTS.md
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_72_HANDOFF.txt
+- package.json
+- package-lock.json
+- src/lib/feature-flags.ts
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+
+AGENTS.md durable rule added
+- Keep user-facing Settings sync UI routed through the manual sync service and
+  sync metadata boundaries; do not call remote sync adapters or Supabase
+  clients directly from screen code.
+
+Automated validation completed
+- PASS npm run release:preflight
+  - 9 checks passed, 0 failed.
+  - Expo version resolves to 1.17.0.
+- PASS npm test -- --runInBand
+  - 38 test suites passed.
+  - 287 tests passed.
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+  - Resolved Expo version is 1.17.0.
+- PASS git diff --check
+
+Targeted regression checks completed
+- PASS CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- PASS bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- PASS Add Transaction remains a pushed root Stack screen, not a bottom tab.
+- PASS Shame Card remains a pushed root Stack screen, not a bottom tab.
+- PASS no dynamic process.env[...] access was added in src or app.
+- PASS no service-role/admin Supabase usage was added to mobile app code,
+  config, or package files.
+- PASS no @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or
+  glass styling was added.
+
+Owner manual QA completed after implementation
+- Guest mode:
+  Sync card is not shown.
+  Local work is not broken.
+- Authenticated mode:
+  Sync card is shown.
+  Sync now works.
+  Success summary is safe and understandable.
+  Repeated sync does not duplicate data.
+- Regression:
+  Backup works.
+  Restore works.
+  Sign Out does not delete local data.
+  Delete Account is not broken.
+  Add/Edit/Delete transaction works.
+  Tabs remain Home / Analytics & Leaks / Settings.
+
+Pre-Codex baseline already completed by owner before ML-72 implementation
+- App opens.
+- Settings -> Account works.
+- Google login works.
+- After login, local data remains visible.
+- One new transaction was created.
+- Manual backup and restore were checked.
+- Sign Out does not delete local data.
+
+Important preserved scope boundaries
+- Do not treat automatic production sync as enabled. ML-72 is manual-only.
+- Do not add sync on app start, login, session restore, sign out, background,
+  or after add/edit/delete transaction/category unless a future task explicitly
+  asks for that behavior.
+- Do not add conflict UI unless a future task explicitly asks for it.
+- Do not add category tombstone semantics unless a future task explicitly asks
+  for it.
+- Do not change backup/restore behavior unless a future task explicitly asks
+  for it.
+- Do not change Delete Account behavior unless a future task explicitly asks
+  for it.
+- Do not change CSV v1 unless a future task explicitly asks for it.
+- Do not change bottom tabs/navigation unless a future task explicitly asks for
+  it.
+- Do not add service-role/admin Supabase clients or keys to mobile app code or
+  config.
+- Do not add raw diagnostics UI or render raw secrets/tokens/backend errors/ids.
+
+Useful next-agent pointers
+- User-facing Settings sync UI lives in:
+  src/features/settings/settings-screen.tsx.
+- Settings tests for sync UI live in:
+  src/features/settings/__tests__/settings-screen.test.ts.
+- Manual sync service boundary:
+  src/lib/sync/manual-sync-service.ts.
+- Sync orchestration and result shape:
+  src/lib/sync/sync-service.ts
+  src/lib/sync/sync-types.ts.
+- Sync metadata boundary:
+  src/lib/sync/sync-metadata-store.ts
+  src/db/sync-status.ts / native / web.
+- ML-72 implementation handoff:
+  docs/handoffs/ML_72_HANDOFF.txt.
+
+================================================================================
+
+EPIC 73 — SOURCE: ML_73_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-73 Agent Context For Future Planning
+
+Date: 2026-05-21
+Project: Money Leak
+App version after ML-73: 1.17.1
+
+Purpose
+- This file summarizes what was already implemented, validated, and manually
+  checked for ML-73 so the next AI agent can plan from the current baseline
+  without rediscovering the same work.
+
+Baseline before ML-73
+- Previous completed epic: ML-72 Manual Sync Now UI v1.
+- Sync UI already existed in Settings for authenticated users only.
+- featureFlags.incrementalSyncEnabled was already true.
+- Sync was already manual-only through Settings -> Sync now.
+- Guest/local mode did not show the Sync card and could not trigger sync.
+- Owner had already confirmed:
+  - App opens.
+  - Settings -> Account works.
+  - Google login works.
+  - Local data remains visible after login.
+  - Manual backup / restore checked.
+  - Sync now works in current build.
+  - Repeated sync does not duplicate data.
+  - Sign Out does not delete local data.
+
+Implemented in ML-73
+- Settings sync handler now has an immediate in-flight ref guard.
+  - Fast repeated Sync now presses cannot call manualSyncService twice before
+    React disabled state updates.
+- createSyncService now has a per-service in-flight promise guard.
+  - Overlapping direct runIncrementalSync calls share the same operation.
+  - This prevents duplicate pull/apply/push and duplicate success metadata
+    writes for the same in-flight sync.
+- After a successful manual sync, Settings refreshes:
+  - transactions store via loadTransactions()
+  - categories store via loadCategories()
+- Refresh only happens after result.status === "succeeded".
+  - Failed, skipped, or thrown sync attempts do not run this success-only
+    refresh.
+- Settings can show persisted last sync summary after reload when metadata has
+  a valid safe summary.
+  - Only aggregate counts are rendered: pulled, pushed, applied, conflicts,
+    ignored.
+- Invalid, missing, non-finite, negative, or corrupted persisted sync summary
+  values are ignored safely.
+  - Settings falls back to Last sync or no summary.
+- Version bumped from 1.17.0 to 1.17.1.
+- app.config.js was not changed and still reads package.json.version.
+- AGENTS.md was not changed because existing durable project rules already
+  cover manual sync boundaries and service-role restrictions.
+
+Main files changed by ML-73
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/lib/sync/sync-service.ts
+- src/lib/sync/__tests__/sync-service.test.ts
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_73_HANDOFF.txt
+- package.json
+- package-lock.json
+
+Automated validation already run and passed
+- npm run release:preflight
+  - 9 checks passed, 0 failed.
+  - Expo version resolves to 1.17.1.
+- npm test -- --runInBand
+  - 38 test suites passed.
+  - 290 tests passed.
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - Resolved Expo version is 1.17.1.
+- git diff --check
+
+Targeted regression checks already verified
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a pushed root Stack screen, not a bottom tab.
+- Shame Card remains a pushed root Stack screen, not a bottom tab.
+- No dynamic process.env[...] access was added in src or app.
+- No service-role/admin Supabase usage was added to mobile app code/config or
+  package files.
+- Settings sync UI does not render raw env/token/provider secret/backend
+  error/id values.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+
+Manual QA completed by owner after implementation
+- Guest mode:
+  - Sync card is not visible.
+  - Add transaction works.
+  - Edit transaction works.
+  - Delete transaction works.
+- Authenticated mode:
+  - Sync card is visible.
+  - Sync now works.
+  - Fast double tap on Sync now does not create strange states.
+  - After successful Sync, Home and Analytics show current data without app
+    restart when sync pulls remote changes.
+- Regression:
+  - Backup works.
+  - Restore works.
+  - Sign Out does not delete local data.
+  - Delete Account is not broken.
+  - Tabs remain Home / Analytics & Leaks / Settings.
+
+Preserved non-goals and constraints
+- No automatic sync.
+- No background sync.
+- No sync on login.
+- No sync on session restore.
+- No sync on app start.
+- No sync on sign out.
+- No sync on add/edit/delete transaction or category.
+- No conflict UI.
+- No category tombstone implementation.
+- No backup/restore redesign.
+- No Delete Account behavior changes.
+- No CSV v2.
+- No navigation changes.
+- No visual redesign.
+- No new dependencies.
+- No service-role/admin Supabase code/key/client in the mobile app.
+
+Current planning baseline for next agent
+- Treat ML-73 as implemented and validated.
+- The current app version is 1.17.1.
+- Manual sync remains the only user-triggered sync path.
+- If planning future sync work, preserve the manual-only invariant unless the
+  task explicitly changes product direction.
+- Cross-screen visibility after successful manual sync is now expected behavior.
+- Persisted sync summary UI must remain limited to safe aggregate counts.
+
+================================================================================
+
+EPIC 74 — SOURCE: ML_74_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-74 Agent Context: Incremental Sync Reliability QA + Edge Case Hardening v1
+
+Purpose
+- This file summarizes what was completed during ML-74 so a future AI agent can
+  plan the next sync/auth/release task without rediscovering the baseline.
+- Current app version after ML-74: 1.17.2.
+- package.json remains the source of truth for version; app.config.js reads
+  package.json.version.
+
+High-level outcome
+- ML-74 is complete.
+- Automated validation passed.
+- Owner manual QA passed.
+- Sync remains manual-only through Settings -> Sync now.
+- No new user-facing sync UX, no auto-sync, no background sync, no conflict UI,
+  no CSV change, and no navigation change were added.
+
+Code changes made
+- Added extensive sync-service tests in:
+  src/lib/sync/__tests__/sync-service.test.ts
+- Added native transaction sync persistence tests in:
+  src/db/__tests__/transactions.native.test.ts
+- Added native category sync persistence tests in:
+  src/db/__tests__/categories.native.test.ts
+- Added native sync metadata safety tests in:
+  src/db/__tests__/sync-status.native.test.ts
+- Hardened sync metadata persistence in:
+  src/db/sync-status.native.ts
+- Updated project QA docs in:
+  docs/mvp-qa-checklist.md
+- Added ML-74 handoff in:
+  docs/handoffs/ML_74_HANDOFF.txt
+- Added npm run release:preflight to recurring project instructions in:
+  AGENTS.md
+- Bumped version metadata in:
+  package.json
+  package-lock.json
+
+Production code behavior changed
+- Only narrow production behavior changed:
+  src/db/sync-status.native.ts now normalizes persisted sync summaries to known
+  non-negative numeric aggregate fields before storing/reading them.
+- Extra unexpected fields in a sync summary, such as raw ids or token-like
+  fields, are not persisted back as part of the safe summary.
+- Invalid, missing, non-finite, or negative persisted summary values are ignored
+  safely.
+
+Test coverage added or strengthened
+- Local transaction newer than remote active row -> local wins and pushes.
+- Remote transaction newer than local active row -> remote wins and applies.
+- Equal updatedAt conflict -> local row is preserved, local pushes, conflict
+  count increments.
+- Local transaction tombstone newer than remote active row -> deletion wins and
+  tombstone pushes.
+- Remote transaction tombstone newer than local active row -> local row is
+  soft-deleted.
+- Remote transaction tombstone without local matching row -> ignored, no
+  visible transaction created.
+- Repeated sync does not duplicate remote rows or repeatedly apply old pulled
+  rows.
+- Failed pull does not apply local changes or push local rows.
+- Failed local apply does not push or write success metadata.
+- Failed push does not write success metadata.
+- Skipped sync does not write success or failure metadata.
+- Recoverable failures write only safe failure metadata where expected.
+- Success writes last_successful_incremental_sync_at and safe summary only
+  after pull, local apply, and push succeed.
+- Corrupted/invalid persisted summary is ignored safely.
+- Category active and archived changes apply safely.
+- Category tombstones remain out of scope and are counted/ignored safely.
+
+Validation run and passed
+- npm run release:preflight
+  - 9 passed, 0 failed.
+  - Expo version resolved to 1.17.2.
+- npm test -- --runInBand
+  - 38 test suites passed.
+  - 304 tests passed.
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - Resolved version was 1.17.2.
+- git diff --check
+
+Targeted regression checks passed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a pushed root Stack screen, not a bottom tab.
+- Shame Card remains a pushed root Stack screen, not a bottom tab.
+- No dynamic process.env[...] access was added in src or app.
+- No service-role/admin Supabase usage was added to mobile app code/config or
+  package files.
+- Settings sync UI tests still guard against rendering raw env values, backend
+  errors, tokens, provider secrets, localOwnerId, deviceId, ownerId, raw user
+  IDs, or row payloads.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+
+Owner manual QA completed
+- Owner confirmed all required manual testing was completed and passed.
+- Manual smoke covered:
+  login
+  add transaction
+  sync
+  edit transaction
+  sync
+  delete transaction
+  sync
+  backup
+  restore
+  sign out
+  local data remains
+- Owner then confirmed manual testing was fully OK.
+
+Preserved invariants
+- No automatic sync.
+- No background sync.
+- No sync on app start.
+- No sync on login.
+- No sync on session restore.
+- No sync on sign out.
+- No sync on add/edit/delete transaction or category.
+- No conflict UI.
+- No category tombstone product implementation.
+- No backup/restore redesign.
+- No Delete Account behavior changes.
+- No CSV v2.
+- No navigation changes.
+- No visual redesign.
+- No new dependencies.
+- No Supabase service-role/admin code or keys in mobile app code/config.
+
+Known limitations after ML-74
+- Sync remains manual-only.
+- Conflict handling is deterministic LWW, with local preservation on equal
+  timestamps.
+- There is no user-facing conflict review UI.
+- Category tombstones are not implemented as product behavior.
+- Future auto-sync, foreground-sync, background-sync, and conflict UI work
+  should build on this manual incremental sync baseline and keep the existing
+  safe metadata boundaries.
+
+Good next-task starting points
+- For future auto/foreground sync planning, start from:
+  src/lib/sync/sync-service.ts
+  src/lib/sync/manual-sync-service.ts
+  src/features/settings/settings-screen.tsx
+  src/lib/sync/__tests__/sync-service.test.ts
+- For remote adapter behavior, inspect:
+  src/lib/sync/supabase-remote-sync-adapter.ts
+  src/lib/sync/supabase-remote-row-mappers.ts
+  src/lib/sync/fake-remote-sync-adapter.ts
+- For local apply/read behavior, inspect:
+  src/lib/sync/local-sync-data-source.ts
+  src/lib/sync/local-sync-data-target.ts
+  src/db/transactions.native.ts
+  src/db/categories.native.ts
+  src/db/sync-status.native.ts
+
+================================================================================
+
+EPIC 75 — SOURCE: ML_75_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-75 Agent Context: Foreground Auto Sync v1
+
+Purpose
+- This file summarizes what was implemented and verified for ML-75 so a future
+  AI agent can plan follow-up work without rediscovering the completed scope.
+- Source-of-truth handoff: docs/handoffs/ML_75_HANDOFF.txt.
+
+What was implemented
+- Added foreground-only incremental sync for authenticated users.
+- Sync is triggered only when React Native AppState changes from background or
+  inactive to active.
+- Foreground sync is opportunistic and silent. It does not block local UX.
+- Added a 15-minute throttle based on last successful sync metadata.
+- Foreground sync runs only when last successful sync is missing or stale.
+- Foreground sync uses the existing manualSyncService / sync service boundary.
+- No UI/root lifecycle code calls Supabase remote sync adapters directly.
+- Successful foreground sync refreshes local transaction and category stores
+  only after sync succeeds.
+- Failed or skipped foreground sync does not refresh stores and does not show
+  raw diagnostics.
+- Manual Settings Sync now remains available and is not blocked by the
+  foreground throttle.
+- The shared sync service exposes isIncrementalSyncInFlight() so foreground
+  auto-sync can skip while manual or another sync is running.
+- Root layout mounts the foreground auto-sync hook.
+- Settings sync copy was slightly updated so it no longer implies sync is
+  manual-only.
+- App version was bumped from 1.17.2 to 1.18.0.
+
+Important files
+- app/_layout.tsx mounts useForegroundAutoSync().
+- src/lib/sync/use-foreground-auto-sync.ts contains the AppState foreground
+  auto-sync hook and throttle logic.
+- src/lib/sync/sync-service.ts keeps the existing in-flight promise guard and
+  now exposes isIncrementalSyncInFlight().
+- src/lib/sync/sync-types.ts includes the sync service in-flight accessor type.
+- src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx covers foreground
+  AppState behavior.
+- src/lib/sync/__tests__/sync-service.test.ts covers the in-flight accessor.
+- src/features/settings/settings-screen.tsx still owns the manual Sync now UI.
+- docs/mvp-qa-checklist.md contains the ML-75 QA section.
+- docs/handoffs/ML_75_HANDOFF.txt contains implementation, validation, and
+  owner manual QA details.
+- AGENTS.md now documents the durable foreground auto-sync boundary rule.
+- package.json and package-lock.json carry version 1.18.0.
+
+Behavior guarantees preserved
+- Guest/local mode remains permanently available.
+- No login wall was added.
+- Add/edit/delete transaction/category remains local-first and is not blocked
+  by network or sync failure.
+- No sync runs on cold start.
+- No sync runs on login or session restore.
+- No sync runs on sign out.
+- No sync runs after every local add/edit/delete mutation.
+- No background sync was added.
+- No conflict UI was added.
+- No category tombstone product behavior was added.
+- CSV v1 was not changed. Header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- No service-role/admin Supabase client or key was added to mobile
+  code/config/package files.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- Settings/sync UI remains safe and does not render raw env values, Supabase
+  URL, anon key, service-role key, OAuth/provider secrets, tokens, localOwnerId,
+  deviceId, ownerId, raw user IDs, raw row payloads, or raw backend errors.
+
+Automated validation completed
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+
+Targeted regression checks completed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card remain root Stack screens, not bottom tabs.
+- No service-role/admin Supabase usage found in mobile code/config/package
+  files.
+- No dynamic process.env[...] access found in src/app.
+- Settings sync UI safe-value tests pass.
+- Forbidden UI/glass dependencies or styling were not added.
+
+Owner manual QA completed
+- Guest mode: opened app without login, backgrounded/foregrounded it,
+  confirmed Sync card did not appear, and confirmed local add/edit/delete
+  still worked.
+- Authenticated mode: signed in, tapped Sync now manually, backgrounded the
+  app, waited briefly, returned to foreground, and confirmed the app did not
+  hang and data stayed in place.
+- Throttle: quickly backgrounded/foregrounded the app several times and
+  confirmed sync did not run in a batch.
+- Manual sync: after foreground/auto sync behavior, tapped Sync now and
+  confirmed manual sync still worked.
+- Offline/bad network: enabled airplane mode where possible, returned app to
+  foreground, confirmed local UX was not broken, and confirmed safe error copy
+  had no technical details.
+- Regression: checked add transaction, edit transaction, delete transaction,
+  backup, restore, sign out, and delete account.
+
+Notes for future planning
+- Treat ML-75 as complete unless new bugs are found.
+- Future sync planning should build on the existing foreground hook and sync
+  service boundary instead of adding direct Supabase calls to UI/root code.
+- Any future automatic sync trigger should explicitly preserve the no app
+  start, no login/session restore, no sign out, no mutation-triggered sync, and
+  no background sync constraints unless the product scope intentionally changes.
+- If adding visible sync state later, keep it generic and safe; do not expose
+  raw backend errors, ids, tokens, provider secrets, env values, or row payloads.
+
+================================================================================
+
+EPIC 76 — SOURCE: ML_76_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-76 Agent Context For Future Planning
+
+Created after implementation and owner manual QA confirmation.
+
+Current state
+- ML-76 Sync Status & Cross-device QA Hardening v1 is implemented.
+- Owner completed the required manual QA after implementation and reported
+  that everything is OK.
+- App version is now 1.18.1.
+- package.json remains the version source of truth.
+- app.config.js was intentionally not changed and resolves version 1.18.1 from
+  package.json.
+
+What changed in ML-76
+- Authenticated Settings Sync card copy now explicitly shows:
+  - Auto sync: On
+  - Runs when you return to the app. Local tracking still works offline.
+- The Sync card remains hidden for guest/local mode.
+- The Sync card remains gated by featureFlags.incrementalSyncEnabled.
+- The manual Sync now button remains available for authenticated users.
+- The manual Sync now loading label remains Syncing....
+- Last sync display remains limited to a valid safe timestamp.
+- Persisted sync summary display remains aggregate-only:
+  pulled, pushed, applied, conflicts, ignored.
+- Invalid or corrupted persisted sync summary data is ignored safely.
+- Sync failures still show only generic safe copy:
+  Couldn't sync. Try again.
+- Settings sync UI safety coverage was expanded so raw env values, Supabase
+  URLs, anon keys, service-role key strings, OAuth/provider secrets, access
+  tokens, refresh tokens, provider tokens, Apple identity tokens, localOwnerId,
+  deviceId, ownerId, raw user IDs, row payloads, and raw backend errors do not
+  render in Settings.
+
+Files changed by ML-76
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_76_HANDOFF.txt
+- package.json
+- package-lock.json
+- docs/handoffs/ML_76_AGENT_CONTEXT.txt
+
+Validation already run and passing
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Targeted invariant checks already confirmed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a root Stack screen, not a bottom tab.
+- Shame Card remains a root Stack screen, not a bottom tab.
+- No production service-role/admin Supabase usage was added to mobile
+  code/config/package files.
+- No dynamic process.env[...] access was added in src or app.
+- Settings and root lifecycle code do not call Supabase remote sync adapters or
+  Supabase clients directly.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- AGENTS.md was intentionally not updated because existing durable rules
+  already cover sync triggers, Settings sync boundaries, service-role safety,
+  foreground auto-sync limits, and validation commands.
+
+What was intentionally not done
+- No persisted manual/foreground attempt type was added.
+  Reason: the current SyncService.runIncrementalSync({ auth }) boundary does
+  not carry attempt type. Adding it would require a broader service/metadata
+  API change than ML-76 needed.
+- No new sync triggers were added.
+- No sync on cold start.
+- No sync on login.
+- No sync on session restore.
+- No sync on sign out.
+- No sync after add/edit/delete transaction/category.
+- No background sync.
+- No SyncService, SyncMetadata, SyncSummary, remote adapter, auth provider,
+  backup/restore, Delete Account, navigation, route, dependency, or CSV format
+  changes.
+- No conflict UI.
+- No category tombstones.
+- No raw diagnostics UI.
+
+Manual QA status from owner
+- Owner reported manual testing was completed after implementation.
+- Owner reported everything is OK.
+- This includes the task-required manual checks for Sync card visibility,
+  authenticated auto-sync copy, manual Sync now behavior, cross-device sync
+  sanity, safe failure copy, foreground throttle behavior, and local mutation
+  trigger invariants.
+
+Notes for future planning
+- Treat foreground auto sync as already shipped in ML-75 and clarified in ML-76.
+- Future work should keep Settings UI routed through manualSyncService and sync
+  metadata boundaries.
+- Future work should keep root lifecycle sync routed through
+  useForegroundAutoSync and the existing sync service boundary.
+- If a future task wants to show whether the last sync was manual or
+  foreground, add attempt type deliberately at the sync service and metadata
+  boundary. Do not infer it in Settings UI.
+- Keep all user-visible sync diagnostics generic and aggregate-only unless a
+  future task explicitly defines a safe expanded diagnostic contract.
+- Continue preserving CSV v1 and navigation invariants unless a future task
+  explicitly changes them.
+
+================================================================================
+
+EPIC 77 — SOURCE: ML_77_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-77 Agent Context - Sync Attempt Source Metadata v1
+
+Date: 2026-05-21
+Repo: Money Leak
+Version after work: 1.18.2
+
+Purpose
+- This file is a compact context handoff for a future AI agent.
+- Do not re-plan or re-implement ML-77 as unfinished work. It has been
+  implemented, validated, and owner manual QA was confirmed successful.
+
+What ML-77 Added
+- Incremental sync now carries an explicit safe attempt source:
+  - manual: user tapped Sync now in Settings.
+  - foreground: useForegroundAutoSync ran after the app returned to foreground.
+- SyncService.runIncrementalSync now requires source on input.
+- Successful sync metadata persists lastSuccessfulSyncSource as a safe enum.
+- Source is persisted separately from lastSyncSummary.
+- SyncSummary remains aggregate-only.
+- Settings shows:
+  - Last sync: <date> · Manual for valid manual source.
+  - Last sync: <date> · Auto for valid foreground source.
+  - Plain Last sync: <date> if source is missing, corrupted, or unknown.
+- Failure copy remains generic:
+  - Couldn't sync. Try again.
+
+Important Implementation Details
+- Safe enum type: SyncAttemptSource = "manual" | "foreground".
+- Native persistence uses a dedicated app_metadata key:
+  last_successful_incremental_sync_source.
+- Unknown/corrupted source values are parsed as null.
+- Web sync status remains a no-op and returns lastSuccessfulSyncSource: null.
+- Settings still calls only manualSyncService and sync metadata boundaries.
+- Foreground auto sync still calls the existing sync service boundary.
+
+Files Changed In ML-77
+- AGENTS.md
+- package.json
+- package-lock.json
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_77_HANDOFF.txt
+- docs/handoffs/ML_77_AGENT_CONTEXT.txt
+- src/db/sync-status.native.ts
+- src/db/sync-status.web.ts
+- src/db/__tests__/sync-status.native.test.ts
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/lib/sync/sync-types.ts
+- src/lib/sync/sync-service.ts
+- src/lib/sync/use-foreground-auto-sync.ts
+- src/lib/sync/__tests__/sync-service.test.ts
+- src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx
+- src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+
+Validation Already Run
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+- PASS targeted sync tests:
+  npm test -- --runInBand src/lib/sync/__tests__/sync-service.test.ts
+  src/db/__tests__/sync-status.native.test.ts
+  src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx
+  src/features/settings/__tests__/settings-screen.test.ts
+  src/lib/sync/__tests__/supabase-remote-sync-adapter.test.ts
+
+Owner Manual QA Status
+- Owner reported all manual steps were done and everything was OK.
+- Confirmed scenarios include:
+  - Guest/local mode Sync card hidden.
+  - Manual Sync now path works.
+  - Foreground source display path works after eligible foreground sync.
+  - Generic sync failure copy remains safe.
+  - Local add/edit/delete remains local-first and does not trigger sync.
+
+Preserved Invariants
+- Guest/local mode remains permanently available.
+- No login wall was added.
+- Local tracking still works offline.
+- No sync on cold start.
+- No sync on login.
+- No sync on session restore.
+- No sync on sign out.
+- No sync after every local add/edit/delete mutation.
+- No background sync.
+- No conflict UI.
+- No category tombstone implementation.
+- No backup/restore redesign.
+- No Delete Account behavior changes.
+- No CSV v2.
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction remains a root Stack screen, not a bottom tab.
+- Shame Card remains a root Stack screen, not a bottom tab.
+- No service-role/admin Supabase client/key in mobile app code/config/package
+  files.
+- No direct Supabase remote sync adapter/client calls from Settings UI or root
+  lifecycle code.
+- No forbidden @expo/ui, expo-blur, BlurView, Liquid Glass, or glass styling.
+- No raw diagnostics UI.
+
+Version Notes
+- package.json and package-lock.json were bumped from 1.18.1 to 1.18.2.
+- app.config.js was intentionally not changed because it reads
+  package.json.version.
+- eas.json was intentionally not changed.
+- Rationale: patch bump because ML-77 is sync status/metadata hardening, not a
+  large new user-facing capability.
+
+AGENTS.md Update
+- Added durable rule:
+  Keep sync attempt source metadata limited to the safe enum values manual and
+  foreground; do not store it inside aggregate summaries or raw diagnostics.
+
+Next-Agent Guidance
+- Treat ML-77 as complete.
+- For future sync planning, build on the explicit source metadata boundary
+  instead of inferring manual/foreground from UI or timestamps.
+- Keep any new source-like metadata safe, enum-based, and outside aggregate
+  summaries/raw diagnostics unless a future task explicitly changes the
+  metadata contract.
+
+================================================================================
+
+EPIC 78 — SOURCE: ML_78_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-78 Agent Context For Future Planning
+
+Purpose
+- This file summarizes what was completed in ML-78 so a future AI agent can
+  plan follow-up work without reopening already finished scope.
+- It is a planning context file, not a product spec and not legal advice.
+
+Completed epic
+- ML-78 Privacy / App Store Review Readiness v1 is complete.
+- Repo-side implementation was completed.
+- Automated validation passed.
+- Owner completed the required manual Notion/privacy policy follow-up.
+- Owner completed manual app QA and reported everything is OK.
+
+Implemented app changes
+- Public legal/support links are centralized in src/lib/app-links.ts.
+- Configured Privacy Policy URL:
+  https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true
+- Configured support contact:
+  asrazdorskiy@gmail.com
+- Configured support action:
+  mailto:asrazdorskiy@gmail.com
+- Settings has a Privacy & Support section for both guest/local and
+  authenticated users.
+- Privacy Policy opens the configured Notion URL.
+- Support opens the configured mailto URL.
+- Link-open failures show generic inline copy only:
+  "Couldn't open this link right now."
+- Link-open failures log only a generic message, not raw thrown error values.
+
+Implemented docs
+- docs/privacy-policy-update-draft.md was added as a patch/draft for the
+  existing Notion policy.
+- docs/app-store-privacy-checklist.md was added for App Store privacy review
+  preparation.
+- docs/mvp-qa-checklist.md was updated with ML-78 QA cases.
+- docs/app-store-metadata.md was updated with the production privacy URL and
+  current auth/sync-aware wording.
+- docs/app-store-screenshots.md was updated for the Privacy & Support label
+  and current Shame Card navigation.
+- docs/handoffs/ML_78_HANDOFF.txt was added with implementation details,
+  validation, manual QA steps, preserved invariants, and owner follow-up.
+
+Version
+- App version was bumped from 1.18.2 to 1.18.3.
+- package.json and package-lock.json were updated.
+- app.config.js remains the version reader and was not changed.
+- eas.json was not changed.
+
+AGENTS.md update
+- A durable project rule was added:
+  Keep public legal/support links centralized in src/lib/app-links.ts;
+  Settings legal/support link failures should show generic safe copy without
+  raw technical errors.
+
+Validation completed
+- npm run release:preflight
+- npm test -- --runInBand
+- npm test -- --runInBand src/features/settings/__tests__/settings-screen.test.ts
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Targeted regression checks completed
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction remains a root Stack screen, not a bottom tab.
+- Shame Card remains a root Stack screen, not a bottom tab.
+- No dynamic process.env[...] access exists in src or app.
+- No service-role/admin Supabase usage was added to mobile app runtime
+  code/config/package files.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- docs/privacy-policy.md was intentionally not rewritten.
+- app.config.js and eas.json were intentionally not changed.
+
+Manual owner follow-up completed
+- Owner manually transferred the needed privacy policy update blocks into the
+  existing Notion privacy policy.
+- Owner completed manual QA for ML-78 and reported all checks are OK.
+
+Preserved invariants
+- Guest/local mode remains permanent and available without a login wall.
+- Local tracking remains local-first and works offline.
+- No new backend, auth, cloud sync, bank integration, analytics, or tracking
+  functionality was added.
+- No new sync triggers were added.
+- No sync runs on cold start, login, session restore, sign out, background
+  execution, or transaction/category add/edit/delete.
+- Foreground auto sync remains limited to AppState foreground returns,
+  throttled by last successful sync metadata, and routed through the existing
+  sync service boundary.
+- Settings sync UI remains routed through manualSyncService and sync metadata
+  boundaries.
+- Sign Out remains separate from Delete Account and does not delete local data.
+- Delete Account still uses the existing delete account service path and then
+  signs out; local SQLite data remains on device.
+- Backup, Restore, Sync, CSV import/export, auth providers, and navigation
+  behavior were not redesigned.
+
+Do not reopen in future planning unless explicitly requested
+- Do not rewrite docs/privacy-policy.md as the live policy.
+- Do not edit Notion automatically.
+- Do not add legal-finality, no-sale, no-tracking, local DB encryption, or
+  end-to-end encryption claims unless separately verified and approved.
+- Do not add service-role/admin Supabase clients or keys to mobile app code.
+- Do not add new sync triggers, background sync, conflict UI, CSV v2, or
+  navigation changes as part of privacy/link follow-up work.
+- Do not replace the existing Privacy & Support implementation without a
+  concrete product reason.
+
+Likely next planning areas
+- App Store Connect submission details and privacy questionnaire review.
+- Public accessibility of the Notion privacy policy URL.
+- Release candidate / TestFlight submission flow for version 1.18.3.
+- Any future local-delete-device-data feature should be planned as a separate
+  product/security epic, not as part of ML-78.
+
+================================================================================
+
+EPIC 79 — SOURCE: ML_79_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-79 AI Agent Context
+
+Purpose
+- This file summarizes what was already completed for ML-79 so another AI
+  agent can plan future work without re-deriving the task history from chat.
+
+Task completed
+- Replaced the generic Expo native splash/loading screen with a branded Money
+  Leak native splash.
+- The final splash is native Expo splash configuration, not a React-level
+  loading screen.
+- The splash visually follows the Figma reference: centered droplet + Money
+  Leak wordmark on a light gray background.
+- Final manual testing was completed by the owner and passed.
+
+Implementation state
+- Installed expo-splash-screen 31.0.13 via Expo-compatible install.
+- package.json and package-lock.json were bumped from 1.18.3 to 1.18.4.
+- app.config.js was intentionally left unchanged; it continues to read
+  package.json.version.
+- eas.json was intentionally left unchanged.
+- app/_layout.tsx was intentionally left unchanged; no startup/auth/db/sync
+  runtime flow was modified.
+
+Splash asset
+- Added assets/images/splash-logo.png.
+- This is a transparent PNG containing only the Money Leak droplet and
+  wordmark.
+- It does not include the splash background color inside the PNG.
+- The splash background is configured through Expo config as #E5E5EA.
+- The user-provided Figma export was used only as a visual reference/source for
+  dimensions, not as a committed full-screen splash screenshot.
+- Deleted the old generic assets/splash-icon.png asset because it was no
+  longer referenced.
+- Important clarification: if the old grid/circles splash appears in a diff or
+  screenshot, that was the pre-existing generic assets/splash-icon.png file,
+  and it was removed in this task.
+
+Expo config
+- app.json now uses the expo-splash-screen config plugin.
+- Splash plugin config:
+  image: ./assets/images/splash-logo.png
+  imageWidth: 208
+  resizeMode: contain
+  backgroundColor: #E5E5EA
+  dark.image: ./assets/images/splash-logo.png
+  dark.backgroundColor: #E5E5EA
+- Existing app icon and adaptive icon settings were preserved.
+- No raw secrets, env values, tokens, or Supabase admin/service-role values
+  were added to splash config.
+
+Docs added or updated
+- docs/mvp-qa-checklist.md now has an ML-79 section.
+- docs/handoffs/ML_79_HANDOFF.txt contains the formal ML-79 handoff and
+  records validation results.
+- AGENTS.md now includes the durable project rule:
+  Keep native splash configuration in expo-splash-screen with
+  assets/images/splash-logo.png; do not replace it with a React-level loading
+  screen.
+
+Validation already run
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+- PASS targeted regression checks:
+  CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+  Bottom tabs remain Home, Analytics & Leaks, and Settings.
+  Add Transaction and Shame Card remain pushed root Stack screens, not tabs.
+  No service-role/admin Supabase usage exists in mobile app code/config/package
+  files outside tests.
+  No dynamic process.env[...] access exists in src or app.
+  No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+  Splash config points to ./assets/images/splash-logo.png, uses #E5E5EA,
+  imageWidth 208, and contains no raw secret/env/token values.
+
+Manual QA already completed
+- Owner manually tested and reported everything is OK.
+- Native preview/production-style splash QA passed.
+- Cold launch shows the Money Leak droplet + wordmark centered on #E5E5EA.
+- Generic Expo/native loading splash no longer appears.
+- No obvious white or black flash was observed between splash and app.
+- App opens normally after splash.
+- Guest/local mode still works.
+- Authenticated mode still works.
+- Settings Auth, Backup, Restore, Sync, and Delete Account passed smoke-level
+  checks.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain root Stack screens.
+
+Preserved constraints
+- No new product feature was added.
+- No auth/sync/backup/restore/delete-account runtime behavior changed.
+- No new sync triggers were added.
+- No navigation runtime behavior changed.
+- CSV v1 was not changed.
+- Guest/local mode remains permanent.
+- No backend/auth/cloud/bank integration work was introduced as part of this
+  task.
+
+Current planning note for future agents
+- Treat ML-79 as implemented and manually verified.
+- Future work should not reintroduce assets/splash-icon.png or the legacy
+  expo.splash field unless there is a deliberate migration reason.
+- Do not add a React loading screen to solve native splash behavior.
+- If splash visuals need further refinement, update assets/images/splash-logo.png
+  and the expo-splash-screen plugin config, then verify in a preview or
+  production standalone build.
+
+================================================================================
+
+EPIC 80 — SOURCE: ML_80_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-80 Agent Context: Clean App Icon
+
+Purpose
+- This file summarizes the completed ML-80 work so a future AI agent can plan
+  follow-up work without rediscovering the same context.
+
+Task completed
+- Fixed the Money Leak app icon halo/border issue seen on a real iPhone Home
+  Screen.
+- The fix was asset/config level only. Splash, routing, auth, sync, backup,
+  restore, delete-account, CSV, and app runtime behavior were not intentionally
+  changed.
+
+Root cause found
+- app.json resolved expo.icon, ios.icon, and Android adaptive foreground to
+  ./assets/images/icon.png.
+- The previous assets/images/icon.png was a 1024x1024 RGBA PNG with
+  transparency.
+- It also had baked rounded corners, edge shadowing, and light halo/stroke
+  pixels around the droplet.
+- iOS applies its own native app icon mask, so the baked rounded-square mask and
+  light droplet halo remained visible on the Home Screen and App Library.
+
+Figma note
+- The task referenced the Figma node:
+  https://www.figma.com/design/h0QVqyKT70KlwgNfgRbrjm/Money-Leak?node-id=57-383&t=dHXx3uGWJqYosXID-0
+- Figma MCP access was rate-limited during planning.
+- The approved fallback was to rebuild locally from the clean droplet alpha in
+  assets/images/splash-logo.png.
+
+Implementation completed
+- Rebuilt assets/images/icon.png as a clean 1024x1024 opaque RGB PNG.
+- The new iOS/global icon:
+  - uses a full-square #01070F background;
+  - has no alpha/transparency;
+  - has no baked rounded corners;
+  - has no icon edge shadow/border;
+  - has no unwanted white/light stroke, glow, or halo around the droplet;
+  - keeps the Money Leak droplet identity by deriving the shape from
+    assets/images/splash-logo.png.
+- Added assets/images/adaptive-icon.png as a separate 1024x1024 transparent
+  Android adaptive foreground.
+- Updated app.json Android adaptive icon config:
+  - foregroundImage: ./assets/images/adaptive-icon.png
+  - backgroundColor: #01070F
+- Kept app.json global and iOS icon config:
+  - expo.icon: ./assets/images/icon.png
+  - ios.icon: ./assets/images/icon.png
+- Kept expo-splash-screen config unchanged:
+  - image: ./assets/images/splash-logo.png
+  - dark.image: ./assets/images/splash-logo.png
+  - backgroundColor: #E5E5EA
+- Bumped app version from 1.18.4 to 1.18.5 in package.json and package-lock.json.
+- app.config.js was not changed and still reads package.json.version.
+
+Docs completed
+- Added ML-80 QA coverage to docs/mvp-qa-checklist.md.
+- Added docs/handoffs/ML_80_HANDOFF.txt.
+- Added this context file: docs/handoffs/ML_80_AGENT_CONTEXT.txt.
+- Updated AGENTS.md with a durable icon rule:
+  Keep app icon assets separate from splash assets. iOS app icons should be
+  square PNGs without transparency or baked-in rounded corners; iOS applies the
+  mask.
+
+Files changed for ML-80
+- AGENTS.md
+- app.json
+- package.json
+- package-lock.json
+- assets/images/icon.png
+- assets/images/adaptive-icon.png
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_80_HANDOFF.txt
+- docs/handoffs/ML_80_AGENT_CONTEXT.txt
+
+Automated validation already passed
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+
+Targeted checks already passed
+- assets/images/icon.png is 1024x1024 and has no alpha.
+- assets/images/adaptive-icon.png is 1024x1024 and has alpha for Android
+  adaptive foreground use.
+- Expo config resolves:
+  - icon: ./assets/images/icon.png
+  - ios.icon: ./assets/images/icon.png
+  - android.adaptiveIcon.foregroundImage: ./assets/images/adaptive-icon.png
+  - android.adaptiveIcon.backgroundColor: #01070F
+  - splash image: ./assets/images/splash-logo.png
+  - dark splash image: ./assets/images/splash-logo.png
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Shame Card remain pushed root Stack screens, not bottom
+  tabs.
+- No service-role/admin Supabase usage was added to mobile app code/config or
+  package files.
+- No dynamic process.env[...] access was added in src or app.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- No new dependencies were added.
+
+Manual QA completed by owner
+- Owner installed or updated a TestFlight or production-style iOS build.
+- Owner confirmed the iPhone Home Screen icon has no unwanted border, light
+  stroke, glow, or halo.
+- Owner confirmed the App Library icon looks clean.
+- Owner confirmed the installed app uses the new icon after reinstall/update.
+- Owner confirmed the ML-79 splash still shows the centered Money Leak droplet
+  and wordmark on #E5E5EA.
+- Owner confirmed the app opens normally.
+- Owner smoke-tested guest/local mode.
+- Owner smoke-tested authenticated Settings where available.
+
+Important preserved invariants for future planning
+- Guest/local mode remains permanent.
+- No auth/sync/backup/restore/delete-account runtime behavior changed.
+- CSV v1 must remain exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs must remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card must remain pushed root Stack screens.
+- Native splash must remain owned by expo-splash-screen and
+  assets/images/splash-logo.png unless a future task explicitly changes splash.
+- App icon assets should remain separate from splash assets.
+- iOS app icon assets should remain square, opaque, and unmasked; iOS applies
+  the native icon mask.
+
+Suggested next-agent starting point
+- Read docs/handoffs/ML_80_HANDOFF.txt and this file first.
+- If planning a release, treat ML-80 implementation and manual QA as complete.
+- If touching icons later, inspect app.json, app.config.js, assets/images/icon.png,
+  assets/images/adaptive-icon.png, and assets/images/splash-logo.png before
+  proposing changes.
+- If touching release docs, keep package.json as the version source of truth.
