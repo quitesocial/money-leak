@@ -18,7 +18,7 @@ asrazdorskiy@gmail.com
 
 ## Privacy policy URL
 
-https://quitesocial.notion.site/35357a24e62c804dab18c28d24a6c75a?source=copy_link
+https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true
 
 ## Description
 
@@ -29,10 +29,11 @@ slipping through.
 - Mark purchases as leaks
 - Review simple leak totals and patterns
 - Turn on an optional daily local reminder
-- Keep data on your device
+- Use guest/local mode without an account
 - Import or export CSV backups when you choose
+- Sign in optionally to use account backup, restore, and sync
 
-No accounts. No cloud sync. No bank integrations.
+No bank integrations.
 
 ## TestFlight notes
 
@@ -42,7 +43,7 @@ Please test native iPhone and iPad flows:
 2. Mark leaks and review Home and Analytics summaries.
 3. Export a CSV backup and import it back into the app.
 4. Turn the daily reminder on and off.
-5. Open `Settings -> Support & Legal` and confirm both links open correctly.
+5. Open `Settings -> Privacy & Support` and confirm both links open correctly.
 
 Please report crashes, broken calculations, CSV issues, or links that fail to
 open.

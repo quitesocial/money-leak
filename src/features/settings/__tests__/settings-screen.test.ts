@@ -465,8 +465,9 @@ const consoleErrorSpy = jest
   .mockImplementation(() => {});
 
 const mutableAppLinks = APP_LINKS as {
-  PRIVACY_POLICY: string;
-  SUPPORT_EMAIL: string;
+  privacyPolicyUrl: string;
+  supportEmail: string;
+  supportUrl: string;
 };
 
 const mutableFeatureFlags = featureFlags as {
@@ -693,9 +694,10 @@ beforeEach(() => {
   mutableFeatureFlags.restoreEnabled = true;
   mutableFeatureFlags.incrementalSyncEnabled = false;
 
-  mutableAppLinks.PRIVACY_POLICY =
-    'https://quitesocial.notion.site/35357a24e62c804dab18c28d24a6c75a?source=copy_link';
-  mutableAppLinks.SUPPORT_EMAIL = 'mailto:asrazdorskiy@gmail.com';
+  mutableAppLinks.privacyPolicyUrl =
+    'https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true';
+  mutableAppLinks.supportEmail = 'asrazdorskiy@gmail.com';
+  mutableAppLinks.supportUrl = 'mailto:asrazdorskiy@gmail.com';
 
   mockLoadTransactions.mockResolvedValue(undefined);
   mockLoadCategories.mockResolvedValue(undefined);
@@ -741,53 +743,95 @@ afterAll(() => {
 });
 
 describe('SettingsScreen support links', () => {
-  it('opens the privacy policy URL with Linking.openURL', async () => {
+  it('renders Privacy & Support in guest mode without a login wall', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Privacy & Support');
+    expect(text).toContain('Privacy Policy');
+    expect(text).toContain('Support');
+    expect(text).toContain('Using local guest mode on this device.');
+    expect(text).not.toContain('Delete Account');
+    expectNoRawSyncUiValues(text);
+  });
+
+  it('renders Privacy & Support in authenticated mode', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Privacy & Support');
+    expect(text).toContain('Privacy Policy');
+    expect(text).toContain('Support');
+    expect(text).toContain('Signed in as test@example.com.');
+    expect(text).toContain('Sign Out');
+    expect(text).toContain('Delete Account');
+    expectNoRawSyncUiValues(text);
+  });
+
+  it('opens the configured privacy policy URL with Linking.openURL', async () => {
     const renderer = await renderSettingsScreen();
 
     await pressButton(renderer, 'Privacy Policy');
 
-    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.PRIVACY_POLICY);
+    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.privacyPolicyUrl);
     expect(alertSpy).not.toHaveBeenCalled();
   });
 
-  it('opens the support email mailto link with Linking.openURL', async () => {
+  it('opens the configured support mailto link with Linking.openURL', async () => {
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Contact Support');
+    await pressButton(renderer, 'Support');
 
-    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.SUPPORT_EMAIL);
+    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.supportUrl);
     expect(alertSpy).not.toHaveBeenCalled();
   });
 
-  it('shows a safe fallback alert when Linking.openURL rejects', async () => {
-    openUrlSpy.mockRejectedValueOnce(new Error('No handler'));
+  it('shows safe inline copy when Linking.openURL rejects', async () => {
+    openUrlSpy.mockRejectedValueOnce(
+      new Error(rawSyncUiForbiddenValues.join(' ')),
+    );
 
     const renderer = await renderSettingsScreen();
 
     await pressButton(renderer, 'Privacy Policy');
 
-    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.PRIVACY_POLICY);
-    expect(alertSpy).toHaveBeenCalledWith("Couldn't open this link right now.");
+    const text = getNodeText(renderer.root);
+    const loggedText = JSON.stringify(consoleErrorSpy.mock.calls);
+
+    expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.privacyPolicyUrl);
+    expect(text).toContain("Couldn't open this link right now.");
+    expectNoRawSyncUiValues(text);
+    expect(loggedText).toContain('Failed to open external link');
+    for (const value of rawSyncUiForbiddenValues) {
+      expect(loggedText).not.toContain(value);
+    }
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 
-  it('shows the existing empty-link fallback alerts when links are blank', async () => {
-    mutableAppLinks.PRIVACY_POLICY = '';
-    mutableAppLinks.SUPPORT_EMAIL = '';
+  it('shows safe inline copy when links are blank', async () => {
+    mutableAppLinks.privacyPolicyUrl = '';
+    mutableAppLinks.supportUrl = '';
 
     const renderer = await renderSettingsScreen();
 
     await pressButton(renderer, 'Privacy Policy');
-    await pressButton(renderer, 'Contact Support');
 
     expect(openUrlSpy).not.toHaveBeenCalled();
-    expect(alertSpy).toHaveBeenNthCalledWith(
-      1,
-      'Privacy policy is not available yet.',
+    expect(getNodeText(renderer.root)).toContain(
+      'Privacy policy is not available right now.',
     );
-    expect(alertSpy).toHaveBeenNthCalledWith(
-      2,
-      'Support contact is not configured.',
+
+    await pressButton(renderer, 'Support');
+
+    expect(openUrlSpy).not.toHaveBeenCalled();
+    expect(getNodeText(renderer.root)).toContain(
+      'Support contact is not available right now.',
     );
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -855,6 +899,7 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Signed in as test@example.com.');
     expect(text).toContain('Sign Out');
     expect(text).toContain('Privacy');
+    expect(text).toContain('Privacy & Support');
     expect(text).toContain('Delete Account');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');

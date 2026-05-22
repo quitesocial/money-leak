@@ -76,7 +76,7 @@ hour`.
 
 **Expected UI state**
 
-- `Shame Card` is the active tab.
+- `Shame Card` is open as a pushed root Stack screen from Analytics.
 - The shared period selector remains on the default `Today` state.
 - The default `Harsh` tone is selected.
 - The preview card is visible with a title, total leaks line, top category
@@ -95,11 +95,11 @@ hour`.
 **Expected UI state**
 
 - `Settings` is the active tab.
-- The `Daily check-in reminder`, `Data`, and `Support & Legal` sections are all
+- The `Daily check-in reminder`, `Data`, and `Privacy & Support` sections are all
   visible.
 - The `Data` section shows the idle `Import CSV` and `Export CSV` buttons.
-- No loading, success, or error message is covering the `Data` or `Support &
-Legal` sections.
+- No loading, success, or error message is covering the `Data` or `Privacy &
+Support` sections.
 
 **Required data**
 

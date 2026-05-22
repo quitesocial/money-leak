@@ -25,16 +25,16 @@
 
 ## Epic 35: App Store / TestFlight Readiness
 
-- Settings shows "Support & Legal"
+- Settings shows "Privacy & Support"
 - Privacy Policy button works or shows fallback alert
-- Contact Support button works or shows fallback alert
+- Support button works or shows fallback alert
 - Existing reminder / import / export features still work
 - No crashes in Settings
 
 ## Epic 36: Production Links & Metadata Finalization
 
 - Privacy Policy opens the real URL
-- Contact Support opens the mail client
+- Support opens the mail client
 - Settings screen remains stable if `Linking.openURL` fails
 - No placeholder text remains in docs
 
@@ -47,7 +47,7 @@
 - Regression check: `Home` still shows Today summary, History segmented controls, and transaction list behavior.
 - Regression check: `Analytics` still shows the expected empty, no-leaks, and non-empty states.
 - Regression check: `Shame Card` still shows the expected empty, no-leaks, populated preview, tone, and share states.
-- Regression check: `Settings` still shows the reminder, `Data`, and `Support & Legal` sections without regressions.
+- Regression check: `Settings` still shows the reminder, `Data`, and `Privacy & Support` sections without regressions.
 - Regression check: Import and export flows still work with the existing CSV fixtures and native-only platform boundaries.
 - Regression check: Reminder enable, disable, denied, and unsupported flows still work.
 
@@ -91,7 +91,7 @@
 - Production/TestFlight build shows the Money Leak icon on the Home Screen.
 - TestFlight/App Store Connect build displays the new icon after processing.
 - Existing app navigation still works.
-- Settings / Support & Legal still works.
+- Settings / Privacy & Support still works.
 - No product behavior changed.
 
 ## ML-44 / Epic 44: Editable Categories v1
@@ -1670,6 +1670,65 @@ Manual QA:
   foreground return.
 - Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
   Restore, Delete Account, Sign Out, and local guest mode.
+
+## ML-78: Privacy / App Store Review Readiness v1
+
+- `package.json.version` is bumped intentionally to `1.18.3`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.3`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Settings shows `Privacy & Support` in guest/local mode without a login wall.
+- Settings shows `Privacy & Support` for authenticated users.
+- `Privacy Policy` opens
+  `https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true`.
+- `Support` opens `mailto:asrazdorskiy@gmail.com`.
+- If a legal/support link cannot open, Settings shows only generic safe copy:
+  `Couldn't open this link right now.`
+- Sign Out remains separate from Delete Account and still preserves local data.
+- Delete Account still deletes app-owned cloud account data through the
+  existing service boundary, then signs out, while local data stays on device.
+- Backup, Restore, and Sync still work through their existing Settings service
+  boundaries.
+- Settings does not render raw env values, Supabase URLs, anon keys,
+  service-role keys, OAuth/provider secrets, access tokens, refresh tokens,
+  provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
+  user IDs, row payloads, or raw backend errors.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `docs/privacy-policy-update-draft.md` exists as a product/engineering patch
+  draft for the existing Notion policy, not a replacement policy.
+- `docs/app-store-privacy-checklist.md` exists and covers owner App Store
+  privacy submission checks.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.3`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- In guest/local mode, open Settings and confirm `Privacy & Support`, `Privacy
+Policy`, and `Support` are visible without forcing sign-in.
+- Sign in and confirm `Privacy & Support`, `Privacy Policy`, and `Support`
+  remain visible.
+- Tap `Privacy Policy` and confirm the configured Notion URL opens.
+- Tap `Support` and confirm the mail client opens for
+  `asrazdorskiy@gmail.com`.
+- Force a link-open failure and confirm Settings shows only
+  `Couldn't open this link right now.` with no raw technical details.
+- Tap Sign Out and confirm local data remains on device.
+- Run Delete Account through the existing confirmation flow and confirm cloud
+  account deletion/sign-out behavior while local data remains on device.
+- Recheck Backup, Restore, Sync, CSV import/export, bottom tabs, Add
+  Transaction, Shame Card, and local guest mode.
 
 ## App Boot And Empty State
 
