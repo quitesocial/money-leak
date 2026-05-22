@@ -7,11 +7,6 @@
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
@@ -39,6 +34,19 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 208,
+          "resizeMode": "contain",
+          "backgroundColor": "#E5E5EA",
+          "dark": {
+            "image": "./assets/images/splash-logo.png",
+            "backgroundColor": "#E5E5EA"
+          }
+        }
+      ],
       "expo-notifications",
       "expo-apple-authentication",
       "@react-native-community/datetimepicker",

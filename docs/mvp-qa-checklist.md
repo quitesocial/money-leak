@@ -1730,6 +1730,68 @@ Policy`, and `Support` are visible without forcing sign-in.
 - Recheck Backup, Restore, Sync, CSV import/export, bottom tabs, Add
   Transaction, Shame Card, and local guest mode.
 
+## ML-79: Loading Screen / Native Splash Screen v1
+
+- `package.json.version` is bumped intentionally to `1.18.4`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.4`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- `expo-splash-screen` is installed as the only new splash/loading dependency.
+- Expo config uses the `expo-splash-screen` config plugin with
+  `./assets/images/splash-logo.png`.
+- `assets/images/splash-logo.png` is a transparent PNG containing only the
+  Money Leak droplet and wordmark, without a background fill.
+- Native splash background is configured as `#E5E5EA`.
+- Preview/production build shows the Money Leak splash, not the generic Expo
+  splash.
+- Logo and `Money Leak` wordmark are visually centered and close to the Figma
+  reference.
+- No white or black flash appears between native splash and app startup, as far
+  as can be verified manually.
+- The app opens normally after the splash.
+- Guest/local mode still works.
+- Authenticated mode still works.
+- Settings Auth, Backup, Restore, Sync, and Delete Account smoke checks still
+  pass.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No auth, sync, backup, restore, delete-account, or navigation runtime
+  behavior changed.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- Expo Go/dev build is not treated as the main source of truth for splash QA;
+  verify the splash in a preview/production standalone build.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.4` and splash config
+  without raw secret/env/token values.
+- `git diff --check` passes.
+
+Manual QA:
+
+- Install a preview or production build.
+- Launch the app cold and confirm the centered Money Leak droplet and wordmark
+  appear on `#E5E5EA`.
+- Confirm the splash is not the generic Expo icon/splash.
+- Confirm the transition into the app does not show an obvious white or black
+  flash.
+- Confirm the app reaches the expected guest or authenticated startup state.
+- Open Home, Analytics & Leaks, and Settings.
+- Open Add Transaction from Home and confirm it is pushed outside the bottom
+  tab bar.
+- Open Shame Card from Analytics and confirm it is pushed outside the bottom
+  tab bar.
+- Smoke-test Settings Auth, Backup, Restore, Sync, Delete Account, and guest
+  mode.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

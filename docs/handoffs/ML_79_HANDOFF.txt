@@ -1,0 +1,88 @@
+ML-79 Loading Screen / Native Splash Screen v1 Handoff
+
+Summary
+- Replaced the legacy generic Expo splash config with the expo-splash-screen
+  config plugin.
+- Added a transparent production splash logo asset at
+  assets/images/splash-logo.png.
+- Configured the native splash background as #E5E5EA with centered Money Leak
+  droplet + wordmark artwork.
+- Installed expo-splash-screen as the only new splash/loading dependency.
+- Removed the old unreferenced generic assets/splash-icon.png asset.
+- Added ML-79 QA coverage and a durable AGENTS.md rule for native splash
+  ownership.
+- Bumped the app patch version from 1.18.3 to 1.18.4.
+
+Files changed
+- AGENTS.md
+- app.json
+- package.json
+- package-lock.json
+- assets/images/splash-logo.png
+- assets/splash-icon.png
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_79_HANDOFF.txt
+
+Validation results
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+- PASS targeted regression checks:
+  CSV v1 header remains exactly
+  id,amount,category,isLeak,leakReason,note,createdAt.
+  Bottom tabs remain Home, Analytics & Leaks, and Settings.
+  Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+  No service-role/admin Supabase usage exists in mobile app code/config/package
+  files outside tests.
+  No dynamic process.env[...] access exists in src or app.
+  No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+  Splash config points to ./assets/images/splash-logo.png, uses #E5E5EA,
+  imageWidth 208, and contains no raw secret/env/token values.
+
+Manual QA for owner
+- Verify ML-79 on a preview or production standalone build, not primarily in
+  Expo Go or a dev build.
+- Cold launch the app and confirm the native splash shows the Money Leak
+  droplet + wordmark centered on #E5E5EA.
+- Confirm the generic Expo/native loading splash no longer appears.
+- Confirm there is no obvious white or black flash between splash and app, as
+  far as manual observation allows.
+- Confirm the app opens normally after splash in guest/local mode.
+- Sign in and confirm authenticated startup still works.
+- Smoke-test Settings Auth, Backup, Restore, Sync, and Delete Account.
+- Confirm bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Confirm Add Transaction and Shame Card remain pushed root Stack screens and
+  are not visible bottom tabs.
+
+Preserved invariants
+- No React-level fake loading screen was added.
+- app/_layout.tsx startup, font, auth, database, and foreground sync flow was
+  not changed.
+- Guest/local mode remains permanently available.
+- Auth, sync, backup, restore, and delete-account runtime behavior was not
+  changed.
+- No sync triggers were added.
+- CSV v1 remains exactly
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- app.config.js and eas.json were not changed.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+
+Version bump
+- 1.18.3 -> 1.18.4.
+- This is a patch bump for native splash branding and documentation.
+- package.json remains the source of truth for version, and app.config.js
+  continues to read package.json.version.
+
+AGENTS.md update
+- Added one durable native splash rule because splash ownership is a project
+  convention likely to matter in future startup/release work.
