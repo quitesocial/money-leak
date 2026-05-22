@@ -60,6 +60,7 @@ nvm use 20.19.4
 - Keep user-facing Settings sync UI routed through the manual sync service and sync metadata boundaries; do not call remote sync adapters or Supabase clients directly from screen code.
 - Keep sync attempt source metadata limited to the safe enum values `manual` and `foreground`; do not store it inside aggregate summaries or raw diagnostics.
 - Keep public legal/support links centralized in `src/lib/app-links.ts`; Settings legal/support link failures should show generic safe copy without raw technical errors.
+- Keep native splash configuration in `expo-splash-screen` with `assets/images/splash-logo.png`; do not replace it with a React-level loading screen.
 
 ## Current App Structure
 
