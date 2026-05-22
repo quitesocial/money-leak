@@ -18,8 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#01070F"
       },
       "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
       "edgeToEdgeEnabled": true,

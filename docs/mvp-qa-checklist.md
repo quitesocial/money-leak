@@ -1792,6 +1792,68 @@ Manual QA:
 - Smoke-test Settings Auth, Backup, Restore, Sync, Delete Account, and guest
   mode.
 
+## ML-80: Clean App Icon
+
+- `package.json.version` is bumped intentionally to `1.18.5`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.18.5`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Expo config resolves the global app icon path to
+  `./assets/images/icon.png`.
+- Expo config resolves the iOS app icon path to `./assets/images/icon.png`.
+- Expo config resolves the Android adaptive foreground image path to
+  `./assets/images/adaptive-icon.png`.
+- Expo splash config still points to `./assets/images/splash-logo.png`.
+- `assets/images/icon.png` is a 1024x1024 PNG without alpha/transparency.
+- `assets/images/icon.png` has a full-square background, no baked rounded
+  corners, and no unwanted white/light border, halo, stroke, or shadow around
+  the droplet.
+- `assets/images/adaptive-icon.png` is a 1024x1024 PNG with transparent
+  background and droplet-only foreground for Android adaptive icons.
+- iOS Home Screen icon has no unwanted border/halo.
+- App Library icon looks clean.
+- TestFlight/App Store installed app uses the new icon after reinstall/update.
+- Splash from ML-79 still shows the centered Money Leak droplet and wordmark on
+  `#E5E5EA`.
+- The app opens normally.
+- Guest/local mode still works.
+- Authenticated Settings smoke test passes when authenticated mode is
+  available.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+- No auth, sync, backup, restore, delete-account, or navigation runtime
+  behavior changed.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No dynamic `process.env[...]` access was added in `src` or `app`.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.18.5` and the expected
+  icon/splash paths.
+- `git diff --check` passes.
+
+Manual QA:
+
+- Install or update a TestFlight or production-style iOS build.
+- Confirm the iPhone Home Screen icon has no unwanted border, light stroke,
+  glow, or halo.
+- Confirm the App Library icon also looks clean.
+- Confirm TestFlight/App Store installed app uses the new icon after
+  reinstall/update.
+- Confirm the ML-79 splash still shows the centered Money Leak droplet and
+  wordmark on `#E5E5EA`.
+- Confirm the app opens normally.
+- Smoke-test guest/local mode.
+- Smoke-test authenticated Settings if available.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

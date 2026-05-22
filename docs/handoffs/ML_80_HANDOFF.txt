@@ -1,0 +1,97 @@
+ML-80 Clean App Icon Handoff
+
+Root cause
+- Expo resolved expo.icon, ios.icon, and the Android adaptive foreground to
+  assets/images/icon.png.
+- That icon was a 1024x1024 RGBA PNG with transparency, baked rounded corners,
+  edge shadowing, and light droplet strokes/halo baked into the raster.
+- iOS applies its own native icon mask, so the baked mask and halo remained
+  visible on the Home Screen and App Library.
+
+Files changed
+- AGENTS.md
+- app.json
+- package.json
+- package-lock.json
+- assets/images/icon.png
+- assets/images/adaptive-icon.png
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_80_HANDOFF.txt
+
+Implementation notes
+- Rebuilt assets/images/icon.png as a clean 1024x1024 opaque RGB PNG.
+- The new iOS/global icon uses a full-square #01070F background and a centered
+  Money Leak droplet derived from the clean droplet alpha in
+  assets/images/splash-logo.png.
+- The new iOS/global icon has no alpha, no baked rounded corners, no icon
+  shadow, and no white/light droplet halo or stroke.
+- Added assets/images/adaptive-icon.png as a separate transparent Android
+  adaptive foreground.
+- Updated Android adaptive backgroundColor to #01070F.
+- Left the expo-splash-screen config unchanged; it still uses
+  assets/images/splash-logo.png on #E5E5EA.
+- Figma MCP access was rate-limited during planning, so the approved local
+  rebuild path was used.
+
+Validation results
+- PASS npm run release:preflight
+- PASS npm test -- --runInBand
+- PASS npm run typecheck
+- PASS npm run lint
+- PASS npm run format:check
+- PASS npx expo config --json
+- PASS git diff --check
+- PASS targeted asset/config checks:
+  assets/images/icon.png is 1024x1024 and has no alpha.
+  assets/images/adaptive-icon.png is 1024x1024 and has alpha for Android
+  adaptive foreground use.
+  Expo config resolves icon and ios.icon to ./assets/images/icon.png.
+  Expo config resolves android.adaptiveIcon.foregroundImage to
+  ./assets/images/adaptive-icon.png.
+  Expo config keeps splash image and dark splash image at
+  ./assets/images/splash-logo.png.
+- PASS targeted invariant checks:
+  CSV v1 header remains exactly
+  id,amount,category,isLeak,leakReason,note,createdAt.
+  Bottom tabs remain Home, Analytics & Leaks, and Settings.
+  Add Transaction and Shame Card remain pushed root Stack screens and are not
+  visible bottom tabs.
+  No service-role/admin Supabase usage was added to mobile app code/config or
+  package files.
+  No dynamic process.env[...] access was added in src or app.
+  No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
+  styling was added.
+
+Manual QA needed
+- Install or update a TestFlight or production-style iOS build.
+- Confirm the iPhone Home Screen icon has no unwanted border, light stroke,
+  glow, or halo.
+- Confirm the App Library icon also looks clean.
+- Confirm TestFlight/App Store installed app uses the new icon after
+  reinstall/update.
+- Confirm the ML-79 splash still shows the centered Money Leak droplet and
+  wordmark on #E5E5EA.
+- Confirm the app opens normally.
+- Smoke-test guest/local mode.
+- Smoke-test authenticated Settings if available.
+
+Preserved invariants
+- Guest/local mode remains permanently available.
+- Auth, sync, backup, restore, delete-account, and navigation runtime behavior
+  was not changed.
+- CSV v1 remains exactly
+  id,amount,category,isLeak,leakReason,note,createdAt.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+- Add Transaction and Shame Card remain pushed root Stack screens.
+- app.config.js was not changed and continues to read package.json.version.
+- expo-splash-screen still owns the native splash and still points to
+  assets/images/splash-logo.png.
+- No new dependencies were added.
+
+Version bump
+- 1.18.4 -> 1.18.5.
+- This is a patch bump for visual icon polish.
+
+AGENTS.md update
+- Added a durable icon asset rule because icon/splash ownership and iOS mask
+  behavior are release constraints likely to matter in future asset work.
