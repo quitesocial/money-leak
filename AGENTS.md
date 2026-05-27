@@ -62,6 +62,7 @@ nvm use 20.19.4
 - Keep public legal/support links centralized in `src/lib/app-links.ts`; Settings legal/support link failures should show generic safe copy without raw technical errors.
 - Keep native splash configuration in `expo-splash-screen` with `assets/images/splash-logo.png`; do not replace it with a React-level loading screen.
 - Keep app icon assets separate from splash assets. iOS app icons should be square PNGs without transparency or baked-in rounded corners; iOS applies the mask.
+- Keep category data contracts name-only unless a task explicitly introduces category icons; do not add category icon fields, persistence, schema, sync, backup, or CSV changes from Figma-only icon visuals.
 
 ## Current App Structure
 

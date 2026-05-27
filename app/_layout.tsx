@@ -46,9 +46,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="add-transaction"
           options={{
-            title: 'Add Transaction',
-            headerBackButtonDisplayMode: 'generic',
-            headerBackTitle: 'Back',
+            headerShown: false,
           }}
         />
 
