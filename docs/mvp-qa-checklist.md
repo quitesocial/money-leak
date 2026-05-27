@@ -1854,6 +1854,92 @@ Manual QA:
 - Smoke-test guest/local mode.
 - Smoke-test authenticated Settings if available.
 
+## ML-81: Add Transaction Wizard
+
+- `package.json.version` is bumped intentionally to `1.19.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.19.0`.
+- `app.config.js` remains unchanged and continues to read
+  `package.json.version`.
+- Add Transaction remains `/add-transaction` as a pushed root Stack screen, not
+  a bottom tab.
+- Bottom tabs remain exactly Home, Analytics & Leaks, and Settings.
+- Shame Card remains a pushed root Stack screen, not a bottom tab.
+- Add Transaction opens with amount focused and accepts decimal dot or a single
+  decimal comma value.
+- Normal add flow saves amount, selected date, Normal type, and selected active
+  category.
+- Leak add flow requires a reason before continuing and saves the selected
+  reason.
+- Switching Leak back to Normal clears the leak reason before save.
+- Date selection is saved to `Transaction.createdAt` and displays safely on
+  Home and Analytics.
+- Category is required before saving.
+- Archived categories do not appear in the new Add Transaction category
+  selector.
+- Add Category from Add Transaction is name-only.
+- No Add Category icon picker/grid is visible in ML-81.
+- No category icon persistence, icon field, icon validation, SQLite migration,
+  sync contract, backup contract, remote schema, or CSV field is added.
+- A newly created category appears in the Category step, can be selected or
+  auto-selected, and can be used to create a transaction.
+- Duplicate and invalid Add Category names show the existing category
+  validation behavior.
+- Internal bottom secondary actions move back through wizard steps.
+- Header/root back exits Add Transaction safely; Add Category header back
+  returns to the Category step.
+- Edit Transaction still uses the existing edit form, remains focused on the
+  amount field, and still handles archived current categories safely.
+- Home summary/history refreshes after saving a new transaction.
+- Analytics reflects a new normal or leak transaction after save.
+- Manage Categories still works.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No auth, sync, backup, restore, delete-account, Supabase migration, RLS,
+  remote schema, app icon, splash, or release workflow behavior changed.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No raw env values, secrets, tokens, or raw IDs are exposed in UI, logs, or
+  docs.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, glass
+  styling, or new dependency was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.19.0`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- Open Add Transaction from Home and confirm it is pushed outside the bottom
+  tab bar.
+- Enter a normal amount, leave/change the date, tap Normal, choose a category,
+  and save.
+- Confirm Home summary/history and Analytics reflect the normal transaction.
+- Enter a leak amount, tap Leak, try Next without a reason, and confirm the
+  reason-required error.
+- Choose a leak reason, choose a category, save, and confirm Home/Analytics
+  reflect the leak reason.
+- Start a Leak, choose a reason, switch to Normal, save, and confirm no leak
+  reason is stored or displayed.
+- Try saving from Category without selecting a category and confirm validation.
+- Archive a category in Manage Categories and confirm it no longer appears in
+  Add Transaction while old transactions still display safely elsewhere.
+- From Category, tap Add, create a name-only category, and confirm it appears
+  in the Category step.
+- Use the newly created category to save a transaction and confirm Home and
+  Analytics show the category display name.
+- Try empty and duplicate Add Category names and confirm existing validation
+  copy appears.
+- Confirm Add Category shows no icon optional row, icon picker, or icon grid.
+- Confirm internal back returns to the previous wizard step and root/header
+  back exits safely.
+- Smoke-test Edit Transaction amount autofocus, category selection, archived
+  current category display, and save behavior.
+- Smoke-test bottom tabs, Shame Card, Manage Categories, CSV import/export,
+  Settings Auth, Backup, Restore, Sync, Delete Account, app icon, and splash.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB
