@@ -1,0 +1,245 @@
+ML-81.5 Category Icons Picker Handoff
+Date: 2026-05-28
+Project: Money Leak
+App version after task: 1.20.0
+
+Status
+------
+ML-81.5 is implemented and manually QA-tested by the user.
+
+The task added persisted local category icons, category icon picking in Add
+Transaction, the same create/edit icon flow in Settings > Manage Categories,
+and transaction category icons in Home History.
+
+High-level outcomes
+-------------------
+- Category icons are now a persisted local Category property: iconName.
+- Transaction.category still stores only the stable category ID.
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Category icons were not added to remote Supabase sync/backup schema.
+- No Supabase remote migration was added.
+- No auth, backup, restore, sync, delete-account, bottom-tab, or root-stack
+  behavior was intentionally changed.
+- No new icon dependency was added. Existing expo-symbols / SymbolView is used.
+- package.json and package-lock.json were bumped from 1.19.0 to 1.20.0.
+
+User-visible UI implemented
+---------------------------
+Add Transaction:
+- Category step shows each category chip with an inline icon before the name.
+- The extra inner circular icon container on category chips was removed to match
+  the Figma direction.
+- Add Category sub-flow keeps the name input.
+- Under "Icon (optional)", the initial state is a single circular plus button.
+- Tapping the plus expands an animated icon picker.
+- Expanded icon picker uses five icon buttons per row.
+- Icon buttons are circular.
+- Selected icon state is black circle with white symbol.
+- Saving a new category persists the selected iconName.
+- If no icon is explicitly selected, fallback icon "tag" is used.
+- Newly created category returns to Category step, appears with its icon, and is
+  auto-selected.
+- Normal and leak transaction creation continue to work.
+
+Settings > Manage Categories:
+- The same collapsed-plus / expanded-grid icon picker is now available when
+  creating a category from Settings.
+- The same picker is available when editing an existing category.
+- Category create from Settings saves the selected iconName.
+- Category edit from Settings can change iconName.
+- Icon-only edits are kept local-only: the DB update changes icon_name but does
+  not touch updated_at/source_device_id sync metadata.
+- Category name edits still touch sync metadata, preserving the prior remote
+  name-sync behavior.
+
+Home History:
+- Transaction rows now render the transaction category icon before the category
+  name, using the transaction.category ID to resolve the current category icon.
+- Unknown or legacy categories fall back safely to the default "tag" icon.
+
+Data model and persistence
+--------------------------
+Main local Category type:
+- src/types/category.ts now includes iconName on CategoryInput/Category.
+
+Central icon registry:
+- src/lib/category-icons.ts defines allowed stable icon IDs, labels,
+  SF Symbol names, fallback text, default category mappings, and fallback icon.
+- Fallback icon is "tag".
+- Default category icons:
+  - food -> takeoutbag.and.cup.and.straw
+  - transport -> bus
+  - alcohol -> wineglass
+  - shopping -> cart
+  - subscriptions -> rectangle.stack
+  - other -> bag
+
+SQLite:
+- categories table now has icon_name TEXT NOT NULL DEFAULT 'tag'.
+- Migration 003_add_category_icons adds icon_name if missing.
+- Migration backfills default categories with their default icons.
+- Migration keeps custom/legacy categories on safe fallback.
+- Legacy category rows without icon_name read safely through fallback/default
+  resolution.
+- Archived categories are preserved.
+
+Store / DB APIs:
+- Category create accepts { name, iconName? }.
+- Category update accepts { name, iconName? }.
+- updateCategoryName supports optional iconName.
+- updateCategoryName supports touchSyncMetadata=false for local-only icon edits.
+
+Remote sync / backup / CSV contracts
+------------------------------------
+- RemoteCategory has no iconName field.
+- mapLocalCategoryToRemote does not upload iconName.
+- mapRemoteCategoryToLocalInput inserts fallback iconName locally.
+- Sync/backup tests were updated only where local Category type needed iconName.
+- No real remote icon sync behavior was added.
+- Supabase migrations were not changed.
+- Transaction CSV v1 was not changed.
+
+Navigation constraints preserved
+--------------------------------
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction remains a pushed root Stack screen, not a tab.
+- Shame Card remains a pushed root Stack screen, not a tab.
+- Edit Transaction still uses the shared TransactionForm and was not converted
+  to the Add Transaction wizard.
+
+Important files
+---------------
+New files:
+- src/lib/category-icons.ts
+- src/lib/category-display.ts
+- src/components/category-icon-picker.tsx
+- src/features/categories/__tests__/categories-screen.test.tsx
+- src/store/__tests__/categories-store.test.ts
+- src/lib/__tests__/category-display.test.ts
+
+Key modified files:
+- src/types/category.ts
+- src/lib/category-utils.ts
+- src/store/categories-store.ts
+- src/db/database.native.ts
+- src/db/migrations.native.ts
+- src/db/categories.native.ts
+- src/db/categories.ts
+- src/db/categories.web.ts
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/home/home-screen.tsx
+- src/features/categories/categories-screen.tsx
+- src/lib/sync/sync-mappers.ts
+- docs/mvp-qa-checklist.md
+- AGENTS.md
+- package.json
+- package-lock.json
+
+Tests added/updated
+-------------------
+Add Transaction tests cover:
+- category options render icons;
+- normal transaction stores category ID only;
+- leak transaction stores category ID plus leak reason;
+- Add Category validates name;
+- icon picker collapsed-plus and five-column row behavior;
+- selected icon state;
+- created category saves selected iconName;
+- created category appears with selected icon and auto-selects;
+- legacy categories without iconName use fallback safely;
+- transaction payload has no icon field.
+
+Settings Categories tests cover:
+- create category with selected icon through Settings picker;
+- create category with no explicit icon uses fallback "tag";
+- edit category icon through Settings picker.
+
+Category DB/store tests cover:
+- create persists icon_name;
+- update persists icon_name;
+- update without icon input preserves icon_name;
+- icon-only update can avoid touching sync metadata;
+- legacy row without icon_name reads safely;
+- store passes touchSyncMetadata=false for icon-only edits and true for name
+  edits.
+
+Validation that passed
+----------------------
+All commands were run with Node 20.19.4.
+
+Passed:
+- npm run release:preflight
+- npm test -- --runInBand
+  - 42 test suites passed
+  - 343 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved app version: 1.20.0
+- git diff --check
+
+Targeted regression checks passed:
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Transaction.category still stores category ID only.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card are not bottom tabs.
+- No @expo/ui, expo-blur, BlurView, Liquid Glass, glass styling, or new UI
+  dependency was added.
+- No Supabase remote migration for category icons.
+- No raw env/secrets/tokens were introduced in the diff.
+
+Manual QA
+---------
+The user manually tested the finished implementation and confirmed everything
+was OK.
+
+Manual QA items covered:
+- existing categories show icons;
+- Add Transaction category chips match the corrected Figma direction;
+- Add Category initially shows a plus button;
+- plus expands the icon picker;
+- picker uses five icons per row;
+- selected icon state is visible;
+- new category persists selected icon;
+- new category appears and auto-selects;
+- Home History shows transaction category icon;
+- Settings create category uses same icon flow;
+- Settings edit category uses same icon flow;
+- normal/leak save works;
+- persistence after restart works;
+- legacy fallback is safe;
+- no CSV/auth/sync regression observed.
+
+AGENTS.md update
+----------------
+Old durable rule:
+Keep category data contracts name-only unless a task explicitly introduces
+category icons; do not add category icon fields, persistence, schema, sync,
+backup, or CSV changes from Figma-only icon visuals.
+
+New durable rule:
+Category icons are now a persisted local category property. Keep
+Transaction.category storing the stable category ID only. Do not add category
+icons to the transaction CSV v1 format or remote sync/backup schema unless a
+future task explicitly scopes a data-contract migration.
+
+This belongs in AGENTS.md because it is now a long-lived category data-contract
+rule, not an ML-81.5-only detail.
+
+Notes for future planning
+-------------------------
+- Category icons are local-first. A future task must explicitly scope any remote
+  data-contract migration before icons are synced/backed up remotely.
+- If future work adds category icon sync, update RemoteCategory,
+  Supabase remote tables/migrations, row mappers, backup/restore tests, sync
+  conflict behavior, and docs together.
+- The shared picker lives in src/components/category-icon-picker.tsx. Prefer
+  reusing it instead of creating a second picker implementation.
+- The allowed icon list lives in src/lib/category-icons.ts. Prefer adding new
+  icons there with stable IDs instead of storing raw glyphs or arbitrary symbol
+  names directly from UI code.
+- Keep transaction exports/imports on CSV v1 unless a future task explicitly
+  scopes a CSV migration.
