@@ -43,6 +43,7 @@ const CREATE_CATEGORIES_TABLE_SQL = `
     id TEXT PRIMARY KEY NOT NULL,
     owner_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    icon_name TEXT NOT NULL DEFAULT 'tag',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     is_default INTEGER NOT NULL CHECK (is_default IN (0, 1)),
@@ -119,6 +120,7 @@ async function seedDefaultCategories(
           id,
           owner_id,
           name,
+          icon_name,
           created_at,
           updated_at,
           is_default,
@@ -127,11 +129,12 @@ async function seedDefaultCategories(
           schema_version,
           source_device_id,
           sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       category.id,
       identity.localOwnerId,
       category.name,
+      category.iconName,
       now,
       now,
       1,

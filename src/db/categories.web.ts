@@ -1,3 +1,4 @@
+import type { CategoryIconName } from '@/lib/category-icons';
 import type { Category, CategoryInput } from '@/types/category';
 
 const NATIVE_ONLY_ERROR_MESSAGE =
@@ -20,8 +21,10 @@ export async function restoreCategories(
 }
 
 export async function updateCategoryName(_input: {
+  iconName?: CategoryIconName | null;
   id: string;
   name: string;
+  touchSyncMetadata?: boolean;
   updatedAt: number;
 }) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  addCategoryIcons,
   addSyncReadyLocalFields,
   runDatabaseMigrations,
   type MigrationDatabase,
@@ -167,7 +168,19 @@ class FakeMigrationDatabase implements MigrationDatabase {
   }
 
   private updateCategories(source: string, params: unknown[]) {
-    if (source.includes('SET owner_id = ?')) {
+    if (source.includes('SET icon_name = ?')) {
+      if (source.includes('WHERE id = ?')) {
+        for (const row of this.categories) {
+          if (row.id === params[1] && row.is_default === 1) {
+            row.icon_name = params[0];
+          }
+        }
+      } else {
+        for (const row of this.categories) {
+          if (!row.icon_name) row.icon_name = params[0];
+        }
+      }
+    } else if (source.includes('SET owner_id = ?')) {
       for (const row of this.categories) {
         if (!row.owner_id) row.owner_id = params[0];
       }
@@ -202,6 +215,7 @@ class FakeMigrationDatabase implements MigrationDatabase {
 
 function getDefaultColumnValue(columnName: string) {
   if (columnName === 'deleted_at') return null;
+  if (columnName === 'icon_name') return 'tag';
   if (columnName === 'schema_version') return 1;
   if (columnName === 'updated_at') return 0;
 
@@ -232,9 +246,10 @@ describe('native SQLite migrations', () => {
     expect([...database.schemaMigrations]).toEqual([
       '001_remove_transactions_category_check',
       '002_add_sync_ready_local_fields',
+      '003_add_category_icons',
     ]);
 
-    expect(database.exclusiveTransactionCount).toBe(2);
+    expect(database.exclusiveTransactionCount).toBe(3);
   });
 
   it('keeps sync-ready migration idempotent', async () => {
@@ -325,5 +340,48 @@ describe('native SQLite migrations', () => {
       schema_version: 1,
       source_device_id: identity.deviceId,
     });
+  });
+
+  it('backfills category icon names idempotently', async () => {
+    const database = new FakeMigrationDatabase();
+
+    database.categories.push(
+      {
+        id: 'food',
+        name: 'Food',
+        created_at: 456,
+        updated_at: 456,
+        is_default: 1,
+        is_archived: 0,
+        sort_order: 0,
+      },
+      {
+        id: 'coffee',
+        name: 'Coffee',
+        created_at: 789,
+        updated_at: 789,
+        is_default: 0,
+        is_archived: 0,
+        sort_order: 10,
+      },
+    );
+
+    await addCategoryIcons(database);
+    await addCategoryIcons(database);
+
+    expect(
+      [...database.categoryColumns].filter((name) => name === 'icon_name'),
+    ).toHaveLength(1);
+
+    expect(database.categories).toEqual([
+      expect.objectContaining({
+        id: 'food',
+        icon_name: 'food',
+      }),
+      expect.objectContaining({
+        id: 'coffee',
+        icon_name: 'tag',
+      }),
+    ]);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   compareCategoryIds,
+  getCategoryDisplayIconName,
   getCategoryDisplayName,
 } from '@/lib/category-display';
 import type { Category } from '@/types/category';
@@ -10,6 +11,7 @@ function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
   return {
     id: overrides.id,
     name: overrides.name ?? overrides.id,
+    iconName: overrides.iconName ?? 'tag',
     createdAt: overrides.createdAt ?? 1,
     updatedAt: overrides.updatedAt ?? 1,
     isDefault: overrides.isDefault ?? false,
@@ -39,6 +41,27 @@ describe('category display helpers', () => {
     expect(getCategoryDisplayName('late-night-snacks', [])).toBe(
       'Late Night Snacks',
     );
+  });
+
+  it('resolves category icon names from active or archived categories', () => {
+    expect(
+      getCategoryDisplayIconName('travel', [
+        createCategory({
+          id: 'travel',
+          name: 'Travel',
+          iconName: 'travel',
+          isArchived: true,
+        }),
+      ]),
+    ).toBe('travel');
+  });
+
+  it('falls back to default icons for known category IDs', () => {
+    expect(getCategoryDisplayIconName('food', [])).toBe('food');
+  });
+
+  it('falls back safely for unknown category IDs', () => {
+    expect(getCategoryDisplayIconName('late-night-snacks', [])).toBe('tag');
   });
 
   it('sorts default category IDs before custom IDs deterministically', () => {

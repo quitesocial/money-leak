@@ -5,8 +5,10 @@ import { getActiveCategories } from '@/lib/category-utils';
 import {
   applyCategorySyncChanges,
   archiveCategory,
+  createCategory,
   getCategories,
   restoreCategories,
+  updateCategoryName,
 } from '../categories.native';
 
 const mockInitDatabase = jest.fn<() => Promise<void>>();
@@ -27,6 +29,7 @@ type RawCategoryRow = {
   id: string;
   owner_id: string;
   name: string;
+  icon_name?: string;
   created_at: number;
   updated_at: number;
   is_default: number;
@@ -43,6 +46,7 @@ class FakeCategoriesDatabase {
       id: 'food',
       owner_id: 'local_test-owner',
       name: 'Food',
+      icon_name: 'food',
       created_at: 1000,
       updated_at: 1000,
       is_default: 1,
@@ -56,6 +60,7 @@ class FakeCategoriesDatabase {
       id: 'coffee',
       owner_id: 'local_test-owner',
       name: 'Coffee',
+      icon_name: 'tag',
       created_at: 1001,
       updated_at: 1001,
       is_default: 0,
@@ -68,12 +73,22 @@ class FakeCategoriesDatabase {
   ];
 
   async runAsync(source: string, ...params: unknown[]) {
-    if (source.includes('INSERT OR IGNORE INTO categories')) {
+    if (
+      source.includes('INSERT INTO categories') ||
+      source.includes('INSERT OR IGNORE INTO categories')
+    ) {
       return { changes: this.insertCategory(params) ? 1 : 0 };
     }
 
     if (source.includes('UPDATE categories') && source.includes('is_default')) {
       return { changes: this.updateCategory(params) ? 1 : 0 };
+    }
+
+    if (
+      source.includes('UPDATE categories') &&
+      source.includes('icon_name = COALESCE')
+    ) {
+      return { changes: this.updateCategoryName(params) ? 1 : 0 };
     }
 
     if (!source.includes('is_archived = 1')) return { changes: 0 };
@@ -122,6 +137,7 @@ class FakeCategoriesDatabase {
       id,
       ownerId,
       name,
+      iconName,
       createdAt,
       updatedAt,
       isDefault,
@@ -136,6 +152,7 @@ class FakeCategoriesDatabase {
       typeof id !== 'string' ||
       typeof ownerId !== 'string' ||
       typeof name !== 'string' ||
+      typeof iconName !== 'string' ||
       typeof createdAt !== 'number' ||
       typeof updatedAt !== 'number' ||
       typeof isDefault !== 'number' ||
@@ -157,6 +174,7 @@ class FakeCategoriesDatabase {
       id,
       owner_id: ownerId,
       name,
+      icon_name: iconName,
       created_at: createdAt,
       updated_at: updatedAt,
       is_default: isDefault,
@@ -196,6 +214,34 @@ class FakeCategoriesDatabase {
     category.schema_version = schemaVersion as number;
     category.source_device_id = sourceDeviceId as string;
     category.sort_order = sortOrder as number;
+
+    return true;
+  }
+
+  private updateCategoryName(params: unknown[]) {
+    const [
+      name,
+      iconName,
+      touchUpdatedAt,
+      updatedAt,
+      touchSourceDeviceId,
+      sourceDeviceId,
+      id,
+    ] = params;
+
+    const category = this.categories.find(
+      (currentCategory) =>
+        currentCategory.id === id && currentCategory.deleted_at === null,
+    );
+
+    if (!category) return false;
+
+    category.name = name as string;
+    if (typeof iconName === 'string') category.icon_name = iconName;
+    if (touchUpdatedAt === 1) category.updated_at = updatedAt as number;
+    if (touchSourceDeviceId === 1) {
+      category.source_device_id = sourceDeviceId as string;
+    }
 
     return true;
   }
@@ -239,12 +285,107 @@ describe('native category persistence', () => {
     ).toEqual(['food']);
   });
 
+  it('persists iconName when creating a category', async () => {
+    await createCategory({
+      id: 'travel',
+      name: 'Travel',
+      iconName: 'travel',
+      createdAt: 7000,
+      updatedAt: 8000,
+      isDefault: false,
+      isArchived: false,
+      sortOrder: 11,
+    });
+
+    expect(
+      database.categories.find((category) => category.id === 'travel'),
+    ).toMatchObject({
+      owner_id: 'local_test-owner',
+      name: 'Travel',
+      icon_name: 'travel',
+      source_device_id: 'device_test-device',
+    });
+  });
+
+  it('persists iconName when updating a category name', async () => {
+    await updateCategoryName({
+      id: 'coffee',
+      name: 'Coffee Runs',
+      iconName: 'coffee',
+      updatedAt: 9000,
+    });
+
+    expect(
+      database.categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      name: 'Coffee Runs',
+      icon_name: 'coffee',
+      updated_at: 9000,
+      source_device_id: 'device_test-device',
+    });
+  });
+
+  it('preserves iconName when updating a category name without icon input', async () => {
+    await updateCategoryName({
+      id: 'coffee',
+      name: 'Coffee Runs',
+      updatedAt: 9000,
+    });
+
+    expect(
+      database.categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      name: 'Coffee Runs',
+      icon_name: 'tag',
+      updated_at: 9000,
+    });
+  });
+
+  it('can update local iconName without touching sync metadata', async () => {
+    await updateCategoryName({
+      id: 'coffee',
+      name: 'Coffee',
+      iconName: 'snacks',
+      touchSyncMetadata: false,
+      updatedAt: 9000,
+    });
+
+    expect(
+      database.categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      name: 'Coffee',
+      icon_name: 'snacks',
+      updated_at: 1001,
+      source_device_id: 'device_seed',
+    });
+  });
+
+  it('reads legacy rows without iconName safely', async () => {
+    const legacyCategory = database.categories.find(
+      (category) => category.id === 'coffee',
+    );
+
+    if (legacyCategory) {
+      delete legacyCategory.icon_name;
+    }
+
+    const categories = await getCategories();
+
+    expect(
+      categories.find((category) => category.id === 'coffee'),
+    ).toMatchObject({
+      id: 'coffee',
+      iconName: 'tag',
+    });
+  });
+
   it('restores backup categories without duplicating or overwriting local rows', async () => {
     await expect(
       restoreCategories([
         {
           id: 'coffee',
           name: 'Remote Coffee',
+          iconName: 'coffee',
           createdAt: 5000,
           updatedAt: 6000,
           isDefault: false,
@@ -254,6 +395,7 @@ describe('native category persistence', () => {
         {
           id: 'snacks',
           name: 'Snacks',
+          iconName: 'snacks',
           createdAt: 7000,
           updatedAt: 8000,
           isDefault: false,
@@ -268,6 +410,7 @@ describe('native category persistence', () => {
         {
           id: 'snacks',
           name: 'Snacks',
+          iconName: 'snacks',
           createdAt: 7000,
           updatedAt: 8000,
           isDefault: false,
@@ -297,6 +440,7 @@ describe('native category persistence', () => {
       deleted_at: null,
       schema_version: 1,
       source_device_id: 'device_test-device',
+      icon_name: 'snacks',
       sort_order: 11,
     });
   });
@@ -312,6 +456,7 @@ describe('native category persistence', () => {
         {
           id: 'coffee',
           name: 'Remote Coffee',
+          iconName: 'coffee',
           createdAt: 9999,
           updatedAt: 6000,
           isDefault: false,
@@ -321,6 +466,7 @@ describe('native category persistence', () => {
         {
           id: 'snacks',
           name: 'Snacks',
+          iconName: 'snacks',
           createdAt: 7000,
           updatedAt: 8000,
           isDefault: false,
@@ -349,6 +495,7 @@ describe('native category persistence', () => {
       updated_at: 8000,
       is_archived: 1,
       deleted_at: null,
+      icon_name: 'snacks',
       sort_order: 11,
     });
   });
@@ -358,6 +505,7 @@ describe('native category persistence', () => {
       {
         id: 'snacks',
         name: 'Snacks',
+        iconName: 'snacks',
         createdAt: 7000,
         updatedAt: 8000,
         isDefault: false,
@@ -370,6 +518,7 @@ describe('native category persistence', () => {
       {
         id: 'snacks',
         name: 'Snacks',
+        iconName: 'snacks',
         createdAt: 7000,
         updatedAt: 8000,
         isDefault: false,
@@ -388,6 +537,7 @@ describe('native category persistence', () => {
       name: 'Snacks',
       is_archived: 1,
       deleted_at: null,
+      icon_name: 'snacks',
       sort_order: 11,
     });
   });

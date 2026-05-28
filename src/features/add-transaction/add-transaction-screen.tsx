@@ -13,7 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryIconPicker } from '@/components/category-icon-picker';
 import { LocalDatePicker } from '@/components/local-date-picker';
+import {
+  CATEGORY_ICON_FALLBACK_NAME,
+  getCategoryIcon,
+  type CategoryIconDefinition,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 import {
   normalizeCategoryName,
   validateCategoryName,
@@ -53,6 +60,7 @@ type SymbolIconProps = {
   fallbackLabel: string;
   name: SFSymbol;
   size?: number;
+  testID?: string;
 };
 
 type ChipProps = {
@@ -61,6 +69,12 @@ type ChipProps = {
   onPress: () => void;
   fallbackSymbol?: string;
   symbolName?: SFSymbol;
+};
+
+type CategoryChipProps = {
+  category: Category;
+  isSelected: boolean;
+  onPress: () => void;
 };
 
 type PrimaryActionProps = {
@@ -171,17 +185,22 @@ function SymbolIcon({
   fallbackLabel,
   name,
   size = 17,
+  testID,
 }: SymbolIconProps) {
   return (
     <SymbolView
       fallback={
-        <Text style={[styles.symbolFallback, { color, fontSize: size }]}>
+        <Text
+          style={[styles.symbolFallback, { color, fontSize: size }]}
+          testID={testID}
+        >
           {fallbackLabel}
         </Text>
       }
       name={name}
       resizeMode="scaleAspectFit"
       size={size}
+      testID={testID}
       tintColor={color}
       type="monochrome"
       weight="semibold"
@@ -240,6 +259,60 @@ function Chip({
         style={[styles.chipText, isSelected ? styles.chipTextSelected : null]}
       >
         {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function CategoryIconGlyph({
+  color,
+  icon,
+  size = 18,
+  testID,
+}: {
+  color: string;
+  icon: CategoryIconDefinition;
+  size?: number;
+  testID?: string;
+}) {
+  return (
+    <SymbolIcon
+      color={color}
+      fallbackLabel={icon.fallbackSymbol}
+      name={icon.symbolName}
+      size={size}
+      testID={testID}
+    />
+  );
+}
+
+function CategoryChip({ category, isSelected, onPress }: CategoryChipProps) {
+  const contentColor = isSelected ? '#ffffff' : '#100f10';
+  const icon = getCategoryIcon(category.iconName);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
+      onPress={onPress}
+      style={[styles.chip, isSelected ? styles.chipSelected : null]}
+      testID={`category-chip-${category.id}`}
+    >
+      <CategoryIconGlyph
+        color={contentColor}
+        icon={icon}
+        size={17}
+        testID={`category-icon-${category.id}`}
+      />
+
+      <Text
+        style={[
+          styles.chipText,
+          { color: contentColor },
+          isSelected ? styles.chipTextSelected : null,
+        ]}
+      >
+        {category.name}
       </Text>
     </Pressable>
   );
@@ -341,10 +414,10 @@ function CategoryStep({
             const isSelected = selectedCategory === category.id;
 
             return (
-              <Chip
+              <CategoryChip
+                category={category}
                 key={category.id}
                 isSelected={isSelected}
-                label={category.name}
                 onPress={() => onCategoryPress(category.id)}
               />
             );
@@ -419,6 +492,10 @@ export function AddTransactionScreen() {
     useState<TransactionCategory | null>(null);
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [categoryName, setCategoryName] = useState('');
+  const [selectedCategoryIconName, setSelectedCategoryIconName] =
+    useState<CategoryIconName | null>(null);
+  const [isCategoryIconPickerExpanded, setIsCategoryIconPickerExpanded] =
+    useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [typeError, setTypeError] = useState<string | null>(null);
   const [leakReasonError, setLeakReasonError] = useState<string | null>(null);
@@ -493,6 +570,8 @@ export function AddTransactionScreen() {
     if (step === 'addCategory') {
       setStep('category');
       setCategoryName('');
+      setSelectedCategoryIconName(null);
+      setIsCategoryIconPickerExpanded(false);
       setAddCategoryNameError(null);
       clearCategoriesError();
 
@@ -641,6 +720,8 @@ export function AddTransactionScreen() {
   function handleStartAddCategory() {
     clearCategoriesError();
     setCategoryName('');
+    setSelectedCategoryIconName(null);
+    setIsCategoryIconPickerExpanded(false);
     setAddCategoryNameError(null);
     setStep('addCategory');
   }
@@ -661,7 +742,10 @@ export function AddTransactionScreen() {
 
     const normalizedName = normalizeCategoryName(categoryName);
 
-    await addCategory(categoryName);
+    await addCategory({
+      name: categoryName,
+      iconName: selectedCategoryIconName ?? CATEGORY_ICON_FALLBACK_NAME,
+    });
 
     if (!useCategoriesStore.getState().error) {
       const createdCategory = getCategoryByNormalizedName({
@@ -675,6 +759,8 @@ export function AddTransactionScreen() {
       }
 
       setCategoryName('');
+      setSelectedCategoryIconName(null);
+      setIsCategoryIconPickerExpanded(false);
       setAddCategoryNameError(null);
       setStep('category');
     }
@@ -956,6 +1042,19 @@ export function AddTransactionScreen() {
                     <ErrorText>{categoriesError}</ErrorText>
                   ) : null}
                 </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    Icon <Text style={styles.optionalLabel}>(optional)</Text>
+                  </Text>
+
+                  <CategoryIconPicker
+                    isExpanded={isCategoryIconPickerExpanded}
+                    onExpand={() => setIsCategoryIconPickerExpanded(true)}
+                    onIconPress={setSelectedCategoryIconName}
+                    selectedIconName={selectedCategoryIconName}
+                  />
+                </View>
               </View>
             ) : null}
           </ScrollView>
@@ -1219,12 +1318,15 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     minHeight: 50,
-    borderWidth: 3,
+    borderWidth: 1,
     borderColor: '#100f10',
     borderRadius: 999,
     paddingHorizontal: 16,
     color: '#000000',
     fontSize: 16,
+  },
+  optionalLabel: {
+    color: '#6f6f6f',
   },
   errorText: {
     color: '#dc2626',

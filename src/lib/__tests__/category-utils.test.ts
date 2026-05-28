@@ -20,6 +20,7 @@ function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
   return {
     id: overrides.id,
     name: overrides.name ?? overrides.id,
+    iconName: overrides.iconName ?? 'tag',
     createdAt: overrides.createdAt ?? 1,
     updatedAt: overrides.updatedAt ?? 1,
     isDefault: overrides.isDefault ?? false,
@@ -42,6 +43,7 @@ describe('category utils', () => {
       DEFAULT_CATEGORIES.map((category) => [
         category.id,
         category.name,
+        category.iconName,
         category.isDefault,
         category.isArchived,
       ]),
@@ -49,6 +51,7 @@ describe('category utils', () => {
       TRANSACTION_CATEGORIES.map((categoryId) => [
         categoryId,
         DEFAULT_CATEGORY_NAMES[categoryId],
+        categoryId,
         true,
         false,
       ]),
@@ -116,6 +119,7 @@ describe('category utils', () => {
     ).toEqual({
       id: 'coffee',
       name: 'Coffee',
+      iconName: 'tag',
       createdAt: 42,
       updatedAt: 42,
       isDefault: false,

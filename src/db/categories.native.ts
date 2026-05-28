@@ -2,6 +2,12 @@ import {
   getReadableCategoryNameFromId,
   sortCategories,
 } from '@/lib/category-utils';
+import {
+  CATEGORY_ICON_FALLBACK_NAME,
+  normalizeCategoryIconName,
+  resolveCategoryIconName,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 import type { Category, CategoryInput } from '@/types/category';
 
 import { ensureLocalIdentity } from './local-identity.native';
@@ -11,6 +17,7 @@ type CategoryRow = {
   id: unknown;
   owner_id: unknown;
   name: unknown;
+  icon_name?: unknown;
   created_at: unknown;
   updated_at: unknown;
   is_default: unknown;
@@ -41,6 +48,7 @@ export async function getCategories() {
         id,
         owner_id,
         name,
+        icon_name,
         created_at,
         updated_at,
         is_default,
@@ -70,6 +78,7 @@ export async function createCategory(category: CategoryInput) {
         id,
         owner_id,
         name,
+        icon_name,
         created_at,
         updated_at,
         is_default,
@@ -78,11 +87,12 @@ export async function createCategory(category: CategoryInput) {
         schema_version,
         source_device_id,
         sort_order
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     category.id,
     identity.localOwnerId,
     category.name,
+    category.iconName,
     category.createdAt,
     category.updatedAt,
     category.isDefault ? 1 : 0,
@@ -111,6 +121,7 @@ export async function restoreCategories(categories: CategoryInput[]) {
             id,
             owner_id,
             name,
+            icon_name,
             created_at,
             updated_at,
             is_default,
@@ -119,11 +130,12 @@ export async function restoreCategories(categories: CategoryInput[]) {
             schema_version,
             source_device_id,
             sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         category.id,
         identity.localOwnerId,
         category.name,
+        category.iconName,
         category.createdAt,
         category.updatedAt,
         category.isDefault ? 1 : 0,
@@ -142,30 +154,47 @@ export async function restoreCategories(categories: CategoryInput[]) {
 }
 
 export async function updateCategoryName({
+  iconName,
   id,
   name,
+  touchSyncMetadata = true,
   updatedAt,
 }: {
+  iconName?: CategoryIconName | null;
   id: string;
   name: string;
+  touchSyncMetadata?: boolean;
   updatedAt: number;
 }) {
   await initDatabase();
 
   const database = await getDatabase();
   const identity = await ensureLocalIdentity(database);
+  const nextIconName =
+    iconName === undefined ? null : normalizeCategoryIconName(iconName);
+  const touchSyncMetadataFlag = touchSyncMetadata ? 1 : 0;
 
   await database.runAsync(
     `
       UPDATE categories
       SET
         name = ?,
-        updated_at = ?,
-        source_device_id = ?
+        icon_name = COALESCE(?, icon_name),
+        updated_at = CASE
+          WHEN ? = 1 THEN ?
+          ELSE updated_at
+        END,
+        source_device_id = CASE
+          WHEN ? = 1 THEN ?
+          ELSE source_device_id
+        END
       WHERE id = ? AND deleted_at IS NULL
     `,
     name,
+    nextIconName,
+    touchSyncMetadataFlag,
     updatedAt,
+    touchSyncMetadataFlag,
     identity.deviceId,
     id,
   );
@@ -253,6 +282,7 @@ export async function applyCategorySyncChanges(categories: CategoryInput[]) {
             id,
             owner_id,
             name,
+            icon_name,
             created_at,
             updated_at,
             is_default,
@@ -261,11 +291,12 @@ export async function applyCategorySyncChanges(categories: CategoryInput[]) {
             schema_version,
             source_device_id,
             sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         category.id,
         identity.localOwnerId,
         category.name,
+        category.iconName,
         category.createdAt,
         category.updatedAt,
         category.isDefault ? 1 : 0,
@@ -337,6 +368,7 @@ export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
             id,
             owner_id,
             name,
+            icon_name,
             created_at,
             updated_at,
             is_default,
@@ -345,11 +377,12 @@ export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
             schema_version,
             source_device_id,
             sort_order
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         categoryId,
         identity.localOwnerId,
         getReadableCategoryNameFromId(categoryId),
+        CATEGORY_ICON_FALLBACK_NAME,
         now,
         now,
         0,
@@ -368,13 +401,21 @@ export async function ensureArchivedCategoriesForIds(categoryIds: string[]) {
 function mapCategoryRow(row: CategoryRow): Category {
   assertRecord(row, 'Category row must be an object.');
 
+  const id = parseString(row.id, 'id');
+  const isDefault = parseBooleanInteger(row.is_default, 'is_default');
+
   return {
-    id: parseString(row.id, 'id'),
+    id,
     ownerId: parseString(row.owner_id, 'owner_id'),
     name: parseString(row.name, 'name'),
+    iconName: resolveCategoryIconName({
+      categoryId: id,
+      iconName: row.icon_name,
+      isDefault,
+    }),
     createdAt: parseNumber(row.created_at, 'created_at'),
     updatedAt: parseNumber(row.updated_at, 'updated_at'),
-    isDefault: parseBooleanInteger(row.is_default, 'is_default'),
+    isDefault,
     isArchived: parseBooleanInteger(row.is_archived, 'is_archived'),
     deletedAt: parseNullableNumber(row.deleted_at, 'deleted_at'),
     schemaVersion: parseNumber(row.schema_version, 'schema_version'),
