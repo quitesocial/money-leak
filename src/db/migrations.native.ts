@@ -1,3 +1,7 @@
+import {
+  CATEGORY_ICON_FALLBACK_NAME,
+  DEFAULT_CATEGORY_ICON_NAMES,
+} from '@/lib/category-icons';
 import { LEAK_REASONS } from '@/types/transaction';
 
 import type { LocalDatabaseIdentity } from './local-identity.native';
@@ -60,6 +64,10 @@ const migrations: Migration[] = [
   {
     id: '002_add_sync_ready_local_fields',
     up: addSyncReadyLocalFields,
+  },
+  {
+    id: '003_add_category_icons',
+    up: addCategoryIcons,
   },
 ];
 
@@ -330,6 +338,38 @@ export async function addSyncReadyLocalFields(
     `,
     deviceId,
   );
+}
+
+export async function addCategoryIcons(database: MigrationTransactionDatabase) {
+  await addColumnIfMissing({
+    database,
+    tableName: 'categories',
+    columnName: 'icon_name',
+    sql: `ALTER TABLE categories ADD COLUMN icon_name TEXT NOT NULL DEFAULT '${CATEGORY_ICON_FALLBACK_NAME}';`,
+  });
+
+  await database.runAsync(
+    `
+      UPDATE categories
+      SET icon_name = ?
+      WHERE icon_name IS NULL OR icon_name = ''
+    `,
+    CATEGORY_ICON_FALLBACK_NAME,
+  );
+
+  for (const [categoryId, iconName] of Object.entries(
+    DEFAULT_CATEGORY_ICON_NAMES,
+  )) {
+    await database.runAsync(
+      `
+        UPDATE categories
+        SET icon_name = ?
+        WHERE id = ? AND is_default = 1
+      `,
+      iconName,
+      categoryId,
+    );
+  }
 }
 
 async function addColumnIfMissing({

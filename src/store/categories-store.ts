@@ -14,9 +14,16 @@ import {
   sortCategories,
   validateCategoryName,
 } from '@/lib/category-utils';
+import type { CategoryIconName } from '@/lib/category-icons';
 import type { Category } from '@/types/category';
 
 type CategoryNameUpdates = {
+  iconName?: CategoryIconName | null;
+  name: string;
+};
+
+type CategoryCreateInput = {
+  iconName?: CategoryIconName | null;
   name: string;
 };
 
@@ -27,7 +34,7 @@ type CategoriesStore = {
   isInitialized: boolean;
   error: string | null;
   loadCategories: () => Promise<void>;
-  addCategory: (name: string) => Promise<void>;
+  addCategory: (input: CategoryCreateInput) => Promise<void>;
   updateCategory: (id: string, updates: CategoryNameUpdates) => Promise<void>;
   archiveCategory: (id: string) => Promise<void>;
   clearError: () => void;
@@ -76,7 +83,7 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
     }
   },
 
-  addCategory: async (name) => {
+  addCategory: async ({ iconName = null, name }) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -89,6 +96,7 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
         createCategoryFromName({
           name,
           categories,
+          iconName,
         }),
       );
 
@@ -120,10 +128,16 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
       });
 
       if (validationError) throw new Error(validationError);
+      const nextName = normalizeCategoryName(updates.name);
+      const currentCategory = categories.find((category) => category.id === id);
 
       await updateCategoryName({
         id,
-        name: normalizeCategoryName(updates.name),
+        iconName: updates.iconName,
+        name: nextName,
+        touchSyncMetadata:
+          !currentCategory ||
+          normalizeCategoryName(currentCategory.name) !== nextName,
         updatedAt: Date.now(),
       });
 

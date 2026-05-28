@@ -90,6 +90,7 @@ function createCategory(overrides: Partial<Category> = {}): Category {
     id: 'coffee',
     ownerId: TEST_USER_ID,
     name: 'Coffee',
+    iconName: 'tag',
     createdAt: Date.parse('2026-05-18T09:00:00.000Z'),
     updatedAt: Date.parse('2026-05-21T09:30:00.000Z'),
     isDefault: false,

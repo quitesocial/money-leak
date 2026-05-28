@@ -1,3 +1,8 @@
+import {
+  getDefaultCategoryIconName,
+  resolveCategoryIconName,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 import { getReadableCategoryNameFromId } from '@/lib/category-utils';
 import type { Category } from '@/types/category';
 import { TRANSACTION_CATEGORIES } from '@/types/transaction';
@@ -14,6 +19,23 @@ export function getCategoryDisplayName(
     categories.find((category) => category.id === categoryId)?.name ??
     getReadableCategoryNameFromId(categoryId)
   );
+}
+
+export function getCategoryDisplayIconName(
+  categoryId: string,
+  categories: Category[],
+): CategoryIconName {
+  const category = categories.find(
+    (candidateCategory) => candidateCategory.id === categoryId,
+  );
+
+  if (!category) return getDefaultCategoryIconName(categoryId);
+
+  return resolveCategoryIconName({
+    categoryId,
+    iconName: category.iconName,
+    isDefault: category.isDefault,
+  });
 }
 
 export function compareCategoryIds(

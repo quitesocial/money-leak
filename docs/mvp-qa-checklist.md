@@ -1940,6 +1940,81 @@ Manual QA:
 - Smoke-test bottom tabs, Shame Card, Manage Categories, CSV import/export,
   Settings Auth, Backup, Restore, Sync, Delete Account, app icon, and splash.
 
+## ML-81.5: Add Transaction Category Icons Picker
+
+- `package.json.version` is bumped intentionally to `1.20.0`.
+- `package-lock.json` top-level and root package version fields are bumped
+  intentionally to `1.20.0`.
+- Existing default categories show persisted category icons in the Add
+  Transaction Category step.
+- Category options render inline icons before the category name, without inner
+  circular containers.
+- Home History transaction rows show the transaction category icon before the
+  category name.
+- Add Category from Add Transaction initially shows a single circular plus
+  button under `Icon (optional)`.
+- Tapping the plus button expands the icon picker grid.
+- The expanded icon picker renders five circular icon buttons per row.
+- Tapping an icon shows a visible selected state.
+- Saving a new category persists the selected `iconName`.
+- The newly created category returns to the Category step, appears with its
+  selected icon, and is auto-selected.
+- Manage Categories in Settings uses the same collapsed-plus icon picker when
+  creating or editing a category.
+- Editing a category in Manage Categories can change and persist `iconName`
+  without changing transaction category IDs.
+- Restarting the app preserves category icons.
+- Legacy/custom categories without icon data render a safe fallback icon.
+- Normal and Leak transaction creation still save successfully.
+- `Transaction.category` still stores only the stable category ID, not display
+  name or icon.
+- Edit Transaction still uses the shared TransactionForm.
+- Manage Categories still works with the new local category field.
+- CSV v1 remains exactly
+  `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No auth, sync, backup, restore, delete-account, Supabase remote migration,
+  RLS, remote schema, CSV format, bottom-tab, or pushed-screen behavior changed.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No raw env values, secrets, tokens, or raw IDs are exposed in UI, logs, or
+  docs.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, glass
+  styling, or new dependency was added.
+- `npm run release:preflight` passes.
+- `npm test -- --runInBand` passes.
+- `npm run typecheck` passes.
+- `npm run lint` passes.
+- `npm run format:check` passes.
+- `npx expo config --json` resolves Expo version as `1.20.0`.
+- `git diff --check` passes.
+
+Manual QA:
+
+- Open Add Transaction from Home and confirm default categories show inline
+  icons in the Category step.
+- From Category, tap Add and confirm Add Category initially shows only the
+  circular plus button under `Icon (optional)`.
+- Tap the plus button and confirm the picker expands into a five-column
+  circular icon grid.
+- Enter a valid category name, select an icon, and confirm the selected icon
+  state is visible.
+- Save the category and confirm it returns to Category, appears with the chosen
+  icon, and is auto-selected.
+- Save a transaction with the new category and confirm Home History shows its
+  chosen category icon before the category name.
+- Open Settings > Manage Categories, create a category, tap the circular plus
+  button, select an icon, and confirm the category saves with that icon.
+- Edit that category from Manage Categories, pick a different icon, save, and
+  confirm Home History/category lists show the updated icon while old
+  transactions still keep the same category ID.
+- Force quit/restart the app and confirm category icons persist.
+- Save one normal transaction and one leak transaction, then confirm Home and
+  Analytics still display them safely.
+- Confirm old/legacy categories without icon data render with a fallback icon
+  and do not crash.
+- Confirm CSV import/export still uses the v1 header and category ID value.
+- Smoke-test Edit Transaction, Manage Categories, bottom tabs, Shame Card,
+  Settings Auth, Backup, Restore, Sync, Delete Account, app icon, and splash.
+
 ## App Boot And Empty State
 
 ### 1. First app launch / empty DB

@@ -2,6 +2,10 @@ import {
   TRANSACTION_CATEGORIES,
   type DefaultTransactionCategory,
 } from '@/types/transaction';
+import {
+  getDefaultCategoryIconName,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 
 export const CATEGORY_NAME_MAX_LENGTH = 32;
 
@@ -10,6 +14,7 @@ export const OTHER_CATEGORY_ID = 'other';
 export type CategoryInput = {
   id: string;
   name: string;
+  iconName: CategoryIconName;
   createdAt: number;
   updatedAt: number;
   isDefault: boolean;
@@ -40,6 +45,7 @@ export const DEFAULT_CATEGORIES: CategoryInput[] = TRANSACTION_CATEGORIES.map(
   (id, index) => ({
     id,
     name: DEFAULT_CATEGORY_NAMES[id],
+    iconName: getDefaultCategoryIconName(id),
     createdAt: 0,
     updatedAt: 0,
     isDefault: true,

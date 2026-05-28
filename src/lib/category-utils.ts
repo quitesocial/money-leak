@@ -5,6 +5,10 @@ import {
   type Category,
   type CategoryInput,
 } from '@/types/category';
+import {
+  normalizeCategoryIconName,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 
 type ValidateCategoryNameArgs = {
   name: string;
@@ -15,6 +19,7 @@ type ValidateCategoryNameArgs = {
 type CreateCategoryFromNameArgs = {
   name: string;
   categories: Category[];
+  iconName?: CategoryIconName | null;
   now?: number;
 };
 
@@ -121,6 +126,7 @@ function getNextSortOrder(categories: Category[]) {
 export function createCategoryFromName({
   name,
   categories,
+  iconName = null,
   now = Date.now(),
 }: CreateCategoryFromNameArgs): CategoryInput {
   const trimmedName = normalizeCategoryName(name);
@@ -131,6 +137,7 @@ export function createCategoryFromName({
       categories.map((category) => category.id),
     ),
     name: trimmedName,
+    iconName: normalizeCategoryIconName(iconName),
     createdAt: now,
     updatedAt: now,
     isDefault: false,

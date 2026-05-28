@@ -146,6 +146,7 @@ describe('local restore data target', () => {
       {
         id: 'coffee',
         name: 'Coffee',
+        iconName: 'tag',
         createdAt: Date.parse('2026-05-18T09:00:00.000Z'),
         updatedAt: Date.parse('2026-05-18T09:30:00.000Z'),
         isDefault: false,

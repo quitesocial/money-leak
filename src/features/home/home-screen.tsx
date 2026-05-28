@@ -16,7 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PeriodSelector } from '@/components/period-selector';
 import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
-import { getCategoryDisplayName } from '@/lib/category-display';
+import {
+  getCategoryDisplayIconName,
+  getCategoryDisplayName,
+} from '@/lib/category-display';
+import {
+  getCategoryIcon,
+  type CategoryIconDefinition,
+} from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
 import {
   formatEuro,
@@ -137,6 +144,33 @@ type SwipeActionIconProps = {
   fallbackLabel: string;
   name: SFSymbol;
 };
+
+function TransactionCategoryIcon({
+  icon,
+  transactionId,
+}: {
+  icon: CategoryIconDefinition;
+  transactionId: string;
+}) {
+  return (
+    <View style={styles.transactionIconSlot}>
+      <SymbolView
+        fallback={
+          <Text style={styles.transactionIconFallback}>
+            {icon.fallbackSymbol}
+          </Text>
+        }
+        name={icon.symbolName}
+        resizeMode="scaleAspectFit"
+        size={18}
+        testID={`transaction-category-icon-${transactionId}`}
+        tintColor="#111111"
+        type="monochrome"
+        weight="semibold"
+      />
+    </View>
+  );
+}
 
 function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
   return (
@@ -315,6 +349,9 @@ function HistoryTransactionItem({
   }, [animateTo, isOpen]);
 
   const isLeak = transaction.isLeak;
+  const categoryIcon = getCategoryIcon(
+    getCategoryDisplayIconName(transaction.category, categories),
+  );
 
   const cardBackgroundColor = translateX.interpolate({
     inputRange: [-1, 0, 1],
@@ -366,34 +403,41 @@ function HistoryTransactionItem({
         ]}
       >
         <View style={styles.transactionMainRow}>
-          <View style={styles.transactionCopy}>
-            <View style={styles.categoryRow}>
-              <Text style={styles.categoryText}>
-                {getCategoryDisplayName(transaction.category, categories)}
-              </Text>
+          <View style={styles.transactionInfoRow}>
+            <TransactionCategoryIcon
+              icon={categoryIcon}
+              transactionId={transaction.id}
+            />
 
-              <View
-                style={[
-                  styles.typeBadge,
-                  isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
-                ]}
-              >
-                <Text
+            <View style={styles.transactionCopy}>
+              <View style={styles.categoryRow}>
+                <Text style={styles.categoryText}>
+                  {getCategoryDisplayName(transaction.category, categories)}
+                </Text>
+
+                <View
                   style={[
-                    styles.typeBadgeText,
-                    isLeak
-                      ? styles.typeBadgeTextLeak
-                      : styles.typeBadgeTextNormal,
+                    styles.typeBadge,
+                    isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
                   ]}
                 >
-                  {isLeak ? 'Leak' : 'Normal'}
-                </Text>
+                  <Text
+                    style={[
+                      styles.typeBadgeText,
+                      isLeak
+                        ? styles.typeBadgeTextLeak
+                        : styles.typeBadgeTextNormal,
+                    ]}
+                  >
+                    {isLeak ? 'Leak' : 'Normal'}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <Text style={styles.timestampText}>
-              {formatTransactionTimestamp(transaction.createdAt)}
-            </Text>
+              <Text style={styles.timestampText}>
+                {formatTransactionTimestamp(transaction.createdAt)}
+              </Text>
+            </View>
           </View>
 
           <Text style={styles.amountText}>
@@ -929,6 +973,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  transactionInfoRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  transactionIconSlot: {
+    width: 24,
+    minHeight: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 1,
+  },
+  transactionIconFallback: {
+    color: '#111111',
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   transactionCopy: {
     flex: 1,

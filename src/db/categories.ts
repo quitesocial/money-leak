@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 
+import type { CategoryIconName } from '@/lib/category-icons';
 import type { Category, CategoryInput } from '@/types/category';
 
 import * as nativeCategories from './categories.native';
@@ -11,8 +12,10 @@ type CategoriesModule = {
   createCategory: (category: CategoryInput) => Promise<void>;
   restoreCategories: (categories: CategoryInput[]) => Promise<number>;
   updateCategoryName: (input: {
+    iconName?: CategoryIconName | null;
     id: string;
     name: string;
+    touchSyncMetadata?: boolean;
     updatedAt: number;
   }) => Promise<void>;
   archiveCategory: (input: { id: string; updatedAt: number }) => Promise<void>;

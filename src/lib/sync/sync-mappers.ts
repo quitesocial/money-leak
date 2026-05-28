@@ -1,4 +1,5 @@
 import type { RemoteCategory, RemoteTransaction } from '@/lib/sync/sync-types';
+import { CATEGORY_ICON_FALLBACK_NAME } from '@/lib/category-icons';
 import type { Category, CategoryInput } from '@/types/category';
 import type {
   Transaction,
@@ -63,6 +64,7 @@ export function mapRemoteCategoryToLocalInput(
   return {
     id: category.id,
     name: category.name,
+    iconName: CATEGORY_ICON_FALLBACK_NAME,
     createdAt: parseRemoteTimestamp(category.createdAt),
     updatedAt: parseRemoteTimestamp(category.updatedAt),
     isDefault: category.isDefault,

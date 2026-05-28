@@ -1,3 +1,4 @@
+import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   Alert,
@@ -10,6 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryIconPicker } from '@/components/category-icon-picker';
+import {
+  CATEGORY_ICON_FALLBACK_NAME,
+  getCategoryIcon,
+  type CategoryIconName,
+} from '@/lib/category-icons';
 import {
   getArchiveCategoryError,
   validateCategoryName,
@@ -17,6 +24,26 @@ import {
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useCategoriesStore } from '@/store/categories-store';
 import { OTHER_CATEGORY_ID, type Category } from '@/types/category';
+
+function CategoryIcon({ category }: { category: Category }) {
+  const icon = getCategoryIcon(category.iconName);
+
+  return (
+    <View style={styles.categoryIconCircle}>
+      <SymbolView
+        fallback={
+          <Text style={styles.categoryIconFallback}>{icon.fallbackSymbol}</Text>
+        }
+        name={icon.symbolName}
+        resizeMode="scaleAspectFit"
+        size={16}
+        tintColor="#111827"
+        type="monochrome"
+        weight="semibold"
+      />
+    </View>
+  );
+}
 
 export function CategoriesScreen() {
   const categories = useCategoriesStore((state) => state.categories);
@@ -35,6 +62,9 @@ export function CategoriesScreen() {
   const clearError = useCategoriesStore((state) => state.clearError);
 
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIconName, setNewCategoryIconName] =
+    useState<CategoryIconName | null>(null);
+  const [isAddIconPickerExpanded, setIsAddIconPickerExpanded] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
@@ -42,6 +72,10 @@ export function CategoriesScreen() {
   );
 
   const [editingName, setEditingName] = useState('');
+  const [editingIconName, setEditingIconName] =
+    useState<CategoryIconName | null>(null);
+  const [isEditIconPickerExpanded, setIsEditIconPickerExpanded] =
+    useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
@@ -57,6 +91,8 @@ export function CategoriesScreen() {
     setArchiveError(null);
     setEditingCategoryId(category.id);
     setEditingName(category.name);
+    setEditingIconName(category.iconName);
+    setIsEditIconPickerExpanded(false);
     setEditError(null);
   }
 
@@ -76,10 +112,15 @@ export function CategoriesScreen() {
 
     if (validationError) return;
 
-    await addCategory(newCategoryName);
+    await addCategory({
+      name: newCategoryName,
+      iconName: newCategoryIconName ?? CATEGORY_ICON_FALLBACK_NAME,
+    });
 
     if (!useCategoriesStore.getState().error) {
       setNewCategoryName('');
+      setNewCategoryIconName(null);
+      setIsAddIconPickerExpanded(false);
       setAddError(null);
     }
   }
@@ -101,11 +142,16 @@ export function CategoriesScreen() {
 
     if (validationError) return;
 
-    await updateCategory(editingCategoryId, { name: editingName });
+    await updateCategory(editingCategoryId, {
+      name: editingName,
+      iconName: editingIconName ?? CATEGORY_ICON_FALLBACK_NAME,
+    });
 
     if (!useCategoriesStore.getState().error) {
       setEditingCategoryId(null);
       setEditingName('');
+      setEditingIconName(null);
+      setIsEditIconPickerExpanded(false);
       setEditError(null);
     }
   }
@@ -162,19 +208,35 @@ export function CategoriesScreen() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Add category</Text>
 
-          <TextInput
-            value={newCategoryName}
-            onChangeText={(value) => {
-              setNewCategoryName(value);
-              setAddError(null);
-            }}
-            placeholder="Coffee"
-            autoCapitalize="words"
-            autoCorrect={false}
-            style={[styles.input, addError ? styles.inputError : null]}
-          />
+          <View style={styles.formField}>
+            <TextInput
+              value={newCategoryName}
+              onChangeText={(value) => {
+                setNewCategoryName(value);
+                setAddError(null);
+              }}
+              placeholder="Coffee"
+              autoCapitalize="words"
+              autoCorrect={false}
+              style={[styles.input, addError ? styles.inputError : null]}
+            />
 
-          {addError ? <Text style={styles.errorText}>{addError}</Text> : null}
+            {addError ? <Text style={styles.errorText}>{addError}</Text> : null}
+          </View>
+
+          <View style={styles.formField}>
+            <Text style={styles.label}>
+              Icon <Text style={styles.optionalLabel}>(optional)</Text>
+            </Text>
+
+            <CategoryIconPicker
+              isExpanded={isAddIconPickerExpanded}
+              onExpand={() => setIsAddIconPickerExpanded(true)}
+              onIconPress={setNewCategoryIconName}
+              selectedIconName={newCategoryIconName}
+              testIDPrefix="settings-add-category-icon"
+            />
+          </View>
 
           <Pressable
             accessibilityRole="button"
@@ -208,23 +270,40 @@ export function CategoriesScreen() {
               <View key={category.id} style={styles.categoryRow}>
                 {isEditing ? (
                   <>
-                    <TextInput
-                      value={editingName}
-                      onChangeText={(value) => {
-                        setEditingName(value);
-                        setEditError(null);
-                      }}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      style={[
-                        styles.input,
-                        editError ? styles.inputError : null,
-                      ]}
-                    />
+                    <View style={styles.formField}>
+                      <TextInput
+                        value={editingName}
+                        onChangeText={(value) => {
+                          setEditingName(value);
+                          setEditError(null);
+                        }}
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        style={[
+                          styles.input,
+                          editError ? styles.inputError : null,
+                        ]}
+                      />
 
-                    {editError ? (
-                      <Text style={styles.errorText}>{editError}</Text>
-                    ) : null}
+                      {editError ? (
+                        <Text style={styles.errorText}>{editError}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.formField}>
+                      <Text style={styles.label}>
+                        Icon{' '}
+                        <Text style={styles.optionalLabel}>(optional)</Text>
+                      </Text>
+
+                      <CategoryIconPicker
+                        isExpanded={isEditIconPickerExpanded}
+                        onExpand={() => setIsEditIconPickerExpanded(true)}
+                        onIconPress={setEditingIconName}
+                        selectedIconName={editingIconName}
+                        testIDPrefix="settings-edit-category-icon"
+                      />
+                    </View>
 
                     <View style={styles.actionRow}>
                       <Pressable
@@ -247,6 +326,8 @@ export function CategoriesScreen() {
                         onPress={() => {
                           setEditingCategoryId(null);
                           setEditingName('');
+                          setEditingIconName(null);
+                          setIsEditIconPickerExpanded(false);
                           setEditError(null);
                         }}
                         style={styles.smallSecondaryButton}
@@ -259,12 +340,16 @@ export function CategoriesScreen() {
                   </>
                 ) : (
                   <>
-                    <View style={styles.categoryCopy}>
-                      <Text style={styles.categoryName}>{category.name}</Text>
+                    <View style={styles.categoryDisplay}>
+                      <CategoryIcon category={category} />
 
-                      {isOtherCategory ? (
-                        <Text style={styles.metaText}>Required fallback</Text>
-                      ) : null}
+                      <View style={styles.categoryCopy}>
+                        <Text style={styles.categoryName}>{category.name}</Text>
+
+                        {isOtherCategory ? (
+                          <Text style={styles.metaText}>Required fallback</Text>
+                        ) : null}
+                      </View>
                     </View>
 
                     <View style={styles.actionRow}>
@@ -359,6 +444,17 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#dc2626',
   },
+  formField: {
+    gap: 8,
+  },
+  label: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  optionalLabel: {
+    color: '#6b7280',
+  },
   primaryButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -380,7 +476,28 @@ const styles = StyleSheet.create({
     borderTopColor: '#f3f4f6',
     paddingTop: 14,
   },
+  categoryDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  categoryIconCircle: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+  },
+  categoryIconFallback: {
+    color: '#111827',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   categoryCopy: {
+    flex: 1,
     gap: 4,
   },
   categoryName: {
