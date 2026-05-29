@@ -63,6 +63,7 @@ nvm use 20.19.4
 - Keep native splash configuration in `expo-splash-screen` with `assets/images/splash-logo.png`; do not replace it with a React-level loading screen.
 - Keep app icon assets separate from splash assets. iOS app icons should be square PNGs without transparency or baked-in rounded corners; iOS applies the mask.
 - Category icons are now a persisted local category property. Keep `Transaction.category` storing the stable category ID only. Do not add category icons to the transaction CSV v1 format or remote sync/backup schema unless a future task explicitly scopes a data-contract migration.
+- Balance entries are a separate local domain from expense Transactions. Do not encode balance additions as Transactions, and do not add balance entries to Transaction CSV v1 or remote sync/backup schema unless a future task explicitly scopes a data-contract migration.
 
 ## Current App Structure
 
@@ -72,6 +73,7 @@ nvm use 20.19.4
 - `app/(tabs)/analytics.tsx`: Analytics route.
 - `app/(tabs)/settings.tsx`: Settings route.
 - `app/add-transaction.tsx`: pushed root Stack Add Transaction route.
+- `app/add-balance.tsx`: pushed root Stack Add Balance route.
 - `app/shame-card.tsx`: pushed root Stack Shame Card route.
 - `src/features/*`: screen components for each route.
 - `src/components/screen-shell.tsx`: minimal shared screen wrapper.
