@@ -1,5 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
+import { DEFAULT_BALANCE_TYPES } from '@/types/balance';
 import { DEFAULT_CATEGORIES } from '@/types/category';
 import { LEAK_REASONS } from '@/types/transaction';
 
@@ -59,6 +60,29 @@ const CREATE_CATEGORIES_TABLE_SQL = `
   WHERE is_archived = 0;
 `;
 
+const CREATE_BALANCE_TABLES_SQL = `
+  CREATE TABLE IF NOT EXISTS balance_types (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    is_default INTEGER NOT NULL CHECK (is_default IN (0, 1)),
+    is_archived INTEGER NOT NULL CHECK (is_archived IN (0, 1)),
+    sort_order INTEGER NOT NULL
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS balance_types_active_name_unique
+  ON balance_types (LOWER(name))
+  WHERE is_archived = 0;
+
+  CREATE TABLE IF NOT EXISTS balance_entries (
+    id TEXT PRIMARY KEY NOT NULL,
+    amount REAL NOT NULL,
+    type_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+`;
+
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let initPromise: Promise<void> | null = null;
 
@@ -86,6 +110,7 @@ export async function initDatabase() {
 
       await ensureTransactionsTable(database);
       await database.execAsync(CREATE_CATEGORIES_TABLE_SQL);
+      await database.execAsync(CREATE_BALANCE_TABLES_SQL);
 
       await runDatabaseMigrations({
         database,
@@ -93,6 +118,7 @@ export async function initDatabase() {
       });
 
       await seedDefaultCategories(database, identity);
+      await seedDefaultBalanceTypes(database);
     })().catch((error) => {
       initPromise = null;
 
@@ -143,6 +169,33 @@ async function seedDefaultCategories(
       1,
       identity.deviceId,
       category.sortOrder,
+    );
+  }
+}
+
+async function seedDefaultBalanceTypes(database: SQLiteDatabase) {
+  const now = Date.now();
+
+  for (const balanceType of DEFAULT_BALANCE_TYPES) {
+    await database.runAsync(
+      `
+        INSERT OR IGNORE INTO balance_types (
+          id,
+          name,
+          created_at,
+          updated_at,
+          is_default,
+          is_archived,
+          sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      balanceType.id,
+      balanceType.name,
+      now,
+      now,
+      1,
+      0,
+      balanceType.sortOrder,
     );
   }
 }

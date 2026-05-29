@@ -3093,3 +3093,45 @@ Manual QA:
 - Leak Risk helper tests still pass.
 - Home does not render the old `Leak risk today` card.
 - Analytics and Shame Card continue to handle leak data without Home-specific changes.
+
+## ML-82 Add Balance
+
+### 52. Home balance and Add Balance local flow
+
+**Preconditions**
+
+- Local transaction and balance data can be reset.
+- Test on a native build so SQLite persistence is available.
+
+**Steps**
+
+1. Open `Home` with no balance entries and no transactions.
+2. Tap `Add`.
+3. Try saving Add Balance with an empty amount, then with `0`.
+4. Enter a valid amount with dot decimal, select a default type, choose a date, and save.
+5. Add another balance entry using comma decimal.
+6. Create a custom balance type, confirm empty and duplicate names are rejected, then save with the custom type.
+7. Return to `Home` and tap `Spend`.
+8. Add, edit, and delete an expense transaction.
+9. Restart the app and return to `Home`.
+10. Review CSV export/import, auth, backup, restore, sync, and bottom navigation.
+
+**Expected result**
+
+- Empty Home balance shows `0.00€`.
+- `Add` opens `/add-balance`.
+- `Spend` opens `/add-transaction`.
+- Add Balance validates required amount and `> 0`.
+- Dot and single comma decimal amounts are accepted.
+- The selected date is persisted as the balance entry `createdAt`.
+- Default balance types `Salary`, `Investment`, and `Regalo` can save entries.
+- Custom balance type creation trims names, rejects empty/duplicate active names, auto-selects the new type, and can save an entry.
+- Current balance recalculates after adding balance.
+- Current balance recalculates after spending.
+- Current balance recalculates after editing or deleting a transaction.
+- Balance entries persist after app restart.
+- History remains transaction-only and category icons/swipe actions still work.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, and Shame Card are not bottom tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Auth, sync, backup, restore, and remote Supabase schemas remain unchanged.

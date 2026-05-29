@@ -1,4 +1,4 @@
-import { Link, useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PeriodSelector } from '@/components/period-selector';
+import { calculateCurrentBalance } from '@/features/home/calculate-current-balance';
 import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
 import {
   getCategoryDisplayIconName,
@@ -35,8 +36,10 @@ import {
   getPeriodLabel,
   type PeriodScope,
 } from '@/lib/period-scope';
+import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
+import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
@@ -116,19 +119,17 @@ function hasHorizontalSwipeIntent({ dx, dy }: { dx: number; dy: number }) {
   );
 }
 
-function AddTransactionAction() {
-  return (
-    <Link href="/add-transaction" asChild>
-      <Pressable accessibilityRole="button" style={styles.primaryAction}>
-        <Text style={styles.primaryActionText}>Add Transaction</Text>
-      </Pressable>
-    </Link>
-  );
-}
-
 type SummaryRowProps = {
   label: string;
   value: string;
+};
+
+type BalanceActionButtonProps = {
+  label: string;
+  onPress: () => void;
+  symbolFallback: string;
+  symbolName: SFSymbol;
+  variant: 'outlined' | 'filled';
 };
 
 function SummaryRow({ label, value }: SummaryRowProps) {
@@ -137,6 +138,51 @@ function SummaryRow({ label, value }: SummaryRowProps) {
       <Text style={styles.summaryLabel}>{label}</Text>
       <Text style={styles.summaryValue}>{value}</Text>
     </View>
+  );
+}
+
+function BalanceActionButton({
+  label,
+  onPress,
+  symbolFallback,
+  symbolName,
+  variant,
+}: BalanceActionButtonProps) {
+  const isFilled = variant === 'filled';
+  const color = isFilled ? '#ffffff' : '#100f10';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[
+        styles.balanceActionButton,
+        isFilled ? styles.balanceActionButtonFilled : null,
+      ]}
+    >
+      <SymbolView
+        fallback={
+          <Text style={[styles.balanceActionSymbolFallback, { color }]}>
+            {symbolFallback}
+          </Text>
+        }
+        name={symbolName}
+        resizeMode="scaleAspectFit"
+        size={16}
+        tintColor={color}
+        type="monochrome"
+        weight="semibold"
+      />
+
+      <Text
+        style={[
+          styles.balanceActionButtonText,
+          isFilled ? styles.balanceActionButtonTextFilled : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -469,6 +515,9 @@ export function HomeScreen() {
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
+  const balanceEntries = useBalanceStore((state) => state.balanceEntries);
+  const isBalanceInitialized = useBalanceStore((state) => state.isInitialized);
+  const loadBalance = useBalanceStore((state) => state.loadBalance);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
   const categories = useCategoriesStore((state) => state.categories);
 
@@ -498,6 +547,10 @@ export function HomeScreen() {
     selectedCustomDateStart,
   });
 
+  const currentBalance = calculateCurrentBalance({
+    balanceEntries,
+    transactions,
+  });
   const todaySummary = calculateDailyReviewSummary({ transactions });
   const hasTransactions = filteredTransactions.length > 0;
   const hasAnyTransactions = transactions.length > 0;
@@ -529,6 +582,12 @@ export function HomeScreen() {
   useTransactionsRefresh({
     isInitialized,
     loadTransactions,
+    loadOnMount: 'always',
+  });
+
+  useBalanceRefresh({
+    isInitialized: isBalanceInitialized,
+    loadBalance,
     loadOnMount: 'always',
   });
 
@@ -619,6 +678,14 @@ export function HomeScreen() {
     router.push('/analytics' as Href);
   }, [router]);
 
+  const handleAddBalancePress = useCallback(() => {
+    router.push('/add-balance' as Href);
+  }, [router]);
+
+  const handleSpendPress = useCallback(() => {
+    router.push('/add-transaction' as Href);
+  }, [router]);
+
   if (!isInitialized) {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
@@ -643,7 +710,6 @@ export function HomeScreen() {
             </Text>
 
             <Text style={styles.stateMessage}>{error}</Text>
-            <AddTransactionAction />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -654,6 +720,28 @@ export function HomeScreen() {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.pageTitle}>Home</Text>
+
+        <View style={styles.balanceHero}>
+          <Text style={styles.balanceAmount}>{formatEuro(currentBalance)}</Text>
+
+          <View style={styles.balanceActions}>
+            <BalanceActionButton
+              label="Add"
+              onPress={handleAddBalancePress}
+              symbolFallback="↙"
+              symbolName="arrow.down.left"
+              variant="outlined"
+            />
+
+            <BalanceActionButton
+              label="Spend"
+              onPress={handleSpendPress}
+              symbolFallback="↗"
+              symbolName="arrow.up.right"
+              variant="filled"
+            />
+          </View>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Today summary</Text>
@@ -682,8 +770,6 @@ export function HomeScreen() {
                 : 'No leaks logged today.'
               : 'No expenses logged today yet.'}
           </Text>
-
-          <AddTransactionAction />
         </View>
 
         <View style={styles.section}>
@@ -806,6 +892,49 @@ const styles = StyleSheet.create({
     fontWeight: TITLE_FONT_WEIGHT,
     color: '#0f0f0f',
   },
+  balanceHero: {
+    gap: 48,
+  },
+  balanceAmount: {
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#000000',
+  },
+  balanceActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  balanceActionButton: {
+    minHeight: 50,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: '#100f10',
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  balanceActionButtonFilled: {
+    backgroundColor: '#100f10',
+  },
+  balanceActionButtonText: {
+    fontSize: 17,
+    lineHeight: 22,
+    color: '#100f10',
+  },
+  balanceActionButtonTextFilled: {
+    color: '#ffffff',
+  },
+  balanceActionSymbolFallback: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '700',
+  },
   section: {
     gap: 18,
   },
@@ -833,21 +962,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500',
     color: '#0088ff',
-  },
-  primaryAction: {
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-    backgroundColor: '#111111',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-  },
-  primaryActionText: {
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: '600',
-    color: '#ffffff',
   },
   stateTitle: {
     fontFamily: TITLE_FONT_FAMILY,

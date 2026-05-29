@@ -51,6 +51,13 @@ export default function RootLayout() {
         />
 
         <Stack.Screen
+          name="add-balance"
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
           name="categories"
           options={{
             title: 'Manage Categories',
