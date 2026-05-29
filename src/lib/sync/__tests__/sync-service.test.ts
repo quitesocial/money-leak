@@ -6,6 +6,8 @@ import { createSyncService } from '@/lib/sync/sync-service';
 import type {
   LocalSyncDataTarget,
   LocalSyncMetadataStore,
+  RemoteBalanceEntry,
+  RemoteBalanceType,
   RemoteCategory,
   RemoteSyncAdapter,
   RemoteSyncChanges,
@@ -16,12 +18,19 @@ import type {
   SyncService,
   SyncSummary,
 } from '@/lib/sync/sync-types';
+import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 jest.mock('@/db/categories', () => ({
   applyCategorySyncChanges: jest.fn(),
   getCategories: jest.fn(),
+}));
+
+jest.mock('@/db/balance', () => ({
+  applyBalanceSyncChanges: jest.fn(),
+  getBalanceEntriesForBackup: jest.fn(),
+  getBalanceTypesForBackup: jest.fn(),
 }));
 
 jest.mock('@/db/transactions', () => ({
@@ -103,6 +112,40 @@ function createCategory(overrides: Partial<Category> = {}): Category {
   };
 }
 
+function createBalanceType(overrides: Partial<BalanceType> = {}): BalanceType {
+  return {
+    id: 'income',
+    ownerId: TEST_USER_ID,
+    name: 'Income',
+    createdAt: Date.parse('2026-05-18T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-21T08:30:00.000Z'),
+    isDefault: true,
+    isArchived: false,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    sortOrder: 0,
+    ...overrides,
+  };
+}
+
+function createBalanceEntry(
+  overrides: Partial<BalanceEntry> = {},
+): BalanceEntry {
+  return {
+    id: 'balance-entry-1',
+    ownerId: TEST_USER_ID,
+    amount: 100,
+    typeId: 'income',
+    createdAt: Date.parse('2026-05-19T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-21T08:30:00.000Z'),
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    ...overrides,
+  };
+}
+
 function createRemoteTransaction(
   overrides: Partial<RemoteTransaction> = {},
 ): RemoteTransaction {
@@ -142,11 +185,51 @@ function createRemoteCategory(
   };
 }
 
+function createRemoteBalanceType(
+  overrides: Partial<RemoteBalanceType> = {},
+): RemoteBalanceType {
+  return {
+    id: 'income',
+    userId: TEST_USER_ID,
+    name: 'Income',
+    isDefault: true,
+    isArchived: false,
+    sortOrder: 0,
+    createdAt: '2026-05-18T08:00:00.000Z',
+    updatedAt: '2026-05-21T08:30:00.000Z',
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    ...overrides,
+  };
+}
+
+function createRemoteBalanceEntry(
+  overrides: Partial<RemoteBalanceEntry> = {},
+): RemoteBalanceEntry {
+  return {
+    id: 'balance-entry-1',
+    userId: TEST_USER_ID,
+    amount: 100,
+    typeId: 'income',
+    createdAt: '2026-05-19T08:00:00.000Z',
+    updatedAt: '2026-05-21T08:30:00.000Z',
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    ...overrides,
+  };
+}
+
 function createDataSource({
+  balanceEntries = [],
+  balanceTypes = [],
   categories = [],
   shouldFail = false,
   transactions = [],
 }: {
+  balanceEntries?: BalanceEntry[];
+  balanceTypes?: BalanceType[];
   categories?: Category[];
   shouldFail?: boolean;
   transactions?: Transaction[];
@@ -158,6 +241,8 @@ function createDataSource({
       if (shouldFail) throw new Error(RAW_FAILURE);
 
       return {
+        balanceEntries,
+        balanceTypes,
         categories,
         transactions,
       };
@@ -187,6 +272,8 @@ function createDataTarget({
       return {
         appliedTransactionsCount: changes.transactions.length,
         appliedCategoriesCount: changes.categories.length,
+        appliedBalanceTypesCount: changes.balanceTypes.length,
+        appliedBalanceEntriesCount: changes.balanceEntries.length,
       };
     }),
   };
@@ -388,8 +475,10 @@ describe('incremental sync service', () => {
     });
     expect(dataTarget.appliedChanges).toEqual([
       {
-        transactions: [expect.objectContaining({ id: 'txn-1' })],
+        balanceEntries: [],
+        balanceTypes: [],
         categories: [expect.objectContaining({ id: 'coffee' })],
+        transactions: [expect.objectContaining({ id: 'txn-1' })],
       },
     ]);
   });
@@ -501,6 +590,161 @@ describe('incremental sync service', () => {
     ]);
   });
 
+  it('pulls, applies, and pushes balance changes with aggregate counts only', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      balanceEntries: [
+        createRemoteBalanceEntry({
+          id: 'remote-balance-entry',
+          typeId: 'remote-income',
+        }),
+      ],
+      balanceTypes: [
+        createRemoteBalanceType({
+          id: 'remote-income',
+          name: 'Remote Income',
+        }),
+      ],
+      sessionUserId: TEST_USER_ID,
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        balanceEntries: [
+          createBalanceEntry({
+            id: 'local-balance-entry',
+            typeId: 'local-income',
+          }),
+        ],
+        balanceTypes: [
+          createBalanceType({
+            id: 'local-income',
+            name: 'Local Income',
+          }),
+        ],
+      }),
+      dataTarget,
+      metadataStore: createMetadataStore({
+        initialMetadata: {
+          lastSuccessfulSyncAt: null,
+          lastSyncErrorAt: null,
+          lastSyncSummary: null,
+          lastSuccessfulSyncSource: null,
+        },
+      }),
+      remoteAdapter,
+    });
+
+    const result = await runManualIncrementalSync(service, {
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      pulledBalanceTypesCount: 1,
+      pulledBalanceEntriesCount: 1,
+      appliedBalanceTypesCount: 1,
+      appliedBalanceEntriesCount: 1,
+      pushedBalanceTypesCount: 1,
+      pushedBalanceEntriesCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0]).toMatchObject({
+      balanceTypes: [expect.objectContaining({ id: 'remote-income' })],
+      balanceEntries: [expect.objectContaining({ id: 'remote-balance-entry' })],
+    });
+    expect(remoteAdapter.getBalanceTypes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'remote-income' }),
+        expect.objectContaining({ id: 'local-income' }),
+      ]),
+    );
+    expect(remoteAdapter.getBalanceEntries()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'remote-balance-entry' }),
+        expect.objectContaining({ id: 'local-balance-entry' }),
+      ]),
+    );
+    expect(JSON.stringify(result)).not.toContain('local-balance-entry');
+  });
+
+  it('applies matching remote balance tombstones and ignores orphan balance tombstones', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      balanceEntries: [
+        createRemoteBalanceEntry({
+          id: 'balance-delete-me',
+          updatedAt: '2026-05-21T11:00:00.000Z',
+          deletedAt: '2026-05-21T11:00:00.000Z',
+        }),
+        createRemoteBalanceEntry({
+          id: 'balance-missing',
+          updatedAt: '2026-05-21T11:30:00.000Z',
+          deletedAt: '2026-05-21T11:30:00.000Z',
+        }),
+      ],
+      balanceTypes: [
+        createRemoteBalanceType({
+          id: 'type-delete-me',
+          updatedAt: '2026-05-21T11:00:00.000Z',
+          deletedAt: '2026-05-21T11:00:00.000Z',
+        }),
+        createRemoteBalanceType({
+          id: 'type-missing',
+          updatedAt: '2026-05-21T11:30:00.000Z',
+          deletedAt: '2026-05-21T11:30:00.000Z',
+        }),
+      ],
+      sessionUserId: TEST_USER_ID,
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        balanceEntries: [
+          createBalanceEntry({
+            id: 'balance-delete-me',
+            updatedAt: Date.parse('2026-05-21T10:00:00.000Z'),
+          }),
+        ],
+        balanceTypes: [
+          createBalanceType({
+            id: 'type-delete-me',
+            updatedAt: Date.parse('2026-05-21T10:00:00.000Z'),
+          }),
+        ],
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await runManualIncrementalSync(service, {
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      appliedBalanceTypesCount: 1,
+      appliedBalanceEntriesCount: 1,
+      ignoredBalanceTypeTombstonesCount: 1,
+      ignoredBalanceEntryTombstonesCount: 1,
+    });
+    expect(dataTarget.appliedChanges[0].balanceTypes).toEqual([
+      expect.objectContaining({
+        id: 'type-delete-me',
+        deletedAt: '2026-05-21T11:00:00.000Z',
+      }),
+    ]);
+    expect(dataTarget.appliedChanges[0].balanceEntries).toEqual([
+      expect.objectContaining({
+        id: 'balance-delete-me',
+        deletedAt: '2026-05-21T11:00:00.000Z',
+      }),
+    ]);
+  });
+
   it('does not duplicate remote rows on repeated sync', async () => {
     const remoteAdapter = createFakeRemoteSyncAdapter({
       sessionUserId: TEST_USER_ID,
@@ -588,12 +832,16 @@ describe('incremental sync service', () => {
     });
     expect(dataTarget.appliedChanges).toEqual([
       {
-        transactions: [expect.objectContaining({ id: 'txn-1' })],
+        balanceEntries: [],
+        balanceTypes: [],
         categories: [],
+        transactions: [expect.objectContaining({ id: 'txn-1' })],
       },
       {
-        transactions: [],
+        balanceEntries: [],
+        balanceTypes: [],
         categories: [],
+        transactions: [],
       },
     ]);
     expect(metadataStore.successes).toHaveLength(2);
@@ -601,6 +849,8 @@ describe('incremental sync service', () => {
 
   it('shares one in-flight sync operation for overlapping service calls', async () => {
     const deferredData = createDeferred<{
+      balanceEntries: BalanceEntry[];
+      balanceTypes: BalanceType[];
       categories: Category[];
       transactions: Transaction[];
     }>();
@@ -638,6 +888,8 @@ describe('incremental sync service', () => {
     expect(secondSync).toBe(firstSync);
 
     deferredData.resolve({
+      balanceEntries: [],
+      balanceTypes: [],
       categories: [createCategory()],
       transactions: [createTransaction()],
     });
@@ -661,6 +913,8 @@ describe('incremental sync service', () => {
 
   it('reports whether incremental sync is in flight', async () => {
     const deferredData = createDeferred<{
+      balanceEntries: BalanceEntry[];
+      balanceTypes: BalanceType[];
       categories: Category[];
       transactions: Transaction[];
     }>();
@@ -681,6 +935,8 @@ describe('incremental sync service', () => {
     expect(service.isIncrementalSyncInFlight()).toBe(true);
 
     deferredData.resolve({
+      balanceEntries: [],
+      balanceTypes: [],
       categories: [],
       transactions: [],
     });

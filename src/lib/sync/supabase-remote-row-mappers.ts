@@ -1,4 +1,9 @@
-import type { RemoteCategory, RemoteTransaction } from '@/lib/sync/sync-types';
+import type {
+  RemoteBalanceEntry,
+  RemoteBalanceType,
+  RemoteCategory,
+  RemoteTransaction,
+} from '@/lib/sync/sync-types';
 
 export type RemoteTransactionRow = {
   user_id: unknown;
@@ -29,6 +34,32 @@ export type RemoteCategoryRow = {
   source_device_id: unknown;
 };
 
+export type RemoteBalanceTypeRow = {
+  user_id: unknown;
+  id: unknown;
+  name: unknown;
+  is_default: unknown;
+  is_archived: unknown;
+  sort_order: unknown;
+  created_at: unknown;
+  updated_at: unknown;
+  deleted_at: unknown;
+  schema_version: unknown;
+  source_device_id: unknown;
+};
+
+export type RemoteBalanceEntryRow = {
+  user_id: unknown;
+  id: unknown;
+  amount: unknown;
+  type_id: unknown;
+  created_at: unknown;
+  updated_at: unknown;
+  deleted_at: unknown;
+  schema_version: unknown;
+  source_device_id: unknown;
+};
+
 export type RemoteTransactionWriteRow = {
   user_id: string;
   id: string;
@@ -37,6 +68,32 @@ export type RemoteTransactionWriteRow = {
   is_leak: boolean;
   leak_reason: RemoteTransaction['leakReason'];
   note: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
+export type RemoteBalanceTypeWriteRow = {
+  user_id: string;
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_archived: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
+export type RemoteBalanceEntryWriteRow = {
+  user_id: string;
+  id: string;
+  amount: number;
+  type_id: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -87,6 +144,32 @@ export const REMOTE_TRANSACTION_COLUMNS = [
   'source_device_id',
 ].join(',');
 
+export const REMOTE_BALANCE_TYPE_COLUMNS = [
+  'user_id',
+  'id',
+  'name',
+  'is_default',
+  'is_archived',
+  'sort_order',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+  'schema_version',
+  'source_device_id',
+].join(',');
+
+export const REMOTE_BALANCE_ENTRY_COLUMNS = [
+  'user_id',
+  'id',
+  'amount',
+  'type_id',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+  'schema_version',
+  'source_device_id',
+].join(',');
+
 export function mapRemoteTransactionToRow(
   transaction: RemoteTransaction,
 ): RemoteTransactionWriteRow {
@@ -124,6 +207,40 @@ export function mapRemoteCategoryToRow(
   };
 }
 
+export function mapRemoteBalanceTypeToRow(
+  balanceType: RemoteBalanceType,
+): RemoteBalanceTypeWriteRow {
+  return {
+    user_id: balanceType.userId,
+    id: balanceType.id,
+    name: balanceType.name,
+    is_default: balanceType.isDefault,
+    is_archived: balanceType.isArchived,
+    sort_order: balanceType.sortOrder,
+    created_at: balanceType.createdAt,
+    updated_at: balanceType.updatedAt,
+    deleted_at: balanceType.deletedAt,
+    schema_version: balanceType.schemaVersion,
+    source_device_id: balanceType.sourceDeviceId,
+  };
+}
+
+export function mapRemoteBalanceEntryToRow(
+  entry: RemoteBalanceEntry,
+): RemoteBalanceEntryWriteRow {
+  return {
+    user_id: entry.userId,
+    id: entry.id,
+    amount: entry.amount,
+    type_id: entry.typeId,
+    created_at: entry.createdAt,
+    updated_at: entry.updatedAt,
+    deleted_at: entry.deletedAt,
+    schema_version: entry.schemaVersion,
+    source_device_id: entry.sourceDeviceId,
+  };
+}
+
 export function mapRemoteCategoryRow(row: RemoteCategoryRow): RemoteCategory {
   return {
     id: parseString(row.id, 'id'),
@@ -132,6 +249,46 @@ export function mapRemoteCategoryRow(row: RemoteCategoryRow): RemoteCategory {
     isDefault: parseBoolean(row.is_default, 'is_default'),
     isArchived: parseBoolean(row.is_archived, 'is_archived'),
     sortOrder: parseNumber(row.sort_order, 'sort_order'),
+    createdAt: parseString(row.created_at, 'created_at'),
+    updatedAt: parseString(row.updated_at, 'updated_at'),
+    deletedAt: parseNullableString(row.deleted_at, 'deleted_at'),
+    schemaVersion: parseNumber(row.schema_version, 'schema_version'),
+    sourceDeviceId: parseNullableString(
+      row.source_device_id,
+      'source_device_id',
+    ),
+  };
+}
+
+export function mapRemoteBalanceTypeRow(
+  row: RemoteBalanceTypeRow,
+): RemoteBalanceType {
+  return {
+    id: parseString(row.id, 'id'),
+    userId: parseString(row.user_id, 'user_id'),
+    name: parseString(row.name, 'name'),
+    isDefault: parseBoolean(row.is_default, 'is_default'),
+    isArchived: parseBoolean(row.is_archived, 'is_archived'),
+    sortOrder: parseNumber(row.sort_order, 'sort_order'),
+    createdAt: parseString(row.created_at, 'created_at'),
+    updatedAt: parseString(row.updated_at, 'updated_at'),
+    deletedAt: parseNullableString(row.deleted_at, 'deleted_at'),
+    schemaVersion: parseNumber(row.schema_version, 'schema_version'),
+    sourceDeviceId: parseNullableString(
+      row.source_device_id,
+      'source_device_id',
+    ),
+  };
+}
+
+export function mapRemoteBalanceEntryRow(
+  row: RemoteBalanceEntryRow,
+): RemoteBalanceEntry {
+  return {
+    id: parseString(row.id, 'id'),
+    userId: parseString(row.user_id, 'user_id'),
+    amount: parseNumber(row.amount, 'amount'),
+    typeId: parseString(row.type_id, 'type_id'),
     createdAt: parseString(row.created_at, 'created_at'),
     updatedAt: parseString(row.updated_at, 'updated_at'),
     deletedAt: parseNullableString(row.deleted_at, 'deleted_at'),

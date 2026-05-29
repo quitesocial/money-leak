@@ -5,7 +5,23 @@ export type BalanceEntryInput = {
   createdAt: number;
 };
 
-export type BalanceEntry = BalanceEntryInput;
+export type BalanceEntryRestoreInput = BalanceEntryInput & {
+  updatedAt: number;
+};
+
+export type BalanceEntryTombstoneRestoreInput = {
+  id: string;
+  updatedAt: number;
+  deletedAt: number;
+};
+
+export type BalanceEntry = BalanceEntryInput & {
+  ownerId: string;
+  updatedAt: number;
+  deletedAt: number | null;
+  schemaVersion: number;
+  sourceDeviceId: string;
+};
 
 export type BalanceTypeInput = {
   id: string;
@@ -17,7 +33,18 @@ export type BalanceTypeInput = {
   sortOrder: number;
 };
 
-export type BalanceType = BalanceTypeInput;
+export type BalanceTypeTombstoneRestoreInput = {
+  id: string;
+  updatedAt: number;
+  deletedAt: number;
+};
+
+export type BalanceType = BalanceTypeInput & {
+  ownerId: string;
+  deletedAt: number | null;
+  schemaVersion: number;
+  sourceDeviceId: string;
+};
 
 export const DEFAULT_BALANCE_TYPES: BalanceTypeInput[] = [
   {

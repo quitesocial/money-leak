@@ -32,6 +32,7 @@ import {
   formatPercentage,
 } from '@/lib/display-formatters';
 import {
+  filterItemsByPeriod,
   filterTransactionsByPeriod,
   getPeriodLabel,
   type PeriodScope,
@@ -43,6 +44,7 @@ import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
+import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
@@ -92,6 +94,29 @@ function formatTransactionTimestamp(value: number) {
   if (isSameLocalDay(date, new Date())) return timeFormatter.format(date);
 
   return shortDateTimeFormatter.format(date);
+}
+
+function formatSignedEuro({
+  amount,
+  sign,
+}: {
+  amount: number;
+  sign: '+' | '-';
+}) {
+  return `${sign}${formatEuro(amount)}`;
+}
+
+function getBalanceTypeDisplayName({
+  balanceTypes,
+  typeId,
+}: {
+  balanceTypes: BalanceType[];
+  typeId: string;
+}) {
+  return (
+    balanceTypes.find((balanceType) => balanceType.id === typeId)?.name ??
+    'Balance addition'
+  );
 }
 
 function clampSwipeTranslation(value: number) {
@@ -233,6 +258,7 @@ function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
 }
 
 type HistoryTransactionItemProps = {
+  amountLabel: string;
   categories: Category[];
   isDeleting: boolean;
   isDisabled: boolean;
@@ -246,6 +272,7 @@ type HistoryTransactionItemProps = {
 };
 
 function HistoryTransactionItem({
+  amountLabel,
   categories,
   isDeleting,
   isDisabled,
@@ -486,8 +513,8 @@ function HistoryTransactionItem({
             </View>
           </View>
 
-          <Text style={styles.amountText}>
-            {formatEuro(transaction.amount)}
+          <Text style={[styles.amountText, styles.amountTextNegative]}>
+            {amountLabel}
           </Text>
         </View>
 
@@ -509,6 +536,73 @@ function HistoryTransactionItem({
   );
 }
 
+function HistoryBalanceItem({
+  amountLabel,
+  entry,
+  typeName,
+}: {
+  amountLabel: string;
+  entry: BalanceEntry;
+  typeName: string;
+}) {
+  return (
+    <View style={[styles.transactionCard, styles.balanceEntryCard]}>
+      <View style={styles.transactionMainRow}>
+        <View style={styles.transactionInfoRow}>
+          <View style={styles.transactionIconSlot}>
+            <SymbolView
+              fallback={<Text style={styles.balanceIconFallback}>+</Text>}
+              name="arrow.down.left"
+              resizeMode="scaleAspectFit"
+              size={18}
+              testID={`balance-entry-icon-${entry.id}`}
+              tintColor="#177245"
+              type="monochrome"
+              weight="semibold"
+            />
+          </View>
+
+          <View style={styles.transactionCopy}>
+            <View style={styles.categoryRow}>
+              <Text style={styles.categoryText}>{typeName}</Text>
+
+              <View style={[styles.typeBadge, styles.typeBadgeBalance]}>
+                <Text
+                  style={[styles.typeBadgeText, styles.typeBadgeTextBalance]}
+                >
+                  Added
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.timestampText}>
+              {formatTransactionTimestamp(entry.createdAt)}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={[styles.amountText, styles.amountTextPositive]}>
+          {amountLabel}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+type HistoryFeedItem =
+  | {
+      createdAt: number;
+      id: string;
+      kind: 'transaction';
+      transaction: Transaction;
+    }
+  | {
+      createdAt: number;
+      entry: BalanceEntry;
+      id: string;
+      kind: 'balance';
+    };
+
 export function HomeScreen() {
   const router = useRouter();
   const transactions = useTransactionsStore((state) => state.transactions);
@@ -516,6 +610,8 @@ export function HomeScreen() {
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
   const error = useTransactionsStore((state) => state.error);
   const balanceEntries = useBalanceStore((state) => state.balanceEntries);
+  const balanceTypes = useBalanceStore((state) => state.balanceTypes);
+  const isBalanceLoading = useBalanceStore((state) => state.isLoading);
   const isBalanceInitialized = useBalanceStore((state) => state.isInitialized);
   const loadBalance = useBalanceStore((state) => state.loadBalance);
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
@@ -546,15 +642,50 @@ export function HomeScreen() {
     period: homeSelectedPeriod,
     selectedCustomDateStart,
   });
+  const filteredBalanceEntries = filterItemsByPeriod({
+    items: balanceEntries,
+    period: homeSelectedPeriod,
+    selectedCustomDateStart,
+  });
+
+  const historyItems = useMemo<HistoryFeedItem[]>(() => {
+    const transactionItems: HistoryFeedItem[] = filteredTransactions.map(
+      (transaction) => ({
+        createdAt: transaction.createdAt,
+        id: `transaction:${transaction.id}`,
+        kind: 'transaction',
+        transaction,
+      }),
+    );
+
+    const balanceItems: HistoryFeedItem[] = filteredBalanceEntries.map(
+      (entry) => ({
+        createdAt: entry.createdAt,
+        entry,
+        id: `balance:${entry.id}`,
+        kind: 'balance',
+      }),
+    );
+
+    return [...transactionItems, ...balanceItems].sort((first, second) => {
+      const createdAtDiff = second.createdAt - first.createdAt;
+
+      if (createdAtDiff !== 0) return createdAtDiff;
+
+      return second.id.localeCompare(first.id);
+    });
+  }, [filteredBalanceEntries, filteredTransactions]);
 
   const currentBalance = calculateCurrentBalance({
     balanceEntries,
     transactions,
   });
   const todaySummary = calculateDailyReviewSummary({ transactions });
-  const hasTransactions = filteredTransactions.length > 0;
-  const hasAnyTransactions = transactions.length > 0;
+  const hasHistoryItems = historyItems.length > 0;
+  const hasAnyHistoryItems =
+    transactions.length > 0 || balanceEntries.length > 0;
   const hasTodayTransactions = todaySummary.transactionCount > 0;
+  const isHistoryRefreshing = isLoading || isBalanceLoading;
 
   const selectedPeriodLabel = getPeriodLabel(
     homeSelectedPeriod,
@@ -700,7 +831,7 @@ export function HomeScreen() {
     );
   }
 
-  if (error && !hasAnyTransactions) {
+  if (error && !hasAnyHistoryItems) {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
@@ -803,10 +934,8 @@ export function HomeScreen() {
             onSelectCustomDate={setSelectedCustomDate}
           />
 
-          {isLoading ? (
-            <Text style={styles.refreshingText}>
-              Refreshing transactions...
-            </Text>
+          {isHistoryRefreshing ? (
+            <Text style={styles.refreshingText}>Refreshing history...</Text>
           ) : null}
 
           {error ? (
@@ -815,9 +944,27 @@ export function HomeScreen() {
             </View>
           ) : null}
 
-          {hasTransactions ? (
+          {hasHistoryItems ? (
             <View style={styles.transactionList}>
-              {filteredTransactions.map((transaction) => {
+              {historyItems.map((item) => {
+                if (item.kind === 'balance') {
+                  return (
+                    <HistoryBalanceItem
+                      amountLabel={formatSignedEuro({
+                        amount: item.entry.amount,
+                        sign: '+',
+                      })}
+                      entry={item.entry}
+                      key={item.id}
+                      typeName={getBalanceTypeDisplayName({
+                        balanceTypes,
+                        typeId: item.entry.typeId,
+                      })}
+                    />
+                  );
+                }
+
+                const { transaction } = item;
                 const isDeletingThisTransaction =
                   deletingTransactionId === transaction.id;
 
@@ -827,10 +974,14 @@ export function HomeScreen() {
                 return (
                   <HistoryTransactionItem
                     categories={categories}
+                    amountLabel={formatSignedEuro({
+                      amount: transaction.amount,
+                      sign: '-',
+                    })}
                     isDeleting={isDeletingThisTransaction}
                     isDisabled={isTransactionActionDisabled}
                     isOpen={openSwipeTransactionId === transaction.id}
-                    key={transaction.id}
+                    key={item.id}
                     onDelete={handleDeleteTransaction}
                     onEdit={handleEditTransaction}
                     onSwipeClose={handleSwipeClose}
@@ -844,15 +995,15 @@ export function HomeScreen() {
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>
-                {hasAnyTransactions
-                  ? `No transactions for ${selectedPeriodLabel}`
-                  : 'No transactions yet'}
+                {hasAnyHistoryItems
+                  ? `No history for ${selectedPeriodLabel}`
+                  : 'No history yet'}
               </Text>
 
               <Text style={styles.emptyMessage}>
-                {hasAnyTransactions
-                  ? `You have saved expenses, but none fall in ${selectedPeriodLabel.toLowerCase()}.`
-                  : 'Add your first expense and mark the ones that felt avoidable.'}
+                {hasAnyHistoryItems
+                  ? `You have saved activity, but none falls in ${selectedPeriodLabel.toLowerCase()}.`
+                  : 'Add balance or log an expense to start your history.'}
               </Text>
             </View>
           )}
@@ -1109,6 +1260,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
+  balanceIconFallback: {
+    color: '#177245',
+    fontSize: 17,
+    lineHeight: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
   transactionCopy: {
     flex: 1,
     minWidth: 0,
@@ -1135,6 +1293,12 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     color: '#050505',
   },
+  amountTextNegative: {
+    color: '#9f1239',
+  },
+  amountTextPositive: {
+    color: '#177245',
+  },
   typeBadge: {
     borderRadius: 999,
     paddingHorizontal: 9,
@@ -1146,6 +1310,9 @@ const styles = StyleSheet.create({
   typeBadgeLeak: {
     backgroundColor: '#ffe1e1',
   },
+  typeBadgeBalance: {
+    backgroundColor: '#dcfce7',
+  },
   typeBadgeText: {
     fontSize: 12,
     lineHeight: 15,
@@ -1156,6 +1323,12 @@ const styles = StyleSheet.create({
   },
   typeBadgeTextLeak: {
     color: '#bd1f1f',
+  },
+  typeBadgeTextBalance: {
+    color: '#166534',
+  },
+  balanceEntryCard: {
+    backgroundColor: '#f4fbf5',
   },
   timestampText: {
     fontSize: 15,

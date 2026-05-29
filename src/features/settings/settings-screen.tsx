@@ -54,6 +54,7 @@ import type {
 } from '@/lib/sync/sync-types';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
+import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import type { AuthUser } from '@/types/auth';
@@ -66,11 +67,15 @@ type ImportResult = {
 type BackupResult = {
   uploadedTransactionsCount: number;
   uploadedCategoriesCount: number;
+  uploadedBalanceTypesCount: number;
+  uploadedBalanceEntriesCount: number;
 };
 
 type RestoreUiResult = {
   restoredTransactionsCount: number;
   restoredCategoriesCount: number;
+  restoredBalanceTypesCount: number;
+  restoredBalanceEntriesCount: number;
 };
 
 type SyncUiResult = {
@@ -115,17 +120,21 @@ function formatImportResult({ importedCount, skippedCount }: ImportResult) {
 }
 
 function formatBackupResult({
+  uploadedBalanceEntriesCount,
+  uploadedBalanceTypesCount,
   uploadedCategoriesCount,
   uploadedTransactionsCount,
 }: BackupResult) {
-  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')} and ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')} saved.`;
+  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')}, ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')}, ${formatCountLabel(uploadedBalanceTypesCount, 'balance type')}, and ${formatCountLabel(uploadedBalanceEntriesCount, 'balance entry', 'balance entries')} saved.`;
 }
 
 function formatRestoreResult({
+  restoredBalanceEntriesCount,
+  restoredBalanceTypesCount,
   restoredCategoriesCount,
   restoredTransactionsCount,
 }: RestoreUiResult) {
-  return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')} and ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')} restored.`;
+  return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')}, ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')}, ${formatCountLabel(restoredBalanceTypesCount, 'balance type')}, and ${formatCountLabel(restoredBalanceEntriesCount, 'balance entry', 'balance entries')} restored.`;
 }
 
 function formatSyncResult({
@@ -169,13 +178,26 @@ function createSyncUiResult(
 ) {
   return {
     appliedCount:
-      result.appliedTransactionsCount + result.appliedCategoriesCount,
+      result.appliedTransactionsCount +
+      result.appliedCategoriesCount +
+      result.appliedBalanceTypesCount +
+      result.appliedBalanceEntriesCount,
     conflictsCount: result.conflictsCount,
     ignoredCount:
       result.ignoredTransactionTombstonesCount +
-      result.ignoredCategoryTombstonesCount,
-    pulledCount: result.pulledTransactionsCount + result.pulledCategoriesCount,
-    pushedCount: result.pushedTransactionsCount + result.pushedCategoriesCount,
+      result.ignoredCategoryTombstonesCount +
+      result.ignoredBalanceTypeTombstonesCount +
+      result.ignoredBalanceEntryTombstonesCount,
+    pulledCount:
+      result.pulledTransactionsCount +
+      result.pulledCategoriesCount +
+      result.pulledBalanceTypesCount +
+      result.pulledBalanceEntriesCount,
+    pushedCount:
+      result.pushedTransactionsCount +
+      result.pushedCategoriesCount +
+      result.pushedBalanceTypesCount +
+      result.pushedBalanceEntriesCount,
   };
 }
 
@@ -188,15 +210,33 @@ function createSyncUiResultFromSummary(
     summary.pulledTransactionsCount,
   );
   const pulledCategoriesCount = getSafeSyncCount(summary.pulledCategoriesCount);
+  const pulledBalanceTypesCount = getOptionalSafeSyncCount(
+    summary.pulledBalanceTypesCount,
+  );
+  const pulledBalanceEntriesCount = getOptionalSafeSyncCount(
+    summary.pulledBalanceEntriesCount,
+  );
   const pushedTransactionsCount = getSafeSyncCount(
     summary.pushedTransactionsCount,
   );
   const pushedCategoriesCount = getSafeSyncCount(summary.pushedCategoriesCount);
+  const pushedBalanceTypesCount = getOptionalSafeSyncCount(
+    summary.pushedBalanceTypesCount,
+  );
+  const pushedBalanceEntriesCount = getOptionalSafeSyncCount(
+    summary.pushedBalanceEntriesCount,
+  );
   const appliedTransactionsCount = getSafeSyncCount(
     summary.appliedTransactionsCount,
   );
   const appliedCategoriesCount = getSafeSyncCount(
     summary.appliedCategoriesCount,
+  );
+  const appliedBalanceTypesCount = getOptionalSafeSyncCount(
+    summary.appliedBalanceTypesCount,
+  );
+  const appliedBalanceEntriesCount = getOptionalSafeSyncCount(
+    summary.appliedBalanceEntriesCount,
   );
   const conflictsCount = getSafeSyncCount(summary.conflictsCount);
   const ignoredTransactionTombstonesCount = getSafeSyncCount(
@@ -205,27 +245,56 @@ function createSyncUiResultFromSummary(
   const ignoredCategoryTombstonesCount = getSafeSyncCount(
     summary.ignoredCategoryTombstonesCount,
   );
+  const ignoredBalanceTypeTombstonesCount = getOptionalSafeSyncCount(
+    summary.ignoredBalanceTypeTombstonesCount,
+  );
+  const ignoredBalanceEntryTombstonesCount = getOptionalSafeSyncCount(
+    summary.ignoredBalanceEntryTombstonesCount,
+  );
 
   if (
     pulledTransactionsCount === null ||
     pulledCategoriesCount === null ||
+    pulledBalanceTypesCount === null ||
+    pulledBalanceEntriesCount === null ||
     pushedTransactionsCount === null ||
     pushedCategoriesCount === null ||
+    pushedBalanceTypesCount === null ||
+    pushedBalanceEntriesCount === null ||
     appliedTransactionsCount === null ||
     appliedCategoriesCount === null ||
+    appliedBalanceTypesCount === null ||
+    appliedBalanceEntriesCount === null ||
     conflictsCount === null ||
     ignoredTransactionTombstonesCount === null ||
-    ignoredCategoryTombstonesCount === null
+    ignoredCategoryTombstonesCount === null ||
+    ignoredBalanceTypeTombstonesCount === null ||
+    ignoredBalanceEntryTombstonesCount === null
   )
     return null;
 
   return {
-    appliedCount: appliedTransactionsCount + appliedCategoriesCount,
+    appliedCount:
+      appliedTransactionsCount +
+      appliedCategoriesCount +
+      appliedBalanceTypesCount +
+      appliedBalanceEntriesCount,
     conflictsCount,
     ignoredCount:
-      ignoredTransactionTombstonesCount + ignoredCategoryTombstonesCount,
-    pulledCount: pulledTransactionsCount + pulledCategoriesCount,
-    pushedCount: pushedTransactionsCount + pushedCategoriesCount,
+      ignoredTransactionTombstonesCount +
+      ignoredCategoryTombstonesCount +
+      ignoredBalanceTypeTombstonesCount +
+      ignoredBalanceEntryTombstonesCount,
+    pulledCount:
+      pulledTransactionsCount +
+      pulledCategoriesCount +
+      pulledBalanceTypesCount +
+      pulledBalanceEntriesCount,
+    pushedCount:
+      pushedTransactionsCount +
+      pushedCategoriesCount +
+      pushedBalanceTypesCount +
+      pushedBalanceEntriesCount,
   };
 }
 
@@ -235,6 +304,12 @@ function getSafeSyncCount(value: unknown) {
   }
 
   return value;
+}
+
+function getOptionalSafeSyncCount(value: unknown) {
+  if (value === undefined) return 0;
+
+  return getSafeSyncCount(value);
 }
 
 function getSafeSyncTimestamp(value: unknown) {
@@ -290,6 +365,7 @@ export function SettingsScreen() {
   );
 
   const loadCategories = useCategoriesStore((state) => state.loadCategories);
+  const loadBalance = useBalanceStore((state) => state.loadBalance);
 
   const importTransactions = useTransactionsStore(
     (state) => state.importTransactions,
@@ -429,8 +505,8 @@ export function SettingsScreen() {
           permissionStatus === 'unsupported' ? false : storedReminderEnabled,
         );
         setReminderPermissionStatus(permissionStatus);
-      } catch (error) {
-        console.error('Failed to load reminder settings', error);
+      } catch {
+        console.error('Failed to load reminder settings');
 
         if (!isMounted) return;
 
@@ -573,8 +649,8 @@ export function SettingsScreen() {
       await cancelDailyCheckInReminder();
       await setReminderEnabled(false);
       setIsReminderEnabled(false);
-    } catch (error) {
-      console.error('Failed to update reminder preference', error);
+    } catch {
+      console.error('Failed to update reminder preference');
       setIsReminderEnabled(previousEnabled);
       setReminderError(
         nextEnabled
@@ -594,13 +670,9 @@ export function SettingsScreen() {
 
     try {
       await exportTransactionsCsv(transactions);
-    } catch (error) {
-      console.error('Failed to export transactions CSV', error);
-      setExportError(
-        error instanceof Error
-          ? error.message
-          : "Couldn't export transactions. Try again.",
-      );
+    } catch {
+      console.error('Failed to export transactions CSV');
+      setExportError("Couldn't export transactions. Try again.");
     } finally {
       setIsExporting(false);
     }
@@ -620,7 +692,7 @@ export function SettingsScreen() {
 
       await setAuthSession(session);
     } catch (error) {
-      console.error('Failed to sign in with Google', error);
+      console.error('Failed to sign in with Google');
       setAccountError(getGoogleAuthSafeErrorMessage(error));
     } finally {
       setIsAuthBusy(false);
@@ -680,6 +752,8 @@ export function SettingsScreen() {
       setBackupResult({
         uploadedTransactionsCount: result.uploadedTransactionsCount,
         uploadedCategoriesCount: result.uploadedCategoriesCount,
+        uploadedBalanceTypesCount: result.uploadedBalanceTypesCount,
+        uploadedBalanceEntriesCount: result.uploadedBalanceEntriesCount,
       });
     } catch {
       setBackupError("Couldn't create backup. Try again.");
@@ -760,9 +834,11 @@ export function SettingsScreen() {
       setRestoreResult({
         restoredTransactionsCount: result.restoredTransactionsCount,
         restoredCategoriesCount: result.restoredCategoriesCount,
+        restoredBalanceTypesCount: result.restoredBalanceTypesCount,
+        restoredBalanceEntriesCount: result.restoredBalanceEntriesCount,
       });
 
-      await Promise.all([loadTransactions(), loadCategories()]);
+      await Promise.all([loadTransactions(), loadCategories(), loadBalance()]);
     } catch {
       setRestoreError("Couldn't restore backup. Try again.");
     } finally {
@@ -798,7 +874,7 @@ export function SettingsScreen() {
       setSyncResult(createSyncUiResult(result));
       setPersistedSyncResult(null);
 
-      await Promise.all([loadTransactions(), loadCategories()]);
+      await Promise.all([loadTransactions(), loadCategories(), loadBalance()]);
 
       try {
         const metadata = await getSyncMetadata();
@@ -835,8 +911,8 @@ export function SettingsScreen() {
 
     try {
       await signOut();
-    } catch (error) {
-      console.error('Failed to sign out', error);
+    } catch {
+      console.error('Failed to sign out');
       setAccountError('Could not sign out. Try again.');
     } finally {
       setIsAuthBusy(false);
@@ -848,7 +924,7 @@ export function SettingsScreen() {
 
     Alert.alert(
       'Delete account data?',
-      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions and categories on this device will stay here.',
+      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions, categories, and balance data on this device will stay here.',
       [
         {
           text: 'Cancel',
@@ -934,15 +1010,10 @@ export function SettingsScreen() {
       });
 
       setImportError(null);
-    } catch (error) {
-      console.error('Failed to import transactions CSV', error);
+    } catch {
+      console.error('Failed to import transactions CSV');
       setImportResult(null);
-
-      setImportError(
-        error instanceof Error
-          ? error.message
-          : "Couldn't import CSV. Try again.",
-      );
+      setImportError("Couldn't import CSV. Try again.");
     } finally {
       setIsImporting(false);
     }
@@ -1115,7 +1186,8 @@ export function SettingsScreen() {
 
               <Text style={styles.sectionBody}>
                 Delete cloud account data and backups for this account. Local
-                transactions and categories on this device will stay here.
+                transactions, categories, and balance data on this device will
+                stay here.
               </Text>
             </View>
 
@@ -1295,7 +1367,7 @@ export function SettingsScreen() {
 
               <Text style={styles.sectionBody}>
                 Save a remote copy of the transactions and categories currently
-                on this device.
+                on this device, including balance additions.
               </Text>
             </View>
 

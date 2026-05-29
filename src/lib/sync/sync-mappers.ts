@@ -1,5 +1,18 @@
-import type { RemoteCategory, RemoteTransaction } from '@/lib/sync/sync-types';
+import type {
+  RemoteBalanceEntry,
+  RemoteBalanceType,
+  RemoteCategory,
+  RemoteTransaction,
+} from '@/lib/sync/sync-types';
 import { CATEGORY_ICON_FALLBACK_NAME } from '@/lib/category-icons';
+import type {
+  BalanceEntry,
+  BalanceEntryRestoreInput,
+  BalanceEntryTombstoneRestoreInput,
+  BalanceType,
+  BalanceTypeInput,
+  BalanceTypeTombstoneRestoreInput,
+} from '@/types/balance';
 import type { Category, CategoryInput } from '@/types/category';
 import type {
   Transaction,
@@ -58,6 +71,52 @@ export function mapLocalCategoryToRemote({
   };
 }
 
+export function mapLocalBalanceTypeToRemote({
+  balanceType,
+  userId,
+}: {
+  balanceType: BalanceType;
+  userId: string;
+}): RemoteBalanceType {
+  return {
+    id: balanceType.id,
+    userId,
+    name: balanceType.name,
+    isDefault: balanceType.isDefault,
+    isArchived: balanceType.isArchived,
+    sortOrder: balanceType.sortOrder,
+    createdAt: toRemoteTimestamp(balanceType.createdAt),
+    updatedAt: toRemoteTimestamp(balanceType.updatedAt),
+    deletedAt:
+      balanceType.deletedAt === null
+        ? null
+        : toRemoteTimestamp(balanceType.deletedAt),
+    schemaVersion: balanceType.schemaVersion,
+    sourceDeviceId: balanceType.sourceDeviceId || null,
+  };
+}
+
+export function mapLocalBalanceEntryToRemote({
+  entry,
+  userId,
+}: {
+  entry: BalanceEntry;
+  userId: string;
+}): RemoteBalanceEntry {
+  return {
+    id: entry.id,
+    userId,
+    amount: entry.amount,
+    typeId: entry.typeId,
+    createdAt: toRemoteTimestamp(entry.createdAt),
+    updatedAt: toRemoteTimestamp(entry.updatedAt),
+    deletedAt:
+      entry.deletedAt === null ? null : toRemoteTimestamp(entry.deletedAt),
+    schemaVersion: entry.schemaVersion,
+    sourceDeviceId: entry.sourceDeviceId || null,
+  };
+}
+
 export function mapRemoteCategoryToLocalInput(
   category: RemoteCategory,
 ): CategoryInput {
@@ -73,6 +132,34 @@ export function mapRemoteCategoryToLocalInput(
   };
 }
 
+export function mapRemoteBalanceTypeToLocalInput(
+  balanceType: RemoteBalanceType,
+): BalanceTypeInput {
+  return {
+    id: balanceType.id,
+    name: balanceType.name,
+    createdAt: parseRemoteTimestamp(balanceType.createdAt),
+    updatedAt: parseRemoteTimestamp(balanceType.updatedAt),
+    isDefault: balanceType.isDefault,
+    isArchived: balanceType.isArchived,
+    sortOrder: balanceType.sortOrder,
+  };
+}
+
+export function mapRemoteBalanceTypeTombstoneToLocalInput(
+  balanceType: RemoteBalanceType,
+): BalanceTypeTombstoneRestoreInput {
+  if (balanceType.deletedAt === null) {
+    throw new Error('Remote balance type tombstone is missing.');
+  }
+
+  return {
+    id: balanceType.id,
+    updatedAt: parseRemoteTimestamp(balanceType.updatedAt),
+    deletedAt: parseRemoteTimestamp(balanceType.deletedAt),
+  };
+}
+
 export function mapRemoteTransactionToLocalInput(
   transaction: RemoteTransaction,
 ): TransactionRestoreInput {
@@ -85,6 +172,32 @@ export function mapRemoteTransactionToLocalInput(
     note: transaction.note,
     createdAt: parseRemoteTimestamp(transaction.createdAt),
     updatedAt: parseRemoteTimestamp(transaction.updatedAt),
+  };
+}
+
+export function mapRemoteBalanceEntryToLocalInput(
+  entry: RemoteBalanceEntry,
+): BalanceEntryRestoreInput {
+  return {
+    id: entry.id,
+    amount: entry.amount,
+    typeId: entry.typeId,
+    createdAt: parseRemoteTimestamp(entry.createdAt),
+    updatedAt: parseRemoteTimestamp(entry.updatedAt),
+  };
+}
+
+export function mapRemoteBalanceEntryTombstoneToLocalInput(
+  entry: RemoteBalanceEntry,
+): BalanceEntryTombstoneRestoreInput {
+  if (entry.deletedAt === null) {
+    throw new Error('Remote balance entry tombstone is missing.');
+  }
+
+  return {
+    id: entry.id,
+    updatedAt: parseRemoteTimestamp(entry.updatedAt),
+    deletedAt: parseRemoteTimestamp(entry.deletedAt),
   };
 }
 

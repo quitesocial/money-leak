@@ -6,7 +6,9 @@ import {
   createBalanceEntry,
   createBalanceType,
   getBalanceEntries,
+  getBalanceEntriesForBackup,
   getBalanceTypes,
+  getBalanceTypesForBackup,
 } from '../balance.native';
 
 const mockInitDatabase = jest.fn<() => Promise<void>>();
@@ -17,20 +19,36 @@ jest.mock('../database.native', () => ({
   getDatabase: () => mockGetDatabase(),
 }));
 
+jest.mock('../local-identity.native', () => ({
+  ensureLocalIdentity: jest.fn(async () => ({
+    localOwnerId: 'local_test-owner',
+    deviceId: 'device_test-device',
+  })),
+}));
+
 type RawBalanceEntryRow = {
   id: string;
+  owner_id: string;
   amount: number;
   type_id: string;
   created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  schema_version: number;
+  source_device_id: string;
 };
 
 type RawBalanceTypeRow = {
   id: string;
+  owner_id: string;
   name: string;
   created_at: number;
   updated_at: number;
   is_default: number;
   is_archived: number;
+  deleted_at: number | null;
+  schema_version: number;
+  source_device_id: string;
   sort_order: number;
 };
 
@@ -39,20 +57,28 @@ class FakeBalanceDatabase {
   types: RawBalanceTypeRow[] = [
     {
       id: 'investment',
+      owner_id: 'local_test-owner',
       name: 'Investment',
       created_at: 1000,
       updated_at: 1000,
       is_default: 1,
       is_archived: 0,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
       sort_order: 1,
     },
     {
       id: 'salary',
+      owner_id: 'local_test-owner',
       name: 'Salary',
       created_at: 1000,
       updated_at: 1000,
       is_default: 1,
       is_archived: 0,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
       sort_order: 0,
     },
   ];
@@ -74,6 +100,11 @@ class FakeBalanceDatabase {
   async getAllAsync<T>(source: string): Promise<T[]> {
     if (source.includes('FROM balance_entries')) {
       return this.entries
+        .filter((entry) => {
+          return !source.includes('WHERE deleted_at IS NULL')
+            ? true
+            : entry.deleted_at === null;
+        })
         .sort((firstEntry, secondEntry) => {
           if (secondEntry.created_at !== firstEntry.created_at) {
             return secondEntry.created_at - firstEntry.created_at;
@@ -86,6 +117,11 @@ class FakeBalanceDatabase {
 
     if (source.includes('FROM balance_types')) {
       return this.types
+        .filter((type) => {
+          return !source.includes('WHERE deleted_at IS NULL')
+            ? true
+            : type.deleted_at === null;
+        })
         .sort((firstType, secondType) => {
           if (firstType.sort_order !== secondType.sort_order) {
             return firstType.sort_order - secondType.sort_order;
@@ -104,36 +140,71 @@ class FakeBalanceDatabase {
   }
 
   private insertEntry(params: unknown[]) {
-    const [id, amount, typeId, createdAt] = params;
+    const [
+      id,
+      ownerId,
+      amount,
+      typeId,
+      createdAt,
+      updatedAt,
+      deletedAt,
+      schemaVersion,
+      sourceDeviceId,
+    ] = params;
 
     if (
       typeof id !== 'string' ||
+      typeof ownerId !== 'string' ||
       typeof amount !== 'number' ||
       typeof typeId !== 'string' ||
-      typeof createdAt !== 'number'
+      typeof createdAt !== 'number' ||
+      typeof updatedAt !== 'number' ||
+      !(deletedAt === null || typeof deletedAt === 'number') ||
+      typeof schemaVersion !== 'number' ||
+      typeof sourceDeviceId !== 'string'
     ) {
       throw new Error('Invalid balance entry insert params.');
     }
 
     this.entries.push({
       id,
+      owner_id: ownerId,
       amount,
       type_id: typeId,
       created_at: createdAt,
+      updated_at: updatedAt,
+      deleted_at: deletedAt,
+      schema_version: schemaVersion,
+      source_device_id: sourceDeviceId,
     });
   }
 
   private insertType(params: unknown[]) {
-    const [id, name, createdAt, updatedAt, isDefault, isArchived, sortOrder] =
-      params;
+    const [
+      id,
+      ownerId,
+      name,
+      createdAt,
+      updatedAt,
+      isDefault,
+      isArchived,
+      deletedAt,
+      schemaVersion,
+      sourceDeviceId,
+      sortOrder,
+    ] = params;
 
     if (
       typeof id !== 'string' ||
+      typeof ownerId !== 'string' ||
       typeof name !== 'string' ||
       typeof createdAt !== 'number' ||
       typeof updatedAt !== 'number' ||
       typeof isDefault !== 'number' ||
       typeof isArchived !== 'number' ||
+      !(deletedAt === null || typeof deletedAt === 'number') ||
+      typeof schemaVersion !== 'number' ||
+      typeof sourceDeviceId !== 'string' ||
       typeof sortOrder !== 'number'
     ) {
       throw new Error('Invalid balance type insert params.');
@@ -141,11 +212,15 @@ class FakeBalanceDatabase {
 
     this.types.push({
       id,
+      owner_id: ownerId,
       name,
       created_at: createdAt,
       updated_at: updatedAt,
       is_default: isDefault,
       is_archived: isArchived,
+      deleted_at: deletedAt,
+      schema_version: schemaVersion,
+      source_device_id: sourceDeviceId,
       sort_order: sortOrder,
     });
   }
@@ -180,7 +255,24 @@ describe('native balance persistence', () => {
     await createBalanceEntry(firstEntry);
     await createBalanceEntry(secondEntry);
 
-    expect(await getBalanceEntries()).toEqual([secondEntry, firstEntry]);
+    expect(await getBalanceEntries()).toEqual([
+      expect.objectContaining({
+        ...secondEntry,
+        ownerId: 'local_test-owner',
+        updatedAt: secondEntry.createdAt,
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test-device',
+      }),
+      expect.objectContaining({
+        ...firstEntry,
+        ownerId: 'local_test-owner',
+        updatedAt: firstEntry.createdAt,
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test-device',
+      }),
+    ]);
   });
 
   it('creates and reads balance types sorted by sort order', async () => {
@@ -209,7 +301,59 @@ describe('native balance persistence', () => {
         name: 'Investment',
         sortOrder: 1,
       }),
-      customType,
+      expect.objectContaining({
+        ...customType,
+        ownerId: 'local_test-owner',
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test-device',
+      }),
     ]);
+  });
+
+  it('hides tombstones by default and includes them for backup reads', async () => {
+    database.entries.push({
+      id: 'deleted-entry',
+      owner_id: 'local_test-owner',
+      amount: 500,
+      type_id: 'salary',
+      created_at: 4000,
+      updated_at: 4000,
+      deleted_at: 5000,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+    });
+    database.types.push({
+      id: 'deleted-type',
+      owner_id: 'local_test-owner',
+      name: 'Deleted Type',
+      created_at: 4000,
+      updated_at: 4000,
+      is_default: 0,
+      is_archived: 0,
+      deleted_at: 5000,
+      schema_version: 1,
+      source_device_id: 'device_test-device',
+      sort_order: 4,
+    });
+
+    expect(await getBalanceEntries()).toEqual([]);
+    expect(await getBalanceEntriesForBackup()).toEqual([
+      expect.objectContaining({
+        id: 'deleted-entry',
+        deletedAt: 5000,
+      }),
+    ]);
+    expect(await getBalanceTypes()).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'deleted-type' })]),
+    );
+    expect(await getBalanceTypesForBackup()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'deleted-type',
+          deletedAt: 5000,
+        }),
+      ]),
+    );
   });
 });

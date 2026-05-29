@@ -12,8 +12,12 @@ export type LocalAccountLinkingResult = {
   status: 'already_linked' | 'linked' | 'skipped';
   linkedTransactionsCount: number;
   linkedCategoriesCount: number;
+  linkedBalanceTypesCount: number;
+  linkedBalanceEntriesCount: number;
   alreadyLinkedTransactionsCount: number;
   alreadyLinkedCategoriesCount: number;
+  alreadyLinkedBalanceTypesCount: number;
+  alreadyLinkedBalanceEntriesCount: number;
   skippedReason?: LocalAccountLinkingSkippedReason;
 };
 
@@ -57,8 +61,22 @@ export async function linkLocalAccount(
     tableName: 'categories',
   });
 
+  const alreadyLinkedBalanceTypesCount = await countRowsOwnedBy({
+    database,
+    ownerId: appUserId,
+    tableName: 'balance_types',
+  });
+
+  const alreadyLinkedBalanceEntriesCount = await countRowsOwnedBy({
+    database,
+    ownerId: appUserId,
+    tableName: 'balance_entries',
+  });
+
   let linkedTransactionsCount = 0;
   let linkedCategoriesCount = 0;
+  let linkedBalanceTypesCount = 0;
+  let linkedBalanceEntriesCount = 0;
 
   await database.withExclusiveTransactionAsync(async (transactionDatabase) => {
     const transactionResult = (await transactionDatabase.runAsync(
@@ -95,6 +113,40 @@ export async function linkLocalAccount(
 
     linkedCategoriesCount = getChangedRowCount(categoryResult);
 
+    const balanceTypeResult = (await transactionDatabase.runAsync(
+      `
+        UPDATE balance_types
+        SET
+          owner_id = ?,
+          updated_at = ?,
+          source_device_id = ?
+        WHERE owner_id = ?
+      `,
+      appUserId,
+      linkedAt,
+      deviceId,
+      localOwnerId,
+    )) as RunResult;
+
+    linkedBalanceTypesCount = getChangedRowCount(balanceTypeResult);
+
+    const balanceEntryResult = (await transactionDatabase.runAsync(
+      `
+        UPDATE balance_entries
+        SET
+          owner_id = ?,
+          updated_at = ?,
+          source_device_id = ?
+        WHERE owner_id = ?
+      `,
+      appUserId,
+      linkedAt,
+      deviceId,
+      localOwnerId,
+    )) as RunResult;
+
+    linkedBalanceEntriesCount = getChangedRowCount(balanceEntryResult);
+
     await upsertMetadataValue({
       database: transactionDatabase,
       key: ACCOUNT_LINKED_APP_USER_ID_KEY,
@@ -112,13 +164,20 @@ export async function linkLocalAccount(
 
   return {
     status:
-      linkedTransactionsCount > 0 || linkedCategoriesCount > 0
+      linkedTransactionsCount > 0 ||
+      linkedCategoriesCount > 0 ||
+      linkedBalanceTypesCount > 0 ||
+      linkedBalanceEntriesCount > 0
         ? 'linked'
         : 'already_linked',
     linkedTransactionsCount,
     linkedCategoriesCount,
+    linkedBalanceTypesCount,
+    linkedBalanceEntriesCount,
     alreadyLinkedTransactionsCount,
     alreadyLinkedCategoriesCount,
+    alreadyLinkedBalanceTypesCount,
+    alreadyLinkedBalanceEntriesCount,
   };
 }
 
@@ -129,8 +188,12 @@ function createSkippedResult(
     status: 'skipped',
     linkedTransactionsCount: 0,
     linkedCategoriesCount: 0,
+    linkedBalanceTypesCount: 0,
+    linkedBalanceEntriesCount: 0,
     alreadyLinkedTransactionsCount: 0,
     alreadyLinkedCategoriesCount: 0,
+    alreadyLinkedBalanceTypesCount: 0,
+    alreadyLinkedBalanceEntriesCount: 0,
     skippedReason,
   };
 }
@@ -144,7 +207,11 @@ async function countRowsOwnedBy({
     getFirstAsync<T>(source: string, ...params: unknown[]): Promise<T | null>;
   };
   ownerId: string;
-  tableName: 'categories' | 'transactions';
+  tableName:
+    | 'balance_entries'
+    | 'balance_types'
+    | 'categories'
+    | 'transactions';
 }) {
   const row = await database.getFirstAsync<CountRow>(
     `

@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  addBalanceSyncReadyLocalFields,
   addCategoryIcons,
   addSyncReadyLocalFields,
   runDatabaseMigrations,
@@ -33,8 +34,22 @@ class FakeMigrationDatabase implements MigrationDatabase {
     'sort_order',
   ]);
 
+  balanceEntryColumns = new Set(['id', 'amount', 'type_id', 'created_at']);
+
+  balanceTypeColumns = new Set([
+    'id',
+    'name',
+    'created_at',
+    'updated_at',
+    'is_default',
+    'is_archived',
+    'sort_order',
+  ]);
+
   transactions: RawRow[] = [];
   categories: RawRow[] = [];
+  balanceEntries: RawRow[] = [];
+  balanceTypes: RawRow[] = [];
   transactionsSchemaSql = 'CREATE TABLE transactions (category TEXT NOT NULL)';
 
   async execAsync(source: string) {
@@ -49,21 +64,17 @@ class FakeMigrationDatabase implements MigrationDatabase {
     }
 
     const alterMatch = source.match(
-      /ALTER TABLE (transactions|categories) ADD COLUMN ([a-z_]+)/,
+      /ALTER TABLE (transactions|categories|balance_entries|balance_types) ADD COLUMN ([a-z_]+)/,
     );
 
     if (!alterMatch) return;
 
     const [, tableName, columnName] = alterMatch;
-    const columns =
-      tableName === 'transactions'
-        ? this.transactionColumns
-        : this.categoryColumns;
+    const columns = this.getColumns(tableName);
 
     columns.add(columnName);
 
-    const rows =
-      tableName === 'transactions' ? this.transactions : this.categories;
+    const rows = this.getRows(tableName);
 
     for (const row of rows) {
       row[columnName] = getDefaultColumnValue(columnName);
@@ -77,6 +88,14 @@ class FakeMigrationDatabase implements MigrationDatabase {
 
     if (source.includes('PRAGMA table_info(categories)')) {
       return [...this.categoryColumns].map((name) => ({ name })) as T[];
+    }
+
+    if (source.includes('PRAGMA table_info(balance_entries)')) {
+      return [...this.balanceEntryColumns].map((name) => ({ name })) as T[];
+    }
+
+    if (source.includes('PRAGMA table_info(balance_types)')) {
+      return [...this.balanceTypeColumns].map((name) => ({ name })) as T[];
     }
 
     return [];
@@ -120,6 +139,16 @@ class FakeMigrationDatabase implements MigrationDatabase {
     if (source.includes('UPDATE categories')) {
       this.updateCategories(source, params);
       return { changes: this.categories.length };
+    }
+
+    if (source.includes('UPDATE balance_entries')) {
+      this.updateBalanceRows(this.balanceEntries, source, params);
+      return { changes: this.balanceEntries.length };
+    }
+
+    if (source.includes('UPDATE balance_types')) {
+      this.updateBalanceRows(this.balanceTypes, source, params);
+      return { changes: this.balanceTypes.length };
     }
 
     return { changes: 0 };
@@ -211,6 +240,55 @@ class FakeMigrationDatabase implements MigrationDatabase {
       }
     }
   }
+
+  private updateBalanceRows(rows: RawRow[], source: string, params: unknown[]) {
+    if (source.includes('SET owner_id = ?')) {
+      for (const row of rows) {
+        if (!row.owner_id) row.owner_id = params[0];
+      }
+    } else if (source.includes('SET updated_at = CASE')) {
+      for (const row of rows) {
+        if (typeof row.updated_at !== 'number' || row.updated_at <= 0) {
+          row.updated_at =
+            typeof row.created_at === 'number' && row.created_at > 0
+              ? row.created_at
+              : params[0];
+        }
+      }
+    } else if (source.includes('SET deleted_at = NULL')) {
+      for (const row of rows) {
+        if (typeof row.deleted_at === 'number' && row.deleted_at <= 0) {
+          row.deleted_at = null;
+        }
+      }
+    } else if (source.includes('SET schema_version = 1')) {
+      for (const row of rows) {
+        if (typeof row.schema_version !== 'number' || row.schema_version <= 0) {
+          row.schema_version = 1;
+        }
+      }
+    } else if (source.includes('SET source_device_id = ?')) {
+      for (const row of rows) {
+        if (!row.source_device_id) row.source_device_id = params[0];
+      }
+    }
+  }
+
+  private getColumns(tableName: string) {
+    if (tableName === 'transactions') return this.transactionColumns;
+    if (tableName === 'categories') return this.categoryColumns;
+    if (tableName === 'balance_entries') return this.balanceEntryColumns;
+
+    return this.balanceTypeColumns;
+  }
+
+  private getRows(tableName: string) {
+    if (tableName === 'transactions') return this.transactions;
+    if (tableName === 'categories') return this.categories;
+    if (tableName === 'balance_entries') return this.balanceEntries;
+
+    return this.balanceTypes;
+  }
 }
 
 function getDefaultColumnValue(columnName: string) {
@@ -247,9 +325,10 @@ describe('native SQLite migrations', () => {
       '001_remove_transactions_category_check',
       '002_add_sync_ready_local_fields',
       '003_add_category_icons',
+      '004_add_balance_sync_ready_local_fields',
     ]);
 
-    expect(database.exclusiveTransactionCount).toBe(3);
+    expect(database.exclusiveTransactionCount).toBe(4);
   });
 
   it('keeps sync-ready migration idempotent', async () => {
@@ -383,5 +462,56 @@ describe('native SQLite migrations', () => {
         icon_name: 'tag',
       }),
     ]);
+  });
+
+  it('backfills old balance rows with local sync metadata idempotently', async () => {
+    const database = new FakeMigrationDatabase();
+
+    database.balanceTypes.push({
+      id: 'salary',
+      name: 'Salary',
+      created_at: 456,
+      updated_at: 0,
+      is_default: 1,
+      is_archived: 0,
+      sort_order: 0,
+    });
+    database.balanceEntries.push({
+      id: 'entry-1',
+      amount: 100,
+      type_id: 'salary',
+      created_at: 789,
+    });
+
+    await addBalanceSyncReadyLocalFields(database, {
+      ...identity,
+      now: () => 999,
+    });
+
+    await addBalanceSyncReadyLocalFields(database, {
+      ...identity,
+      now: () => 999,
+    });
+
+    expect(
+      [...database.balanceTypeColumns].filter((name) => name === 'owner_id'),
+    ).toHaveLength(1);
+    expect(
+      [...database.balanceEntryColumns].filter((name) => name === 'owner_id'),
+    ).toHaveLength(1);
+    expect(database.balanceTypes[0]).toMatchObject({
+      owner_id: identity.localOwnerId,
+      updated_at: 456,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: identity.deviceId,
+    });
+    expect(database.balanceEntries[0]).toMatchObject({
+      owner_id: identity.localOwnerId,
+      updated_at: 789,
+      deleted_at: null,
+      schema_version: 1,
+      source_device_id: identity.deviceId,
+    });
   });
 });

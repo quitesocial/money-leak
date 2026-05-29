@@ -155,7 +155,7 @@ function normalizeSyncAttemptSource(value: unknown): SyncAttemptSource | null {
 }
 
 function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
-  const numericFields: (keyof SyncSummary)[] = [
+  const requiredNumericFields: (keyof SyncSummary)[] = [
     'completedAt',
     'cursor',
     'pulledTransactionsCount',
@@ -169,8 +169,32 @@ function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
     'conflictsCount',
   ];
 
-  for (const field of numericFields) {
+  for (const field of requiredNumericFields) {
     const value = summary[field];
+
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new Error('Sync summary must contain finite safe counts.');
+    }
+  }
+
+  const optionalCountFields: (keyof SyncSummary)[] = [
+    'pulledBalanceTypesCount',
+    'pulledBalanceEntriesCount',
+    'appliedBalanceTypesCount',
+    'appliedBalanceEntriesCount',
+    'pushedBalanceTypesCount',
+    'pushedBalanceEntriesCount',
+    'ignoredBalanceTypeTombstonesCount',
+    'ignoredBalanceEntryTombstonesCount',
+  ];
+
+  for (const field of optionalCountFields) {
+    const value = summary[field];
+
+    if (value === undefined) {
+      summary[field] = 0;
+      continue;
+    }
 
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
       throw new Error('Sync summary must contain finite safe counts.');
@@ -184,13 +208,23 @@ function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
     cursor: safeSummary.cursor,
     pulledTransactionsCount: safeSummary.pulledTransactionsCount,
     pulledCategoriesCount: safeSummary.pulledCategoriesCount,
+    pulledBalanceTypesCount: safeSummary.pulledBalanceTypesCount,
+    pulledBalanceEntriesCount: safeSummary.pulledBalanceEntriesCount,
     appliedTransactionsCount: safeSummary.appliedTransactionsCount,
     appliedCategoriesCount: safeSummary.appliedCategoriesCount,
+    appliedBalanceTypesCount: safeSummary.appliedBalanceTypesCount,
+    appliedBalanceEntriesCount: safeSummary.appliedBalanceEntriesCount,
     pushedTransactionsCount: safeSummary.pushedTransactionsCount,
     pushedCategoriesCount: safeSummary.pushedCategoriesCount,
+    pushedBalanceTypesCount: safeSummary.pushedBalanceTypesCount,
+    pushedBalanceEntriesCount: safeSummary.pushedBalanceEntriesCount,
     ignoredTransactionTombstonesCount:
       safeSummary.ignoredTransactionTombstonesCount,
     ignoredCategoryTombstonesCount: safeSummary.ignoredCategoryTombstonesCount,
+    ignoredBalanceTypeTombstonesCount:
+      safeSummary.ignoredBalanceTypeTombstonesCount,
+    ignoredBalanceEntryTombstonesCount:
+      safeSummary.ignoredBalanceEntryTombstonesCount,
     conflictsCount: safeSummary.conflictsCount,
   };
 }

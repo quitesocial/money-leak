@@ -7,12 +7,15 @@ import {
   type LocalBackupDataSource,
 } from '@/lib/sync/local-backup-data-source';
 import type { BackupPayload } from '@/lib/sync/sync-types';
+import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 const mockGetTransactions = jest.fn();
 const mockGetTransactionsForBackup = jest.fn();
 const mockGetCategories = jest.fn();
+const mockGetBalanceEntriesForBackup = jest.fn();
+const mockGetBalanceTypesForBackup = jest.fn();
 
 jest.mock('@/db/transactions', () => ({
   getTransactions: (...args: unknown[]) => mockGetTransactions(...args),
@@ -22,6 +25,13 @@ jest.mock('@/db/transactions', () => ({
 
 jest.mock('@/db/categories', () => ({
   getCategories: (...args: unknown[]) => mockGetCategories(...args),
+}));
+
+jest.mock('@/db/balance', () => ({
+  getBalanceEntriesForBackup: (...args: unknown[]) =>
+    mockGetBalanceEntriesForBackup(...args),
+  getBalanceTypesForBackup: (...args: unknown[]) =>
+    mockGetBalanceTypesForBackup(...args),
 }));
 
 const TEST_USER_ID = 'auth-user-test';
@@ -63,15 +73,55 @@ function createCategory(overrides: Partial<Category> = {}): Category {
   };
 }
 
+function createBalanceType(overrides: Partial<BalanceType> = {}): BalanceType {
+  return {
+    id: 'income',
+    ownerId: TEST_USER_ID,
+    name: 'Income',
+    createdAt: Date.parse('2026-05-18T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-18T08:30:00.000Z'),
+    isDefault: true,
+    isArchived: false,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    sortOrder: 0,
+    ...overrides,
+  };
+}
+
+function createBalanceEntry(
+  overrides: Partial<BalanceEntry> = {},
+): BalanceEntry {
+  return {
+    id: 'balance-entry-1',
+    ownerId: TEST_USER_ID,
+    amount: 100,
+    typeId: 'income',
+    createdAt: Date.parse('2026-05-19T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-19T08:30:00.000Z'),
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    ...overrides,
+  };
+}
+
 function createDataSource({
+  balanceEntries = [createBalanceEntry()],
+  balanceTypes = [createBalanceType()],
   transactions = [createTransaction()],
   categories = [createCategory()],
 }: {
+  balanceEntries?: BalanceEntry[];
+  balanceTypes?: BalanceType[];
   transactions?: Transaction[];
   categories?: Category[];
 } = {}): LocalBackupDataSource {
   return {
     getBackupData: jest.fn(async () => ({
+      balanceEntries,
+      balanceTypes,
       transactions,
       categories,
     })),
@@ -81,11 +131,14 @@ function createDataSource({
 function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
   return {
     userId: TEST_USER_ID,
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date(TEST_NOW).toISOString(),
     includesTombstones: true,
+    includesBalance: true,
     transactions: [],
     categories: [],
+    balanceTypes: [],
+    balanceEntries: [],
     ...overrides,
   };
 }
@@ -108,9 +161,27 @@ describe('backup service foundation', () => {
       }),
     ]);
 
+    const readBalanceTypes = jest.fn(async () => [
+      createBalanceType({ id: 'income' }),
+      createBalanceType({
+        id: 'deleted-balance-type',
+        deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+      }),
+    ]);
+
+    const readBalanceEntries = jest.fn(async () => [
+      createBalanceEntry({ id: 'balance-active' }),
+      createBalanceEntry({
+        id: 'balance-deleted',
+        deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+      }),
+    ]);
+
     const dataSource = createLocalBackupDataSource({
       readTransactions,
       readCategories,
+      readBalanceTypes,
+      readBalanceEntries,
     });
 
     await expect(dataSource.getBackupData()).resolves.toEqual({
@@ -127,9 +198,25 @@ describe('backup service foundation', () => {
           isArchived: true,
         }),
       ],
+      balanceTypes: [
+        expect.objectContaining({ id: 'income' }),
+        expect.objectContaining({
+          id: 'deleted-balance-type',
+          deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+        }),
+      ],
+      balanceEntries: [
+        expect.objectContaining({ id: 'balance-active' }),
+        expect.objectContaining({
+          id: 'balance-deleted',
+          deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+        }),
+      ],
     });
     expect(readTransactions).toHaveBeenCalledTimes(1);
     expect(readCategories).toHaveBeenCalledTimes(1);
+    expect(readBalanceTypes).toHaveBeenCalledTimes(1);
+    expect(readBalanceEntries).toHaveBeenCalledTimes(1);
   });
 
   it('maps local transactions and categories into the remote backup contract', async () => {
@@ -147,9 +234,10 @@ describe('backup service foundation', () => {
 
     expect(payload).toMatchObject({
       userId: TEST_USER_ID,
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: '2026-05-20T12:00:00.000Z',
       includesTombstones: true,
+      includesBalance: true,
       transactions: [
         {
           id: 'txn-1',
@@ -176,6 +264,34 @@ describe('backup service foundation', () => {
           sortOrder: 10,
           createdAt: '2026-05-18T09:00:00.000Z',
           updatedAt: '2026-05-18T09:30:00.000Z',
+          deletedAt: null,
+          schemaVersion: 1,
+          sourceDeviceId: 'device_test',
+        },
+      ],
+      balanceTypes: [
+        {
+          id: 'income',
+          userId: TEST_USER_ID,
+          name: 'Income',
+          isDefault: true,
+          isArchived: false,
+          sortOrder: 0,
+          createdAt: '2026-05-18T08:00:00.000Z',
+          updatedAt: '2026-05-18T08:30:00.000Z',
+          deletedAt: null,
+          schemaVersion: 1,
+          sourceDeviceId: 'device_test',
+        },
+      ],
+      balanceEntries: [
+        {
+          id: 'balance-entry-1',
+          userId: TEST_USER_ID,
+          amount: 100,
+          typeId: 'income',
+          createdAt: '2026-05-19T08:00:00.000Z',
+          updatedAt: '2026-05-19T08:30:00.000Z',
           deletedAt: null,
           schemaVersion: 1,
           sourceDeviceId: 'device_test',
@@ -295,6 +411,21 @@ describe('backup service foundation', () => {
     const service = createBackupService({
       adapter,
       dataSource: createDataSource({
+        balanceTypes: [
+          createBalanceType({ id: 'income' }),
+          createBalanceType({
+            id: 'deleted-balance-type',
+            deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+          }),
+        ],
+        balanceEntries: [
+          createBalanceEntry({ id: 'balance-active' }),
+          createBalanceEntry({
+            id: 'balance-deleted',
+            deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+            updatedAt: Date.parse('2026-05-20T08:00:00.000Z'),
+          }),
+        ],
         transactions: [
           createTransaction({ id: 'txn-active' }),
           createTransaction({
@@ -302,13 +433,7 @@ describe('backup service foundation', () => {
             deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
           }),
         ],
-        categories: [
-          createCategory({ id: 'coffee', isArchived: true }),
-          createCategory({
-            id: 'deleted-category',
-            deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
-          }),
-        ],
+        categories: [createCategory({ id: 'coffee', isArchived: true })],
       }),
       isBackupEnabled: true,
       now: () => TEST_NOW,
@@ -319,6 +444,7 @@ describe('backup service foundation', () => {
     });
 
     expect(payload.includesTombstones).toBe(true);
+    expect(payload.includesBalance).toBe(true);
     expect(payload.transactions.map((transaction) => transaction.id)).toEqual([
       'txn-active',
       'txn-deleted',
@@ -338,6 +464,26 @@ describe('backup service foundation', () => {
         id: 'coffee',
         isArchived: true,
         deletedAt: null,
+      }),
+    ]);
+    expect(payload.balanceTypes).toEqual([
+      expect.objectContaining({
+        id: 'income',
+        deletedAt: null,
+      }),
+      expect.objectContaining({
+        id: 'deleted-balance-type',
+        deletedAt: '2026-05-20T08:00:00.000Z',
+      }),
+    ]);
+    expect(payload.balanceEntries).toEqual([
+      expect.objectContaining({
+        id: 'balance-active',
+        deletedAt: null,
+      }),
+      expect.objectContaining({
+        id: 'balance-deleted',
+        deletedAt: '2026-05-20T08:00:00.000Z',
       }),
     ]);
   });
@@ -407,6 +553,8 @@ describe('backup service foundation', () => {
 
     expect(adapter.getTransactions()).toHaveLength(2);
     expect(adapter.getCategories()).toHaveLength(2);
+    expect(adapter.getBalanceTypes()).toHaveLength(2);
+    expect(adapter.getBalanceEntries()).toHaveLength(2);
     expect(
       adapter
         .getTransactions()
@@ -478,5 +626,7 @@ describe('backup service foundation', () => {
     expect(JSON.stringify(result)).not.toContain('Fake remote backup failure');
     expect(adapter.getTransactions()).toEqual([]);
     expect(adapter.getCategories()).toEqual([]);
+    expect(adapter.getBalanceTypes()).toEqual([]);
+    expect(adapter.getBalanceEntries()).toEqual([]);
   });
 });

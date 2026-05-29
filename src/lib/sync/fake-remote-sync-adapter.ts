@@ -1,11 +1,15 @@
 import { parseRemoteTimestamp } from '@/lib/sync/sync-mappers';
 import type {
+  RemoteBalanceEntry,
+  RemoteBalanceType,
   RemoteCategory,
   RemoteSyncAdapter,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
 
 type FakeRemoteSyncAdapterOptions = {
+  balanceEntries?: RemoteBalanceEntry[];
+  balanceTypes?: RemoteBalanceType[];
   categories?: RemoteCategory[];
   sessionUserId?: string | null;
   shouldFailPull?: boolean;
@@ -14,6 +18,8 @@ type FakeRemoteSyncAdapterOptions = {
 };
 
 export type FakeRemoteSyncAdapter = RemoteSyncAdapter & {
+  getBalanceEntries: () => RemoteBalanceEntry[];
+  getBalanceTypes: () => RemoteBalanceType[];
   getCategories: () => RemoteCategory[];
   getTransactions: () => RemoteTransaction[];
   setSessionUserId: (userId: string | null) => void;
@@ -22,17 +28,29 @@ export type FakeRemoteSyncAdapter = RemoteSyncAdapter & {
 };
 
 export function createFakeRemoteSyncAdapter({
+  balanceEntries = [],
+  balanceTypes = [],
   categories = [],
   sessionUserId = null,
   shouldFailPull = false,
   shouldFailPush = false,
   transactions = [],
 }: FakeRemoteSyncAdapterOptions = {}): FakeRemoteSyncAdapter {
+  const balanceEntriesByKey = new Map<string, RemoteBalanceEntry>();
+  const balanceTypesByKey = new Map<string, RemoteBalanceType>();
   const categoriesByKey = new Map<string, RemoteCategory>();
   const transactionsByKey = new Map<string, RemoteTransaction>();
   let currentSessionUserId = sessionUserId;
   let isPullFailing = shouldFailPull;
   let isPushFailing = shouldFailPush;
+
+  for (const balanceType of balanceTypes) {
+    balanceTypesByKey.set(getUserOwnedKey(balanceType), balanceType);
+  }
+
+  for (const balanceEntry of balanceEntries) {
+    balanceEntriesByKey.set(getUserOwnedKey(balanceEntry), balanceEntry);
+  }
 
   for (const category of categories) {
     categoriesByKey.set(getUserOwnedKey(category), category);
@@ -63,24 +81,59 @@ export function createFakeRemoteSyncAdapter({
           ),
           since,
         }),
+        balanceTypes: getRowsSince({
+          rows: [...balanceTypesByKey.values()].filter(
+            (balanceType) => balanceType.userId === userId,
+          ),
+          since,
+        }),
+        balanceEntries: getRowsSince({
+          rows: [...balanceEntriesByKey.values()].filter(
+            (balanceEntry) => balanceEntry.userId === userId,
+          ),
+          since,
+        }),
       };
     },
 
-    async pushChanges({ categories, transactions }) {
+    async pushChanges({
+      balanceEntries,
+      balanceTypes,
+      categories,
+      transactions,
+    }) {
       if (isPushFailing) throw new Error('Fake remote push failure.');
 
       for (const category of categories) {
         categoriesByKey.set(getUserOwnedKey(category), category);
       }
 
+      for (const balanceType of balanceTypes) {
+        balanceTypesByKey.set(getUserOwnedKey(balanceType), balanceType);
+      }
+
       for (const transaction of transactions) {
         transactionsByKey.set(getUserOwnedKey(transaction), transaction);
+      }
+
+      for (const balanceEntry of balanceEntries) {
+        balanceEntriesByKey.set(getUserOwnedKey(balanceEntry), balanceEntry);
       }
 
       return {
         pushedTransactionsCount: transactions.length,
         pushedCategoriesCount: categories.length,
+        pushedBalanceTypesCount: balanceTypes.length,
+        pushedBalanceEntriesCount: balanceEntries.length,
       };
+    },
+
+    getBalanceEntries() {
+      return [...balanceEntriesByKey.values()];
+    },
+
+    getBalanceTypes() {
+      return [...balanceTypesByKey.values()];
     },
 
     getCategories() {

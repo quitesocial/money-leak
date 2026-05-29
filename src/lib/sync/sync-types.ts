@@ -1,7 +1,7 @@
 import type { AuthStatus } from '@/types/auth';
 import type { LeakReason } from '@/types/transaction';
 
-export const BACKUP_PAYLOAD_SCHEMA_VERSION = 1;
+export const BACKUP_PAYLOAD_SCHEMA_VERSION = 2;
 
 export type RemoteTransaction = {
   id: string;
@@ -32,13 +32,42 @@ export type RemoteCategory = {
   sourceDeviceId: string | null;
 };
 
+export type RemoteBalanceType = {
+  id: string;
+  userId: string;
+  name: string;
+  isDefault: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  schemaVersion: number;
+  sourceDeviceId: string | null;
+};
+
+export type RemoteBalanceEntry = {
+  id: string;
+  userId: string;
+  amount: number;
+  typeId: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  schemaVersion: number;
+  sourceDeviceId: string | null;
+};
+
 export type BackupPayload = {
   userId: string;
   schemaVersion: typeof BACKUP_PAYLOAD_SCHEMA_VERSION;
   createdAt: string;
   includesTombstones: boolean;
+  includesBalance: true;
   transactions: RemoteTransaction[];
   categories: RemoteCategory[];
+  balanceTypes: RemoteBalanceType[];
+  balanceEntries: RemoteBalanceEntry[];
 };
 
 export type BackupSkippedReason =
@@ -54,6 +83,8 @@ export type BackupResult =
       payload: BackupPayload;
       uploadedTransactionsCount: number;
       uploadedCategoriesCount: number;
+      uploadedBalanceTypesCount: number;
+      uploadedBalanceEntriesCount: number;
     }
   | {
       status: 'skipped';
@@ -76,6 +107,8 @@ export type RestorePayload = {
   schemaVersion: typeof BACKUP_PAYLOAD_SCHEMA_VERSION;
   categories: RemoteCategory[];
   transactions: RemoteTransaction[];
+  balanceTypes: RemoteBalanceType[];
+  balanceEntries: RemoteBalanceEntry[];
 };
 
 export type RestoreSkippedReason =
@@ -90,11 +123,15 @@ export type RestoreResult =
       status: 'succeeded';
       restoredTransactionsCount: number;
       restoredCategoriesCount: number;
+      restoredBalanceTypesCount: number;
+      restoredBalanceEntriesCount: number;
     }
   | {
       status: 'empty';
       restoredTransactionsCount: 0;
       restoredCategoriesCount: 0;
+      restoredBalanceTypesCount: 0;
+      restoredBalanceEntriesCount: 0;
       isRecoverable: true;
     }
   | {
@@ -114,6 +151,8 @@ export type RestoreResult =
 export type RemoteBackupWriteResult = {
   uploadedTransactionsCount: number;
   uploadedCategoriesCount: number;
+  uploadedBalanceTypesCount: number;
+  uploadedBalanceEntriesCount: number;
 };
 
 export type RemoteBackupAdapter = {
@@ -127,6 +166,8 @@ export type RemoteRestoreAdapter = {
 export type LocalRestoreWriteResult = {
   restoredTransactionsCount: number;
   restoredCategoriesCount: number;
+  restoredBalanceTypesCount: number;
+  restoredBalanceEntriesCount: number;
 };
 
 export type LocalRestoreDataTarget = {
@@ -169,12 +210,20 @@ export type SyncErrorCode =
 export type SyncCounts = {
   pulledTransactionsCount: number;
   pulledCategoriesCount: number;
+  pulledBalanceTypesCount: number;
+  pulledBalanceEntriesCount: number;
   appliedTransactionsCount: number;
   appliedCategoriesCount: number;
+  appliedBalanceTypesCount: number;
+  appliedBalanceEntriesCount: number;
   pushedTransactionsCount: number;
   pushedCategoriesCount: number;
+  pushedBalanceTypesCount: number;
+  pushedBalanceEntriesCount: number;
   ignoredTransactionTombstonesCount: number;
   ignoredCategoryTombstonesCount: number;
+  ignoredBalanceTypeTombstonesCount: number;
+  ignoredBalanceEntryTombstonesCount: number;
   conflictsCount: number;
 };
 
@@ -214,11 +263,15 @@ export type SyncResult =
 export type RemoteSyncChanges = {
   transactions: RemoteTransaction[];
   categories: RemoteCategory[];
+  balanceTypes: RemoteBalanceType[];
+  balanceEntries: RemoteBalanceEntry[];
 };
 
 export type RemoteSyncPushResult = {
   pushedTransactionsCount: number;
   pushedCategoriesCount: number;
+  pushedBalanceTypesCount: number;
+  pushedBalanceEntriesCount: number;
 };
 
 export type RemoteSyncAdapter = {
@@ -231,12 +284,16 @@ export type RemoteSyncAdapter = {
     userId: string;
     transactions: RemoteTransaction[];
     categories: RemoteCategory[];
+    balanceTypes: RemoteBalanceType[];
+    balanceEntries: RemoteBalanceEntry[];
   }) => Promise<RemoteSyncPushResult>;
 };
 
 export type LocalSyncWriteResult = {
   appliedTransactionsCount: number;
   appliedCategoriesCount: number;
+  appliedBalanceTypesCount: number;
+  appliedBalanceEntriesCount: number;
 };
 
 export type LocalSyncDataTarget = {

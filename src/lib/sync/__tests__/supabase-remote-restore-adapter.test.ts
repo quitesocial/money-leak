@@ -8,6 +8,12 @@ const mockGetCategories = jest.fn();
 const mockRestoreCategories = jest.fn();
 const mockGetTransactions = jest.fn();
 const mockRestoreTransactions = jest.fn();
+const mockGetBalanceEntries = jest.fn();
+const mockGetBalanceTypes = jest.fn();
+const mockRestoreBalanceEntries = jest.fn();
+const mockRestoreBalanceEntryTombstones = jest.fn();
+const mockRestoreBalanceTypes = jest.fn();
+const mockRestoreBalanceTypeTombstones = jest.fn();
 
 jest.mock('@/db/categories', () => ({
   getCategories: (...args: unknown[]) => mockGetCategories(...args),
@@ -19,7 +25,23 @@ jest.mock('@/db/transactions', () => ({
   restoreTransactions: (...args: unknown[]) => mockRestoreTransactions(...args),
 }));
 
-type RemoteTableName = 'remote_categories' | 'remote_transactions';
+jest.mock('@/db/balance', () => ({
+  getBalanceEntries: (...args: unknown[]) => mockGetBalanceEntries(...args),
+  getBalanceTypes: (...args: unknown[]) => mockGetBalanceTypes(...args),
+  restoreBalanceEntries: (...args: unknown[]) =>
+    mockRestoreBalanceEntries(...args),
+  restoreBalanceEntryTombstones: (...args: unknown[]) =>
+    mockRestoreBalanceEntryTombstones(...args),
+  restoreBalanceTypes: (...args: unknown[]) => mockRestoreBalanceTypes(...args),
+  restoreBalanceTypeTombstones: (...args: unknown[]) =>
+    mockRestoreBalanceTypeTombstones(...args),
+}));
+
+type RemoteTableName =
+  | 'remote_balance_entries'
+  | 'remote_balance_types'
+  | 'remote_categories'
+  | 'remote_transactions';
 
 type RemoteCategoryRow = {
   user_id: string;
@@ -43,6 +65,32 @@ type RemoteTransactionRow = {
   is_leak: boolean;
   leak_reason: string | null;
   note: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
+type RemoteBalanceTypeRow = {
+  user_id: string;
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_archived: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
+type RemoteBalanceEntryRow = {
+  user_id: string;
+  id: string;
+  amount: number;
+  type_id: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -92,12 +140,50 @@ function createTransactionRow(
   };
 }
 
+function createBalanceTypeRow(
+  overrides: Partial<RemoteBalanceTypeRow> = {},
+): RemoteBalanceTypeRow {
+  return {
+    user_id: TEST_USER_ID,
+    id: 'income',
+    name: 'Income',
+    is_default: true,
+    is_archived: false,
+    sort_order: 0,
+    created_at: '2026-05-18T08:00:00.000Z',
+    updated_at: '2026-05-18T08:30:00.000Z',
+    deleted_at: null,
+    schema_version: 1,
+    source_device_id: 'device_test',
+    ...overrides,
+  };
+}
+
+function createBalanceEntryRow(
+  overrides: Partial<RemoteBalanceEntryRow> = {},
+): RemoteBalanceEntryRow {
+  return {
+    user_id: TEST_USER_ID,
+    id: 'balance-entry-1',
+    amount: 100,
+    type_id: 'income',
+    created_at: '2026-05-19T08:00:00.000Z',
+    updated_at: '2026-05-19T08:30:00.000Z',
+    deleted_at: null,
+    schema_version: 1,
+    source_device_id: 'device_test',
+    ...overrides,
+  };
+}
+
 function createDataTarget(): LocalRestoreDataTarget & {
   restoreBackup: jest.MockedFunction<LocalRestoreDataTarget['restoreBackup']>;
 } {
   return {
     hasLocalData: jest.fn(async () => false),
     restoreBackup: jest.fn(async () => ({
+      restoredBalanceEntriesCount: 1,
+      restoredBalanceTypesCount: 1,
       restoredCategoriesCount: 1,
       restoredTransactionsCount: 1,
     })),
@@ -106,10 +192,14 @@ function createDataTarget(): LocalRestoreDataTarget & {
 
 function createMockRemoteRestoreClient({
   failTable,
+  remoteBalanceEntries = [createBalanceEntryRow()],
+  remoteBalanceTypes = [createBalanceTypeRow()],
   remoteCategories = [createCategoryRow()],
   remoteTransactions = [createTransactionRow()],
 }: {
   failTable?: RemoteTableName;
+  remoteBalanceEntries?: RemoteBalanceEntryRow[];
+  remoteBalanceTypes?: RemoteBalanceTypeRow[];
   remoteCategories?: RemoteCategoryRow[];
   remoteTransactions?: RemoteTransactionRow[];
 } = {}) {
@@ -128,10 +218,14 @@ function createMockRemoteRestoreClient({
       }
 
       return {
-        data:
-          tableName === 'remote_categories'
-            ? remoteCategories.filter((row) => row.user_id === value)
-            : remoteTransactions.filter((row) => row.user_id === value),
+        data: getRowsForTable({
+          remoteBalanceEntries,
+          remoteBalanceTypes,
+          remoteCategories,
+          remoteTransactions,
+          tableName,
+          userId: value,
+        }),
         error: null,
         columns,
         columnName,
@@ -155,6 +249,36 @@ function createMockRemoteRestoreClient({
   };
 }
 
+function getRowsForTable({
+  remoteBalanceEntries,
+  remoteBalanceTypes,
+  remoteCategories,
+  remoteTransactions,
+  tableName,
+  userId,
+}: {
+  remoteBalanceEntries: RemoteBalanceEntryRow[];
+  remoteBalanceTypes: RemoteBalanceTypeRow[];
+  remoteCategories: RemoteCategoryRow[];
+  remoteTransactions: RemoteTransactionRow[];
+  tableName: RemoteTableName;
+  userId: string;
+}) {
+  if (tableName === 'remote_balance_entries') {
+    return remoteBalanceEntries.filter((row) => row.user_id === userId);
+  }
+
+  if (tableName === 'remote_balance_types') {
+    return remoteBalanceTypes.filter((row) => row.user_id === userId);
+  }
+
+  if (tableName === 'remote_categories') {
+    return remoteCategories.filter((row) => row.user_id === userId);
+  }
+
+  return remoteTransactions.filter((row) => row.user_id === userId);
+}
+
 describe('Supabase remote restore adapter', () => {
   it('reads authenticated remote backup rows and maps snake_case fields', async () => {
     const { client, from, read } = createMockRemoteRestoreClient();
@@ -166,7 +290,7 @@ describe('Supabase remote restore adapter', () => {
       adapter.readBackup({ userId: ` ${TEST_USER_ID} ` }),
     ).resolves.toMatchObject({
       userId: TEST_USER_ID,
-      schemaVersion: 1,
+      schemaVersion: 2,
       categories: [
         {
           id: 'coffee',
@@ -198,10 +322,40 @@ describe('Supabase remote restore adapter', () => {
           sourceDeviceId: 'device_test',
         },
       ],
+      balanceTypes: [
+        {
+          id: 'income',
+          userId: TEST_USER_ID,
+          name: 'Income',
+          isDefault: true,
+          isArchived: false,
+          sortOrder: 0,
+          createdAt: '2026-05-18T08:00:00.000Z',
+          updatedAt: '2026-05-18T08:30:00.000Z',
+          deletedAt: null,
+          schemaVersion: 1,
+          sourceDeviceId: 'device_test',
+        },
+      ],
+      balanceEntries: [
+        {
+          id: 'balance-entry-1',
+          userId: TEST_USER_ID,
+          amount: 100,
+          typeId: 'income',
+          createdAt: '2026-05-19T08:00:00.000Z',
+          updatedAt: '2026-05-19T08:30:00.000Z',
+          deletedAt: null,
+          schemaVersion: 1,
+          sourceDeviceId: 'device_test',
+        },
+      ],
     });
 
     expect(from).toHaveBeenNthCalledWith(1, 'remote_categories');
     expect(from).toHaveBeenNthCalledWith(2, 'remote_transactions');
+    expect(from).toHaveBeenNthCalledWith(3, 'remote_balance_types');
+    expect(from).toHaveBeenNthCalledWith(4, 'remote_balance_entries');
     expect(read).toHaveBeenNthCalledWith(
       1,
       'remote_categories',
@@ -213,6 +367,20 @@ describe('Supabase remote restore adapter', () => {
       2,
       'remote_transactions',
       expect.stringContaining('category_id'),
+      'user_id',
+      TEST_USER_ID,
+    );
+    expect(read).toHaveBeenNthCalledWith(
+      3,
+      'remote_balance_types',
+      expect.stringContaining('sort_order'),
+      'user_id',
+      TEST_USER_ID,
+    );
+    expect(read).toHaveBeenNthCalledWith(
+      4,
+      'remote_balance_entries',
+      expect.stringContaining('type_id'),
       'user_id',
       TEST_USER_ID,
     );
@@ -304,8 +472,10 @@ describe('Supabase remote restore adapter', () => {
     expect(JSON.stringify(result)).not.toContain('localOwnerId');
   });
 
-  it('returns an empty restore state when both remote tables are empty', async () => {
+  it('returns an empty restore state when all remote tables are empty', async () => {
     const { client } = createMockRemoteRestoreClient({
+      remoteBalanceEntries: [],
+      remoteBalanceTypes: [],
       remoteCategories: [],
       remoteTransactions: [],
     });
@@ -330,6 +500,8 @@ describe('Supabase remote restore adapter', () => {
       status: 'empty',
       restoredTransactionsCount: 0,
       restoredCategoriesCount: 0,
+      restoredBalanceTypesCount: 0,
+      restoredBalanceEntriesCount: 0,
     });
     expect(dataTarget.restoreBackup).not.toHaveBeenCalled();
   });

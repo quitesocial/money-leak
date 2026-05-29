@@ -13,13 +13,23 @@ jest.mock('@/db/transactions', () => ({
   getTransactionsForBackup: jest.fn(),
 }));
 
+jest.mock('@/db/balance', () => ({
+  applyBalanceSyncChanges: jest.fn(),
+  getBalanceEntriesForBackup: jest.fn(),
+  getBalanceTypesForBackup: jest.fn(),
+}));
+
 jest.mock('@/db/sync-status', () => ({
   getSyncMetadata: jest.fn(),
   recordSyncFailure: jest.fn(),
   recordSyncSuccess: jest.fn(),
 }));
 
-type RemoteTableName = 'remote_categories' | 'remote_transactions';
+type RemoteTableName =
+  | 'remote_balance_entries'
+  | 'remote_balance_types'
+  | 'remote_categories'
+  | 'remote_transactions';
 
 type RemoteRow = {
   user_id: string;
@@ -66,19 +76,61 @@ function createTransactionRow(overrides: Partial<RemoteRow> = {}): RemoteRow {
   };
 }
 
+function createBalanceTypeRow(overrides: Partial<RemoteRow> = {}): RemoteRow {
+  return {
+    user_id: TEST_USER_ID,
+    id: 'income',
+    name: 'Income',
+    is_default: true,
+    is_archived: false,
+    sort_order: 0,
+    created_at: '2026-05-18T08:00:00.000Z',
+    updated_at: '2026-05-21T08:30:00.000Z',
+    deleted_at: null,
+    schema_version: 1,
+    source_device_id: 'device_test',
+    ...overrides,
+  };
+}
+
+function createBalanceEntryRow(overrides: Partial<RemoteRow> = {}): RemoteRow {
+  return {
+    user_id: TEST_USER_ID,
+    id: 'balance-entry-1',
+    amount: 100,
+    type_id: 'income',
+    created_at: '2026-05-19T08:00:00.000Z',
+    updated_at: '2026-05-21T08:30:00.000Z',
+    deleted_at: null,
+    schema_version: 1,
+    source_device_id: 'device_test',
+    ...overrides,
+  };
+}
+
 function createMockRemoteSyncClient({
   failTable,
+  remoteBalanceEntries = [createBalanceEntryRow()],
+  remoteBalanceTypes = [createBalanceTypeRow()],
   remoteCategories = [createCategoryRow()],
   remoteTransactions = [createTransactionRow()],
   sessionUserId = TEST_USER_ID,
 }: {
   failTable?: RemoteTableName;
+  remoteBalanceEntries?: RemoteRow[];
+  remoteBalanceTypes?: RemoteRow[];
   remoteCategories?: RemoteRow[];
   remoteTransactions?: RemoteRow[];
   sessionUserId?: string | null;
 } = {}) {
   const filtersByTable: Partial<Record<RemoteTableName, string>> = {};
   const rowsByTable: Record<RemoteTableName, Map<string, RemoteRow>> = {
+    remote_balance_entries: new Map(
+      remoteBalanceEntries.map((row) => [`${row.user_id}\u0000${row.id}`, row]),
+    ),
+    remote_balance_types: new Map(
+      remoteBalanceTypes.map((row) => [`${row.user_id}\u0000${row.id}`, row]),
+    ),
     remote_categories: new Map(
       remoteCategories.map((row) => [`${row.user_id}\u0000${row.id}`, row]),
     ),
@@ -219,15 +271,35 @@ describe('Supabase remote sync adapter', () => {
           categoryId: 'coffee',
         },
       ],
+      balanceTypes: [
+        {
+          id: 'income',
+          userId: TEST_USER_ID,
+          name: 'Income',
+        },
+      ],
+      balanceEntries: [
+        {
+          id: 'balance-entry-1',
+          userId: TEST_USER_ID,
+          typeId: 'income',
+        },
+      ],
     });
     expect(from).toHaveBeenNthCalledWith(1, 'remote_categories');
     expect(from).toHaveBeenNthCalledWith(2, 'remote_transactions');
+    expect(from).toHaveBeenNthCalledWith(3, 'remote_balance_types');
+    expect(from).toHaveBeenNthCalledWith(4, 'remote_balance_entries');
     expect(filtersByTable.remote_categories).toContain('updated_at.gt.');
     expect(filtersByTable.remote_transactions).toContain('deleted_at.gt.');
+    expect(filtersByTable.remote_balance_types).toContain('updated_at.gt.');
+    expect(filtersByTable.remote_balance_entries).toContain('deleted_at.gt.');
   });
 
   it('pushes transactions and categories through authenticated remote tables', async () => {
     const { client, getRows, upsert } = createMockRemoteSyncClient({
+      remoteBalanceEntries: [],
+      remoteBalanceTypes: [],
       remoteCategories: [],
       remoteTransactions: [],
     });
@@ -269,10 +341,40 @@ describe('Supabase remote sync adapter', () => {
             sourceDeviceId: 'device_test',
           },
         ],
+        balanceTypes: [
+          {
+            id: 'income',
+            userId: TEST_USER_ID,
+            name: 'Income',
+            isDefault: true,
+            isArchived: false,
+            sortOrder: 0,
+            createdAt: '2026-05-18T08:00:00.000Z',
+            updatedAt: '2026-05-21T08:30:00.000Z',
+            deletedAt: null,
+            schemaVersion: 1,
+            sourceDeviceId: 'device_test',
+          },
+        ],
+        balanceEntries: [
+          {
+            id: 'balance-entry-1',
+            userId: TEST_USER_ID,
+            amount: 100,
+            typeId: 'income',
+            createdAt: '2026-05-19T08:00:00.000Z',
+            updatedAt: '2026-05-21T08:30:00.000Z',
+            deletedAt: null,
+            schemaVersion: 1,
+            sourceDeviceId: 'device_test',
+          },
+        ],
       }),
     ).resolves.toEqual({
       pushedTransactionsCount: 1,
       pushedCategoriesCount: 1,
+      pushedBalanceTypesCount: 1,
+      pushedBalanceEntriesCount: 1,
     });
     expect(upsert).toHaveBeenNthCalledWith(
       1,
@@ -280,10 +382,40 @@ describe('Supabase remote sync adapter', () => {
       [expect.objectContaining({ is_archived: true, user_id: TEST_USER_ID })],
       { onConflict: 'user_id,id' },
     );
+    expect(upsert).toHaveBeenNthCalledWith(
+      2,
+      'remote_balance_types',
+      [expect.objectContaining({ id: 'income', user_id: TEST_USER_ID })],
+      { onConflict: 'user_id,id' },
+    );
+    expect(upsert).toHaveBeenNthCalledWith(
+      3,
+      'remote_transactions',
+      [expect.objectContaining({ id: 'txn-deleted', user_id: TEST_USER_ID })],
+      { onConflict: 'user_id,id' },
+    );
+    expect(upsert).toHaveBeenNthCalledWith(
+      4,
+      'remote_balance_entries',
+      [
+        expect.objectContaining({
+          id: 'balance-entry-1',
+          type_id: 'income',
+          user_id: TEST_USER_ID,
+        }),
+      ],
+      { onConflict: 'user_id,id' },
+    );
     expect(getRows('remote_transactions')).toEqual([
       expect.objectContaining({
         id: 'txn-deleted',
         deleted_at: '2026-05-21T10:05:00.000Z',
+      }),
+    ]);
+    expect(getRows('remote_balance_entries')).toEqual([
+      expect.objectContaining({
+        id: 'balance-entry-1',
+        type_id: 'income',
       }),
     ]);
   });
@@ -298,6 +430,8 @@ describe('Supabase remote sync adapter', () => {
     const service = createSyncService({
       dataSource: {
         getSyncData: jest.fn(async () => ({
+          balanceEntries: [],
+          balanceTypes: [],
           transactions: [],
           categories: [],
         })),
@@ -306,6 +440,8 @@ describe('Supabase remote sync adapter', () => {
         applyRemoteChanges: jest.fn(async () => ({
           appliedTransactionsCount: 0,
           appliedCategoriesCount: 0,
+          appliedBalanceTypesCount: 0,
+          appliedBalanceEntriesCount: 0,
         })),
       },
       isSyncEnabled: true,

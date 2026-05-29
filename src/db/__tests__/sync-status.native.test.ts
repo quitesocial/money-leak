@@ -64,12 +64,20 @@ function createSummary(overrides: Partial<SyncSummary> = {}): SyncSummary {
     cursor: 2000,
     pulledTransactionsCount: 1,
     pulledCategoriesCount: 2,
+    pulledBalanceTypesCount: 0,
+    pulledBalanceEntriesCount: 0,
     appliedTransactionsCount: 3,
     appliedCategoriesCount: 4,
+    appliedBalanceTypesCount: 0,
+    appliedBalanceEntriesCount: 0,
     pushedTransactionsCount: 5,
     pushedCategoriesCount: 6,
+    pushedBalanceTypesCount: 0,
+    pushedBalanceEntriesCount: 0,
     ignoredTransactionTombstonesCount: 7,
     ignoredCategoryTombstonesCount: 8,
+    ignoredBalanceTypeTombstonesCount: 0,
+    ignoredBalanceEntryTombstonesCount: 0,
     conflictsCount: 9,
     ...overrides,
   };
@@ -156,6 +164,31 @@ describe('native sync metadata persistence', () => {
 
     await expect(getSyncMetadata()).resolves.toMatchObject({
       lastSyncSummary: null,
+    });
+  });
+
+  it('parses old stored summaries without balance counts as zero', async () => {
+    const oldSummary = {
+      completedAt: 1000,
+      cursor: 2000,
+      pulledTransactionsCount: 1,
+      pulledCategoriesCount: 2,
+      appliedTransactionsCount: 3,
+      appliedCategoriesCount: 4,
+      pushedTransactionsCount: 5,
+      pushedCategoriesCount: 6,
+      ignoredTransactionTombstonesCount: 7,
+      ignoredCategoryTombstonesCount: 8,
+      conflictsCount: 9,
+    };
+
+    database.appMetadata.set('last_incremental_sync_summary', {
+      value: JSON.stringify(oldSummary),
+      updated_at: 1000,
+    });
+
+    await expect(getSyncMetadata()).resolves.toMatchObject({
+      lastSyncSummary: createSummary(),
     });
   });
 

@@ -9,9 +9,14 @@ function createBalanceEntry(
 ): BalanceEntry {
   return {
     id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
     amount: overrides.amount ?? 100,
     typeId: overrides.typeId ?? 'salary',
     createdAt: overrides.createdAt ?? 1000,
+    updatedAt: overrides.updatedAt ?? overrides.createdAt ?? 1000,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
   };
 }
 
@@ -83,6 +88,22 @@ describe('calculateCurrentBalance', () => {
             deletedAt: 2000,
           }),
         ],
+      }),
+    ).toBe(80);
+  });
+
+  it('does not add deleted balance tombstones', () => {
+    expect(
+      calculateCurrentBalance({
+        balanceEntries: [
+          createBalanceEntry({ id: 'balance-active', amount: 100 }),
+          createBalanceEntry({
+            id: 'balance-deleted',
+            amount: 500,
+            deletedAt: 2000,
+          }),
+        ],
+        transactions: [createTransaction({ id: 'txn-active', amount: 20 })],
       }),
     ).toBe(80);
   });

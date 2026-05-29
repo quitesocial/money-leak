@@ -63,11 +63,15 @@ const CREATE_CATEGORIES_TABLE_SQL = `
 const CREATE_BALANCE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS balance_types (
     id TEXT PRIMARY KEY NOT NULL,
+    owner_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     is_default INTEGER NOT NULL CHECK (is_default IN (0, 1)),
     is_archived INTEGER NOT NULL CHECK (is_archived IN (0, 1)),
+    deleted_at INTEGER,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    source_device_id TEXT NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL
   );
 
@@ -77,9 +81,14 @@ const CREATE_BALANCE_TABLES_SQL = `
 
   CREATE TABLE IF NOT EXISTS balance_entries (
     id TEXT PRIMARY KEY NOT NULL,
+    owner_id TEXT NOT NULL DEFAULT '',
     amount REAL NOT NULL,
     type_id TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT 0,
+    deleted_at INTEGER,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    source_device_id TEXT NOT NULL DEFAULT ''
   );
 `;
 
@@ -118,7 +127,7 @@ export async function initDatabase() {
       });
 
       await seedDefaultCategories(database, identity);
-      await seedDefaultBalanceTypes(database);
+      await seedDefaultBalanceTypes(database, identity);
     })().catch((error) => {
       initPromise = null;
 
@@ -173,7 +182,10 @@ async function seedDefaultCategories(
   }
 }
 
-async function seedDefaultBalanceTypes(database: SQLiteDatabase) {
+async function seedDefaultBalanceTypes(
+  database: SQLiteDatabase,
+  identity: LocalDatabaseIdentity,
+) {
   const now = Date.now();
 
   for (const balanceType of DEFAULT_BALANCE_TYPES) {
@@ -181,20 +193,28 @@ async function seedDefaultBalanceTypes(database: SQLiteDatabase) {
       `
         INSERT OR IGNORE INTO balance_types (
           id,
+          owner_id,
           name,
           created_at,
           updated_at,
           is_default,
           is_archived,
+          deleted_at,
+          schema_version,
+          source_device_id,
           sort_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       balanceType.id,
+      identity.localOwnerId,
       balanceType.name,
       now,
       now,
       1,
       0,
+      null,
+      1,
+      identity.deviceId,
       balanceType.sortOrder,
     );
   }

@@ -11,6 +11,12 @@ const mockGetCategories = jest.fn();
 const mockRestoreCategories = jest.fn();
 const mockGetTransactions = jest.fn();
 const mockRestoreTransactions = jest.fn();
+const mockGetBalanceEntries = jest.fn();
+const mockGetBalanceTypes = jest.fn();
+const mockRestoreBalanceEntries = jest.fn();
+const mockRestoreBalanceEntryTombstones = jest.fn();
+const mockRestoreBalanceTypes = jest.fn();
+const mockRestoreBalanceTypeTombstones = jest.fn();
 
 jest.mock('@/db/categories', () => ({
   getCategories: (...args: unknown[]) => mockGetCategories(...args),
@@ -22,6 +28,18 @@ jest.mock('@/db/transactions', () => ({
   restoreTransactions: (...args: unknown[]) => mockRestoreTransactions(...args),
 }));
 
+jest.mock('@/db/balance', () => ({
+  getBalanceEntries: (...args: unknown[]) => mockGetBalanceEntries(...args),
+  getBalanceTypes: (...args: unknown[]) => mockGetBalanceTypes(...args),
+  restoreBalanceEntries: (...args: unknown[]) =>
+    mockRestoreBalanceEntries(...args),
+  restoreBalanceEntryTombstones: (...args: unknown[]) =>
+    mockRestoreBalanceEntryTombstones(...args),
+  restoreBalanceTypes: (...args: unknown[]) => mockRestoreBalanceTypes(...args),
+  restoreBalanceTypeTombstones: (...args: unknown[]) =>
+    mockRestoreBalanceTypeTombstones(...args),
+}));
+
 const TEST_USER_ID = 'user-test';
 const RAW_FAILURE = 'raw backend failure access_token localOwnerId deviceId';
 
@@ -30,7 +48,7 @@ function createPayload(
 ): RestorePayload {
   return {
     userId: TEST_USER_ID,
-    schemaVersion: 1,
+    schemaVersion: 2,
     categories: [
       {
         id: 'coffee',
@@ -62,6 +80,34 @@ function createPayload(
         sourceDeviceId: 'device_test',
       },
     ],
+    balanceTypes: [
+      {
+        id: 'income',
+        userId: TEST_USER_ID,
+        name: 'Income',
+        isDefault: true,
+        isArchived: false,
+        sortOrder: 0,
+        createdAt: '2026-05-18T08:00:00.000Z',
+        updatedAt: '2026-05-18T08:30:00.000Z',
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test',
+      },
+    ],
+    balanceEntries: [
+      {
+        id: 'balance-entry-1',
+        userId: TEST_USER_ID,
+        amount: 100,
+        typeId: 'income',
+        createdAt: '2026-05-19T08:00:00.000Z',
+        updatedAt: '2026-05-19T08:30:00.000Z',
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test',
+      },
+    ],
     ...overrides,
   };
 }
@@ -86,11 +132,15 @@ function createAdapter({
 
 function createDataTarget({
   hasLocalData = false,
+  restoredBalanceEntriesCount = 1,
+  restoredBalanceTypesCount = 1,
   restoredCategoriesCount = 1,
   restoredTransactionsCount = 1,
   shouldFail = false,
 }: {
   hasLocalData?: boolean;
+  restoredBalanceEntriesCount?: number;
+  restoredBalanceTypesCount?: number;
   restoredCategoriesCount?: number;
   restoredTransactionsCount?: number;
   shouldFail?: boolean;
@@ -104,6 +154,8 @@ function createDataTarget({
       if (shouldFail) throw new Error(RAW_FAILURE);
 
       return {
+        restoredBalanceEntriesCount,
+        restoredBalanceTypesCount,
         restoredCategoriesCount,
         restoredTransactionsCount,
       };
@@ -195,6 +247,8 @@ describe('restore service', () => {
       payload: createPayload({
         categories: [],
         transactions: [],
+        balanceTypes: [],
+        balanceEntries: [],
       }),
     });
     const dataTarget = createDataTarget();
@@ -215,6 +269,8 @@ describe('restore service', () => {
       status: 'empty',
       restoredTransactionsCount: 0,
       restoredCategoriesCount: 0,
+      restoredBalanceTypesCount: 0,
+      restoredBalanceEntriesCount: 0,
       isRecoverable: true,
     });
 
@@ -225,6 +281,8 @@ describe('restore service', () => {
   it('runs restore when the remote backup only has transaction tombstones', async () => {
     const payload = createPayload({
       categories: [],
+      balanceTypes: [],
+      balanceEntries: [],
       transactions: [
         {
           ...createPayload().transactions[0],
@@ -236,6 +294,8 @@ describe('restore service', () => {
     });
     const adapter = createAdapter({ payload });
     const dataTarget = createDataTarget({
+      restoredBalanceEntriesCount: 0,
+      restoredBalanceTypesCount: 0,
       restoredCategoriesCount: 0,
       restoredTransactionsCount: 1,
     });
@@ -256,6 +316,8 @@ describe('restore service', () => {
       status: 'succeeded',
       restoredTransactionsCount: 1,
       restoredCategoriesCount: 0,
+      restoredBalanceTypesCount: 0,
+      restoredBalanceEntriesCount: 0,
     });
 
     expect(dataTarget.restoreBackup).toHaveBeenCalledWith(payload);
@@ -264,6 +326,8 @@ describe('restore service', () => {
   it('returns restored counts after a successful merge-only restore', async () => {
     const adapter = createAdapter();
     const dataTarget = createDataTarget({
+      restoredBalanceEntriesCount: 4,
+      restoredBalanceTypesCount: 1,
       restoredCategoriesCount: 2,
       restoredTransactionsCount: 3,
     });
@@ -284,6 +348,8 @@ describe('restore service', () => {
       status: 'succeeded',
       restoredTransactionsCount: 3,
       restoredCategoriesCount: 2,
+      restoredBalanceTypesCount: 1,
+      restoredBalanceEntriesCount: 4,
     });
 
     expect(adapter.readBackup).toHaveBeenCalledWith({ userId: TEST_USER_ID });

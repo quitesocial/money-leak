@@ -16,6 +16,8 @@ export function calculateCurrentBalance({
   transactions,
 }: CalculateCurrentBalanceParams) {
   const totalAdded = balanceEntries.reduce((total, entry) => {
+    if (entry.deletedAt !== null) return total;
+
     return sanitizeNumber(total + getFiniteAmount(entry.amount));
   }, 0);
 

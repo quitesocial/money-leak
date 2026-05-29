@@ -37,6 +37,8 @@ type MockBackupRunResult =
       status: 'succeeded';
       uploadedTransactionsCount: number;
       uploadedCategoriesCount: number;
+      uploadedBalanceTypesCount: number;
+      uploadedBalanceEntriesCount: number;
     }
   | {
       status: 'failed';
@@ -59,11 +61,15 @@ type MockRestoreRunResult =
       status: 'succeeded';
       restoredTransactionsCount: number;
       restoredCategoriesCount: number;
+      restoredBalanceTypesCount: number;
+      restoredBalanceEntriesCount: number;
     }
   | {
       status: 'empty';
       restoredTransactionsCount: 0;
       restoredCategoriesCount: 0;
+      restoredBalanceTypesCount: 0;
+      restoredBalanceEntriesCount: 0;
       isRecoverable: true;
     }
   | {
@@ -86,12 +92,20 @@ type MockSyncRunResult =
       lastSuccessfulSyncAt: number;
       pulledTransactionsCount: number;
       pulledCategoriesCount: number;
+      pulledBalanceTypesCount: number;
+      pulledBalanceEntriesCount: number;
       appliedTransactionsCount: number;
       appliedCategoriesCount: number;
+      appliedBalanceTypesCount: number;
+      appliedBalanceEntriesCount: number;
       pushedTransactionsCount: number;
       pushedCategoriesCount: number;
+      pushedBalanceTypesCount: number;
+      pushedBalanceEntriesCount: number;
       ignoredTransactionTombstonesCount: number;
       ignoredCategoryTombstonesCount: number;
+      ignoredBalanceTypeTombstonesCount: number;
+      ignoredBalanceEntryTombstonesCount: number;
       conflictsCount: number;
     }
   | {
@@ -165,6 +179,7 @@ const mockScheduleDailyCheckInReminder = jest.fn<() => Promise<void>>();
 const mockCancelDailyCheckInReminder = jest.fn<() => Promise<void>>();
 const mockLoadTransactions = jest.fn<() => Promise<void>>();
 const mockLoadCategories = jest.fn<() => Promise<void>>();
+const mockLoadBalance = jest.fn<() => Promise<void>>();
 
 const mockImportTransactions =
   jest.fn<(_transactions: unknown[]) => Promise<number>>();
@@ -251,6 +266,10 @@ const mockCategoriesStoreState = {
   loadCategories: mockLoadCategories,
 };
 
+const mockBalanceStoreState = {
+  loadBalance: mockLoadBalance,
+};
+
 const mockUseTransactionsStore = jest.fn(
   (selector: (state: typeof mockTransactionsStoreState) => unknown) => {
     return selector(mockTransactionsStoreState);
@@ -260,6 +279,12 @@ const mockUseTransactionsStore = jest.fn(
 const mockUseCategoriesStore = jest.fn(
   (selector: (state: typeof mockCategoriesStoreState) => unknown) => {
     return selector(mockCategoriesStoreState);
+  },
+);
+
+const mockUseBalanceStore = jest.fn(
+  (selector: (state: typeof mockBalanceStoreState) => unknown) => {
+    return selector(mockBalanceStoreState);
   },
 );
 
@@ -458,6 +483,14 @@ jest.mock('@/store/categories-store', () => ({
   },
 }));
 
+jest.mock('@/store/balance-store', () => ({
+  useBalanceStore: (
+    selector: (state: typeof mockBalanceStoreState) => unknown,
+  ) => {
+    return mockUseBalanceStore(selector);
+  },
+}));
+
 const openUrlSpy = jest.spyOn(Linking, 'openURL');
 const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 const consoleErrorSpy = jest
@@ -573,9 +606,13 @@ function createDeferred<T>() {
 }
 
 function createSucceededBackupResult({
+  uploadedBalanceEntriesCount = 5,
+  uploadedBalanceTypesCount = 1,
   uploadedCategoriesCount = 2,
   uploadedTransactionsCount = 3,
 }: {
+  uploadedBalanceEntriesCount?: number;
+  uploadedBalanceTypesCount?: number;
   uploadedCategoriesCount?: number;
   uploadedTransactionsCount?: number;
 } = {}): MockBackupRunResult {
@@ -583,13 +620,19 @@ function createSucceededBackupResult({
     status: 'succeeded',
     uploadedTransactionsCount,
     uploadedCategoriesCount,
+    uploadedBalanceTypesCount,
+    uploadedBalanceEntriesCount,
   };
 }
 
 function createSucceededRestoreResult({
+  restoredBalanceEntriesCount = 5,
+  restoredBalanceTypesCount = 1,
   restoredCategoriesCount = 2,
   restoredTransactionsCount = 3,
 }: {
+  restoredBalanceEntriesCount?: number;
+  restoredBalanceTypesCount?: number;
   restoredCategoriesCount?: number;
   restoredTransactionsCount?: number;
 } = {}): MockRestoreRunResult {
@@ -597,18 +640,28 @@ function createSucceededRestoreResult({
     status: 'succeeded',
     restoredTransactionsCount,
     restoredCategoriesCount,
+    restoredBalanceTypesCount,
+    restoredBalanceEntriesCount,
   };
 }
 
 function createSucceededSyncResult({
+  appliedBalanceEntriesCount = 0,
+  appliedBalanceTypesCount = 0,
   appliedCategoriesCount = 1,
   appliedTransactionsCount = 3,
   conflictsCount = 5,
+  ignoredBalanceEntryTombstonesCount = 0,
+  ignoredBalanceTypeTombstonesCount = 0,
   ignoredCategoryTombstonesCount = 2,
   ignoredTransactionTombstonesCount = 7,
   lastSuccessfulSyncAt = Date.parse('2026-05-20T12:00:00.000Z'),
+  pulledBalanceEntriesCount = 0,
+  pulledBalanceTypesCount = 0,
   pulledCategoriesCount = 1,
   pulledTransactionsCount = 2,
+  pushedBalanceEntriesCount = 0,
+  pushedBalanceTypesCount = 0,
   pushedCategoriesCount = 3,
   pushedTransactionsCount = 4,
 }: Partial<
@@ -619,12 +672,20 @@ function createSucceededSyncResult({
     lastSuccessfulSyncAt,
     pulledTransactionsCount,
     pulledCategoriesCount,
+    pulledBalanceTypesCount,
+    pulledBalanceEntriesCount,
     appliedTransactionsCount,
     appliedCategoriesCount,
+    appliedBalanceTypesCount,
+    appliedBalanceEntriesCount,
     pushedTransactionsCount,
     pushedCategoriesCount,
+    pushedBalanceTypesCount,
+    pushedBalanceEntriesCount,
     ignoredTransactionTombstonesCount,
     ignoredCategoryTombstonesCount,
+    ignoredBalanceTypeTombstonesCount,
+    ignoredBalanceEntryTombstonesCount,
     conflictsCount,
   };
 }
@@ -701,6 +762,7 @@ beforeEach(() => {
 
   mockLoadTransactions.mockResolvedValue(undefined);
   mockLoadCategories.mockResolvedValue(undefined);
+  mockLoadBalance.mockResolvedValue(undefined);
   mockImportTransactions.mockResolvedValue(0);
   mockClearError.mockImplementation(() => {});
   mockExportTransactionsCsv.mockResolvedValue(undefined);
@@ -1073,7 +1135,7 @@ describe('SettingsScreen account section', () => {
 
     expect(alertSpy).toHaveBeenCalledWith(
       'Delete account data?',
-      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions and categories on this device will stay here.',
+      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions, categories, and balance data on this device will stay here.',
       expect.any(Array),
     );
     expect(mockRunDeleteAccount).not.toHaveBeenCalled();
@@ -1372,6 +1434,7 @@ describe('SettingsScreen sync section', () => {
 
     expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
     expect(mockLoadCategories).toHaveBeenCalledTimes(1);
+    expect(mockLoadBalance).toHaveBeenCalledTimes(1);
   });
 
   it('shows safe manual sync summary counts after success', async () => {
@@ -1381,13 +1444,21 @@ describe('SettingsScreen sync section', () => {
     mockAuthStoreState.user = mockAuthSession.user;
     mockRunManualSync.mockResolvedValueOnce(
       createSucceededSyncResult({
+        appliedBalanceEntriesCount: 2,
+        appliedBalanceTypesCount: 1,
         appliedCategoriesCount: 1,
         appliedTransactionsCount: 3,
         conflictsCount: 5,
+        ignoredBalanceEntryTombstonesCount: 1,
+        ignoredBalanceTypeTombstonesCount: 1,
         ignoredCategoryTombstonesCount: 2,
         ignoredTransactionTombstonesCount: 7,
+        pulledBalanceEntriesCount: 4,
+        pulledBalanceTypesCount: 2,
         pulledCategoriesCount: 1,
         pulledTransactionsCount: 2,
+        pushedBalanceEntriesCount: 1,
+        pushedBalanceTypesCount: 2,
         pushedCategoriesCount: 3,
         pushedTransactionsCount: 4,
       }),
@@ -1400,11 +1471,12 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain(
-      'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
+      'Sync complete. Pulled 9 changes. Pushed 10 changes. Applied 7 changes. Conflicts 5. Ignored 11 changes.',
     );
     expectNoRawSyncUiValues(text);
     expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
     expect(mockLoadCategories).toHaveBeenCalledTimes(1);
+    expect(mockLoadBalance).toHaveBeenCalledTimes(1);
   });
 
   it('shows last successful sync and safe summary counts from existing metadata', async () => {
@@ -1421,12 +1493,20 @@ describe('SettingsScreen sync section', () => {
         cursor: Date.parse('2026-05-20T12:00:00.000Z'),
         pulledTransactionsCount: 2,
         pulledCategoriesCount: 1,
+        pulledBalanceTypesCount: 0,
+        pulledBalanceEntriesCount: 0,
         appliedTransactionsCount: 3,
         appliedCategoriesCount: 1,
+        appliedBalanceTypesCount: 0,
+        appliedBalanceEntriesCount: 0,
         pushedTransactionsCount: 4,
         pushedCategoriesCount: 3,
+        pushedBalanceTypesCount: 0,
+        pushedBalanceEntriesCount: 0,
         ignoredTransactionTombstonesCount: 7,
         ignoredCategoryTombstonesCount: 2,
+        ignoredBalanceTypeTombstonesCount: 0,
+        ignoredBalanceEntryTombstonesCount: 0,
         conflictsCount: 5,
       },
     });
@@ -1622,6 +1702,8 @@ describe('SettingsScreen backup section', () => {
     await act(async () => {
       deferred.resolve(
         createSucceededBackupResult({
+          uploadedBalanceEntriesCount: 6,
+          uploadedBalanceTypesCount: 3,
           uploadedCategoriesCount: 4,
           uploadedTransactionsCount: 2,
         }),
@@ -1633,7 +1715,7 @@ describe('SettingsScreen backup section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain(
-      'Backup created. 2 transactions and 4 categories saved.',
+      'Backup created. 2 transactions, 4 categories, 3 balance types, and 6 balance entries saved.',
     );
     expect(text).toContain('Create backup now');
     expect(mockSetLastSuccessfulBackupAt).toHaveBeenCalledWith(
@@ -1772,6 +1854,8 @@ describe('SettingsScreen restore section', () => {
     await act(async () => {
       deferred.resolve(
         createSucceededRestoreResult({
+          restoredBalanceEntriesCount: 6,
+          restoredBalanceTypesCount: 3,
           restoredCategoriesCount: 4,
           restoredTransactionsCount: 2,
         }),
@@ -1783,11 +1867,12 @@ describe('SettingsScreen restore section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain(
-      'Backup restored. 2 transactions and 4 categories restored.',
+      'Backup restored. 2 transactions, 4 categories, 3 balance types, and 6 balance entries restored.',
     );
     expect(text).toContain('Restore from backup');
     expect(mockLoadTransactions).toHaveBeenCalled();
     expect(mockLoadCategories).toHaveBeenCalled();
+    expect(mockLoadBalance).toHaveBeenCalled();
   });
 
   it('shows safe empty backup copy', async () => {
@@ -1798,6 +1883,8 @@ describe('SettingsScreen restore section', () => {
       status: 'empty',
       restoredTransactionsCount: 0,
       restoredCategoriesCount: 0,
+      restoredBalanceTypesCount: 0,
+      restoredBalanceEntriesCount: 0,
       isRecoverable: true,
     });
 
@@ -1810,6 +1897,7 @@ describe('SettingsScreen restore section', () => {
     );
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
+    expect(mockLoadBalance).not.toHaveBeenCalled();
   });
 
   it('shows generic restore failure copy without raw backend values', async () => {
