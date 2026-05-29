@@ -50,6 +50,8 @@ export function createRestoreService({
           status: 'empty',
           restoredTransactionsCount: 0,
           restoredCategoriesCount: 0,
+          restoredBalanceTypesCount: 0,
+          restoredBalanceEntriesCount: 0,
           isRecoverable: true,
         };
       }
@@ -61,6 +63,8 @@ export function createRestoreService({
           status: 'succeeded',
           restoredTransactionsCount: result.restoredTransactionsCount,
           restoredCategoriesCount: result.restoredCategoriesCount,
+          restoredBalanceTypesCount: result.restoredBalanceTypesCount,
+          restoredBalanceEntriesCount: result.restoredBalanceEntriesCount,
         };
       } catch {
         return createFailedResult('local_write_failed');
@@ -72,7 +76,9 @@ export function createRestoreService({
 function hasRestorableRemoteRows(payload: RestorePayload) {
   return (
     payload.categories.some((category) => category.deletedAt === null) ||
-    payload.transactions.length > 0
+    payload.transactions.length > 0 ||
+    payload.balanceTypes.length > 0 ||
+    payload.balanceEntries.length > 0
   );
 }
 

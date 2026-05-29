@@ -2,10 +2,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getSupabaseClient } from '@/lib/supabase/supabase-client';
 import {
+  mapRemoteBalanceEntryRow,
+  mapRemoteBalanceTypeRow,
   mapRemoteCategoryRow,
   mapRemoteTransactionRow,
+  REMOTE_BALANCE_ENTRY_COLUMNS,
+  REMOTE_BALANCE_TYPE_COLUMNS,
   REMOTE_CATEGORY_COLUMNS,
   REMOTE_TRANSACTION_COLUMNS,
+  type RemoteBalanceEntryRow,
+  type RemoteBalanceTypeRow,
   type RemoteCategoryRow,
   type RemoteTransactionRow,
 } from '@/lib/sync/supabase-remote-row-mappers';
@@ -40,16 +46,21 @@ export function createSupabaseRemoteRestoreAdapter({
       }
 
       try {
-        const [categories, transactions] = await Promise.all([
-          readRemoteCategories({ client, userId: normalizedUserId }),
-          readRemoteTransactions({ client, userId: normalizedUserId }),
-        ]);
+        const [categories, transactions, balanceTypes, balanceEntries] =
+          await Promise.all([
+            readRemoteCategories({ client, userId: normalizedUserId }),
+            readRemoteTransactions({ client, userId: normalizedUserId }),
+            readRemoteBalanceTypes({ client, userId: normalizedUserId }),
+            readRemoteBalanceEntries({ client, userId: normalizedUserId }),
+          ]);
 
         return {
           userId: normalizedUserId,
           schemaVersion: BACKUP_PAYLOAD_SCHEMA_VERSION,
           categories,
           transactions,
+          balanceTypes,
+          balanceEntries,
         };
       } catch {
         throw new Error(GENERIC_REMOTE_RESTORE_ERROR_MESSAGE);
@@ -97,4 +108,42 @@ async function readRemoteTransactions({
   }
 
   return result.data.map(mapRemoteTransactionRow);
+}
+
+async function readRemoteBalanceTypes({
+  client,
+  userId,
+}: {
+  client: SupabaseRemoteRestoreClient;
+  userId: string;
+}) {
+  const result = (await client
+    .from('remote_balance_types')
+    .select(REMOTE_BALANCE_TYPE_COLUMNS)
+    .eq('user_id', userId)) as SupabaseReadResult<RemoteBalanceTypeRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_RESTORE_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteBalanceTypeRow);
+}
+
+async function readRemoteBalanceEntries({
+  client,
+  userId,
+}: {
+  client: SupabaseRemoteRestoreClient;
+  userId: string;
+}) {
+  const result = (await client
+    .from('remote_balance_entries')
+    .select(REMOTE_BALANCE_ENTRY_COLUMNS)
+    .eq('user_id', userId)) as SupabaseReadResult<RemoteBalanceEntryRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_RESTORE_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteBalanceEntryRow);
 }

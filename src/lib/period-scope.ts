@@ -17,6 +17,13 @@ type FilterTransactionsByPeriodParams = {
   now?: number | Date;
 };
 
+type FilterItemsByPeriodParams<T extends { createdAt: number }> = {
+  items: T[];
+  period: PeriodScope;
+  selectedCustomDateStart?: number | null;
+  now?: number | Date;
+};
+
 const customDateFormatter = new Intl.DateTimeFormat(undefined, {
   month: 'short',
   day: 'numeric',
@@ -133,12 +140,12 @@ export function getPeriodLabel(
   }
 }
 
-export function filterTransactionsByPeriod({
-  transactions,
+export function filterItemsByPeriod<T extends { createdAt: number }>({
+  items,
   period,
   selectedCustomDateStart,
   now,
-}: FilterTransactionsByPeriodParams) {
+}: FilterItemsByPeriodParams<T>) {
   const periodRange = getPeriodRange({
     period,
     selectedCustomDateStart,
@@ -150,15 +157,27 @@ export function filterTransactionsByPeriod({
   const periodStartTime = periodRange.start.getTime();
   const periodEndTime = periodRange.end.getTime();
 
-  return transactions.filter((transaction) => {
-    const transactionDate = getValidDate(transaction.createdAt);
+  return items.filter((item) => {
+    const itemDate = getValidDate(item.createdAt);
 
-    if (!transactionDate) return false;
+    if (!itemDate) return false;
 
-    const transactionTime = transactionDate.getTime();
+    const itemTime = itemDate.getTime();
 
-    return (
-      transactionTime >= periodStartTime && transactionTime < periodEndTime
-    );
+    return itemTime >= periodStartTime && itemTime < periodEndTime;
+  });
+}
+
+export function filterTransactionsByPeriod({
+  transactions,
+  period,
+  selectedCustomDateStart,
+  now,
+}: FilterTransactionsByPeriodParams) {
+  return filterItemsByPeriod({
+    items: transactions,
+    period,
+    selectedCustomDateStart,
+    now,
   });
 }

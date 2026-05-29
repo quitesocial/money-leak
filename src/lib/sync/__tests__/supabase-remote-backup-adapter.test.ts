@@ -4,12 +4,15 @@ import { createBackupService } from '@/lib/sync/backup-service';
 import { createSupabaseRemoteBackupAdapter } from '@/lib/sync/supabase-remote-backup-adapter';
 import type { LocalBackupDataSource } from '@/lib/sync/local-backup-data-source';
 import type { BackupPayload } from '@/lib/sync/sync-types';
+import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 const mockGetTransactions = jest.fn();
 const mockGetTransactionsForBackup = jest.fn();
 const mockGetCategories = jest.fn();
+const mockGetBalanceEntriesForBackup = jest.fn();
+const mockGetBalanceTypesForBackup = jest.fn();
 
 jest.mock('@/db/transactions', () => ({
   getTransactions: (...args: unknown[]) => mockGetTransactions(...args),
@@ -21,7 +24,18 @@ jest.mock('@/db/categories', () => ({
   getCategories: (...args: unknown[]) => mockGetCategories(...args),
 }));
 
-type RemoteTableName = 'remote_categories' | 'remote_transactions';
+jest.mock('@/db/balance', () => ({
+  getBalanceEntriesForBackup: (...args: unknown[]) =>
+    mockGetBalanceEntriesForBackup(...args),
+  getBalanceTypesForBackup: (...args: unknown[]) =>
+    mockGetBalanceTypesForBackup(...args),
+}));
+
+type RemoteTableName =
+  | 'remote_balance_entries'
+  | 'remote_balance_types'
+  | 'remote_categories'
+  | 'remote_transactions';
 
 type RemoteRow = {
   user_id: string;
@@ -69,15 +83,55 @@ function createCategory(overrides: Partial<Category> = {}): Category {
   };
 }
 
+function createBalanceType(overrides: Partial<BalanceType> = {}): BalanceType {
+  return {
+    id: 'income',
+    ownerId: TEST_USER_ID,
+    name: 'Income',
+    createdAt: Date.parse('2026-05-18T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-18T08:30:00.000Z'),
+    isDefault: true,
+    isArchived: false,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    sortOrder: 0,
+    ...overrides,
+  };
+}
+
+function createBalanceEntry(
+  overrides: Partial<BalanceEntry> = {},
+): BalanceEntry {
+  return {
+    id: 'balance-entry-1',
+    ownerId: TEST_USER_ID,
+    amount: 100,
+    typeId: 'income',
+    createdAt: Date.parse('2026-05-19T08:00:00.000Z'),
+    updatedAt: Date.parse('2026-05-19T08:30:00.000Z'),
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test',
+    ...overrides,
+  };
+}
+
 function createDataSource({
+  balanceEntries = [createBalanceEntry()],
+  balanceTypes = [createBalanceType()],
   transactions = [createTransaction()],
   categories = [createCategory()],
 }: {
+  balanceEntries?: BalanceEntry[];
+  balanceTypes?: BalanceType[];
   transactions?: Transaction[];
   categories?: Category[];
 } = {}): LocalBackupDataSource {
   return {
     getBackupData: jest.fn(async () => ({
+      balanceEntries,
+      balanceTypes,
       transactions,
       categories,
     })),
@@ -87,9 +141,10 @@ function createDataSource({
 function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
   return {
     userId: TEST_USER_ID,
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: '2026-05-20T12:00:00.000Z',
     includesTombstones: true,
+    includesBalance: true,
     transactions: [
       {
         id: 'txn-1',
@@ -121,6 +176,34 @@ function createPayload(overrides: Partial<BackupPayload> = {}): BackupPayload {
         sourceDeviceId: 'device_test',
       },
     ],
+    balanceTypes: [
+      {
+        id: 'income',
+        userId: TEST_USER_ID,
+        name: 'Income',
+        isDefault: true,
+        isArchived: false,
+        sortOrder: 0,
+        createdAt: '2026-05-18T08:00:00.000Z',
+        updatedAt: '2026-05-18T08:30:00.000Z',
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test',
+      },
+    ],
+    balanceEntries: [
+      {
+        id: 'balance-entry-1',
+        userId: TEST_USER_ID,
+        amount: 100,
+        typeId: 'income',
+        createdAt: '2026-05-19T08:00:00.000Z',
+        updatedAt: '2026-05-19T08:30:00.000Z',
+        deletedAt: null,
+        schemaVersion: 1,
+        sourceDeviceId: 'device_test',
+      },
+    ],
     ...overrides,
   };
 }
@@ -131,6 +214,8 @@ function createMockRemoteBackupClient({
   failTable?: RemoteTableName;
 } = {}) {
   const rowsByTable: Record<RemoteTableName, Map<string, RemoteRow>> = {
+    remote_balance_entries: new Map(),
+    remote_balance_types: new Map(),
     remote_categories: new Map(),
     remote_transactions: new Map(),
   };
@@ -201,9 +286,13 @@ describe('Supabase remote backup adapter', () => {
       status: 'succeeded',
       uploadedTransactionsCount: 1,
       uploadedCategoriesCount: 1,
+      uploadedBalanceTypesCount: 1,
+      uploadedBalanceEntriesCount: 1,
     });
     expect(from).toHaveBeenNthCalledWith(1, 'remote_categories');
-    expect(from).toHaveBeenNthCalledWith(2, 'remote_transactions');
+    expect(from).toHaveBeenNthCalledWith(2, 'remote_balance_types');
+    expect(from).toHaveBeenNthCalledWith(3, 'remote_transactions');
+    expect(from).toHaveBeenNthCalledWith(4, 'remote_balance_entries');
     expect(upsert).toHaveBeenNthCalledWith(
       1,
       'remote_categories',
@@ -222,6 +311,21 @@ describe('Supabase remote backup adapter', () => {
     );
     expect(upsert).toHaveBeenNthCalledWith(
       2,
+      'remote_balance_types',
+      [
+        expect.objectContaining({
+          user_id: TEST_USER_ID,
+          id: 'income',
+          name: 'Income',
+          is_default: true,
+          sort_order: 0,
+          source_device_id: 'device_test',
+        }),
+      ],
+      { onConflict: 'user_id,id' },
+    );
+    expect(upsert).toHaveBeenNthCalledWith(
+      3,
       'remote_transactions',
       [
         expect.objectContaining({
@@ -230,6 +334,20 @@ describe('Supabase remote backup adapter', () => {
           amount: 12.5,
           category_id: 'coffee',
           is_leak: true,
+          source_device_id: 'device_test',
+        }),
+      ],
+      { onConflict: 'user_id,id' },
+    );
+    expect(upsert).toHaveBeenNthCalledWith(
+      4,
+      'remote_balance_entries',
+      [
+        expect.objectContaining({
+          user_id: TEST_USER_ID,
+          id: 'balance-entry-1',
+          amount: 100,
+          type_id: 'income',
           source_device_id: 'device_test',
         }),
       ],
@@ -247,7 +365,7 @@ describe('Supabase remote backup adapter', () => {
     await adapter.writeBackup(payload);
     await adapter.writeBackup(payload);
 
-    expect(upsert).toHaveBeenCalledTimes(4);
+    expect(upsert).toHaveBeenCalledTimes(8);
     expect(getRows('remote_categories')).toEqual([
       expect.objectContaining({
         user_id: TEST_USER_ID,
@@ -258,6 +376,18 @@ describe('Supabase remote backup adapter', () => {
       expect.objectContaining({
         user_id: TEST_USER_ID,
         id: 'txn-1',
+      }),
+    ]);
+    expect(getRows('remote_balance_types')).toEqual([
+      expect.objectContaining({
+        user_id: TEST_USER_ID,
+        id: 'income',
+      }),
+    ]);
+    expect(getRows('remote_balance_entries')).toEqual([
+      expect.objectContaining({
+        user_id: TEST_USER_ID,
+        id: 'balance-entry-1',
       }),
     ]);
   });

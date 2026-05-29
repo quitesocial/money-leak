@@ -3130,8 +3130,72 @@ Manual QA:
 - Current balance recalculates after spending.
 - Current balance recalculates after editing or deleting a transaction.
 - Balance entries persist after app restart.
-- History remains transaction-only and category icons/swipe actions still work.
+- History preserves category icons and swipe actions for transaction rows.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, and Shame Card are not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
-- Auth, sync, backup, restore, and remote Supabase schemas remain unchanged.
+- Balance remains separate from expense Transactions and Transaction CSV v1.
+
+## ML-82.5 Balance Sync, Backup, Restore, and Home History
+
+### 53. Balance backup/restore/manual sync contract
+
+**Preconditions**
+
+- Test with one authenticated account and one guest/local session.
+- Native SQLite data includes at least one balance type, one balance entry, one expense transaction, and one transaction tombstone.
+- Apply `supabase/migrations/20260529000000_create_remote_balance_tables.sql` to the target Supabase project before remote QA.
+
+**Steps**
+
+1. In guest mode, confirm Backup, Restore, and Sync controls are not available.
+2. Sign in, create a manual backup, then create it again.
+3. Inspect remote rows for `remote_balance_types` and `remote_balance_entries`.
+4. Restore the same backup twice on a device with existing local data.
+5. Run Settings `Sync now` after creating local balance and transaction changes.
+6. Run Settings `Sync now` after adding remote balance type/entry changes and remote balance tombstones.
+7. Delete cloud account data from Settings in a test account.
+
+**Expected result**
+
+- Guest mode never triggers remote balance reads or writes.
+- Backup payload includes balance types and balance entries with tombstones when present.
+- Remote backup upserts categories, balance types, transactions, then balance entries using `user_id,id`; repeated backup does not duplicate rows.
+- Restore is manual, authenticated, merge-only, and non-destructive.
+- Restore applies balance types before balance entries.
+- Repeated restore does not duplicate balance rows.
+- Remote balance tombstones soft-delete matching local balance rows by stable ID.
+- Remote balance tombstones with no local match do not create visible balance rows.
+- Manual sync pulls/applies/pushes balance types before balance entries and reports aggregate counts only.
+- Settings result copy does not expose raw backend errors, env values, tokens, user IDs, owner IDs, localOwnerIds, device IDs, or row payloads.
+- Successful restore and sync refresh Transactions, Categories, and Balance in Settings.
+- Delete account removes remote balance entries before balance types, then existing app-owned rows.
+
+### 54. Home History balance and expense feed
+
+**Preconditions**
+
+- Local data has balance additions and expense transactions for Today, Yesterday, and This week.
+
+**Steps**
+
+1. Open `Home`.
+2. Confirm current balance equals active balance entries minus active/non-deleted expense transactions.
+3. Switch Home History between `Today`, `Yesterday`, and `This week`.
+4. Add a balance entry whose type is later missing or archived.
+5. Swipe transaction rows left/right.
+
+**Expected result**
+
+- Home History is a chronological feed of balance additions and expense transactions, newest first.
+- Balance additions show a plus sign, for example `+100.00€`.
+- Expense transactions show a minus sign, for example `-20.00€`.
+- Balance rows show the balance type name, or a safe fallback when missing.
+- Transaction rows keep category icons and existing swipe edit/delete behavior.
+- Balance rows are not encoded as Transactions and do not add edit/delete UI.
+- Period filters apply to both balance additions and expenses.
+- Today summary remains transaction-only.
+- `Add` routes to `/add-balance`; `Spend` routes to `/add-transaction`.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, and Shame Card are root Stack screens, not bottom tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.

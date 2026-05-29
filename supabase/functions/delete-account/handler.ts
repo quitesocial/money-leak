@@ -20,10 +20,23 @@ type SafeErrorCode =
 
 type RemoteDeleteStep = {
   column: 'id' | 'user_id';
-  tableName: 'profiles' | 'remote_categories' | 'remote_transactions';
+  tableName:
+    | 'profiles'
+    | 'remote_balance_entries'
+    | 'remote_balance_types'
+    | 'remote_categories'
+    | 'remote_transactions';
 };
 
 const DELETE_ACCOUNT_STEPS: RemoteDeleteStep[] = [
+  {
+    tableName: 'remote_balance_entries',
+    column: 'user_id',
+  },
+  {
+    tableName: 'remote_balance_types',
+    column: 'user_id',
+  },
   {
     tableName: 'remote_transactions',
     column: 'user_id',

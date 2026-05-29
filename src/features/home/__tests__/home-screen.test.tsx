@@ -9,7 +9,7 @@ import {
 } from 'react-test-renderer';
 
 import { HomeScreen } from '@/features/home/home-screen';
-import type { BalanceEntry } from '@/types/balance';
+import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
@@ -31,6 +31,8 @@ const mockView = View;
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
+  balanceTypes: BalanceType[];
+  isLoading: boolean;
   isInitialized: boolean;
   loadBalance: () => Promise<void>;
 };
@@ -59,6 +61,8 @@ type MockPeriodScopeStoreState = {
 
 const mockBalanceStoreState: MockBalanceStoreState = {
   balanceEntries: [],
+  balanceTypes: [],
+  isLoading: false,
   isInitialized: true,
   loadBalance: mockLoadBalance,
 };
@@ -174,11 +178,36 @@ jest.mock('@/store/period-scope-store', () => ({
 function createBalanceEntry(
   overrides: Partial<BalanceEntry> & Pick<BalanceEntry, 'id'>,
 ): BalanceEntry {
+  const createdAt = overrides.createdAt ?? 1;
+
   return {
     id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
     amount: overrides.amount ?? 100,
     typeId: overrides.typeId ?? 'salary',
+    createdAt,
+    updatedAt: overrides.updatedAt ?? createdAt,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
+  };
+}
+
+function createBalanceType(
+  overrides: Partial<BalanceType> & Pick<BalanceType, 'id'>,
+): BalanceType {
+  return {
+    id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
+    name: overrides.name ?? overrides.id,
     createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? 1,
+    isDefault: overrides.isDefault ?? false,
+    isArchived: overrides.isArchived ?? false,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
+    sortOrder: overrides.sortOrder ?? 1,
   };
 }
 
@@ -269,6 +298,15 @@ beforeEach(() => {
   jest.clearAllMocks();
 
   mockBalanceStoreState.balanceEntries = [];
+  mockBalanceStoreState.balanceTypes = [
+    createBalanceType({
+      id: 'salary',
+      name: 'Salary',
+      isDefault: true,
+      sortOrder: 0,
+    }),
+  ];
+  mockBalanceStoreState.isLoading = false;
   mockBalanceStoreState.isInitialized = true;
   mockTransactionsStoreState.transactions = [];
   mockTransactionsStoreState.isLoading = false;
@@ -365,6 +403,89 @@ describe('HomeScreen', () => {
     expect(screenText).toContain('90.00€');
     expect(screenText).toContain('Today summary');
     expect(screenText).toContain('10.00€');
-    expect(screenText).not.toContain('100.00€');
+  });
+
+  it('renders balance additions with plus signs and expenses with minus signs', async () => {
+    const now = new Date().getTime();
+
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-1',
+        amount: 100,
+        typeId: 'salary',
+        createdAt: now,
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-1',
+        amount: 20,
+        category: 'food',
+        createdAt: now + 1,
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('Salary');
+    expect(screenText).toContain('+100.00€');
+    expect(screenText).toContain('Food');
+    expect(screenText).toContain('-20.00€');
+  });
+
+  it('applies the Home History period filter to additions and expenses', async () => {
+    const today = new Date();
+    const yesterday = new Date(today);
+
+    yesterday.setDate(today.getDate() - 1);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'yesterday';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-yesterday',
+        amount: 75,
+        createdAt: yesterday.getTime(),
+      }),
+      createBalanceEntry({
+        id: 'balance-today',
+        amount: 125,
+        createdAt: today.getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-yesterday',
+        amount: 25,
+        createdAt: yesterday.getTime(),
+      }),
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('+75.00€');
+    expect(screenText).toContain('-25.00€');
+    expect(screenText).not.toContain('+125.00€');
+    expect(screenText).not.toContain('-35.00€');
+  });
+
+  it('uses a safe fallback type name for missing balance types', async () => {
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-missing-type',
+        typeId: 'missing-type',
+        createdAt: new Date().getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+
+    expect(getNodeText(renderer.root)).toContain('Balance addition');
   });
 });

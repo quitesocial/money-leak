@@ -22,15 +22,15 @@ export default function RootLayout() {
   }, [initializeAuth]);
 
   useEffect(() => {
-    void initDatabase().catch((error) => {
-      console.error('Failed to initialize SQLite database', error);
+    void initDatabase().catch(() => {
+      console.error('Failed to initialize SQLite database');
     });
   }, []);
 
   useEffect(() => {
     if (!fontLoadError) return;
 
-    console.error('Failed to load New York font', fontLoadError);
+    console.error('Failed to load New York font');
   }, [fontLoadError]);
 
   if (!areFontsLoaded && !fontLoadError) return null;

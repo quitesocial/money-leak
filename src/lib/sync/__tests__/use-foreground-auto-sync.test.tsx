@@ -60,6 +60,14 @@ jest.mock('@/store/categories-store', () => ({
   },
 }));
 
+jest.mock('@/store/balance-store', () => ({
+  useBalanceStore: {
+    getState: () => ({
+      loadBalance: jest.fn(),
+    }),
+  },
+}));
+
 jest.mock('@/store/transactions-store', () => ({
   useTransactionsStore: {
     getState: () => ({
@@ -122,12 +130,20 @@ function createSucceededSyncResult(
     lastSuccessfulSyncAt: TEST_NOW,
     pulledTransactionsCount: 1,
     pulledCategoriesCount: 1,
+    pulledBalanceTypesCount: 1,
+    pulledBalanceEntriesCount: 1,
     appliedTransactionsCount: 1,
     appliedCategoriesCount: 1,
+    appliedBalanceTypesCount: 1,
+    appliedBalanceEntriesCount: 1,
     pushedTransactionsCount: 1,
     pushedCategoriesCount: 1,
+    pushedBalanceTypesCount: 1,
+    pushedBalanceEntriesCount: 1,
     ignoredTransactionTombstonesCount: 0,
     ignoredCategoryTombstonesCount: 0,
+    ignoredBalanceTypeTombstonesCount: 0,
+    ignoredBalanceEntryTombstonesCount: 0,
     conflictsCount: 0,
     ...overrides,
   };

@@ -10,6 +10,7 @@ import type {
   SyncService,
 } from '@/lib/sync/sync-types';
 import { useAuthStore } from '@/store/auth-store';
+import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 
@@ -30,6 +31,7 @@ const DEFAULT_REFRESH_AFTER_SUCCESS = async () => {
   await Promise.all([
     useTransactionsStore.getState().loadTransactions(),
     useCategoriesStore.getState().loadCategories(),
+    useBalanceStore.getState().loadBalance(),
   ]);
 };
 

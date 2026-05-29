@@ -19,7 +19,12 @@ type MockFetchOptions = {
   authDeleteStatus?: number;
   authUserBody?: Record<string, unknown>;
   authUserStatus?: number;
-  failingTable?: 'profiles' | 'remote_categories' | 'remote_transactions';
+  failingTable?:
+    | 'profiles'
+    | 'remote_balance_entries'
+    | 'remote_balance_types'
+    | 'remote_categories'
+    | 'remote_transactions';
 };
 
 function createRequest({
@@ -149,6 +154,12 @@ describe('delete-account Edge Function handler', () => {
 
     const calledUrls = calls.map((call) => call.url);
 
+    expect(calledUrls).toContain(
+      `${SUPABASE_URL}/rest/v1/remote_balance_entries?user_id=eq.${VERIFIED_USER_ID}`,
+    );
+    expect(calledUrls).toContain(
+      `${SUPABASE_URL}/rest/v1/remote_balance_types?user_id=eq.${VERIFIED_USER_ID}`,
+    );
     expect(calledUrls).toContain(
       `${SUPABASE_URL}/rest/v1/remote_transactions?user_id=eq.${VERIFIED_USER_ID}`,
     );

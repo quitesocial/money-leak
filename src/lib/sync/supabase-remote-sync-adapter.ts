@@ -3,16 +3,26 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/lib/supabase/supabase-client';
 import { toRemoteTimestamp } from '@/lib/sync/sync-mappers';
 import {
+  mapRemoteBalanceEntryRow,
+  mapRemoteBalanceEntryToRow,
+  mapRemoteBalanceTypeRow,
+  mapRemoteBalanceTypeToRow,
   mapRemoteCategoryRow,
   mapRemoteCategoryToRow,
   mapRemoteTransactionRow,
   mapRemoteTransactionToRow,
+  REMOTE_BALANCE_ENTRY_COLUMNS,
+  REMOTE_BALANCE_TYPE_COLUMNS,
   REMOTE_CATEGORY_COLUMNS,
   REMOTE_TRANSACTION_COLUMNS,
+  type RemoteBalanceEntryRow,
+  type RemoteBalanceTypeRow,
   type RemoteCategoryRow,
   type RemoteTransactionRow,
 } from '@/lib/sync/supabase-remote-row-mappers';
 import type {
+  RemoteBalanceEntry,
+  RemoteBalanceType,
   RemoteCategory,
   RemoteSyncAdapter,
   RemoteTransaction,
@@ -68,28 +78,44 @@ export function createSupabaseRemoteSyncAdapter({
       }
 
       try {
-        const [categories, transactions] = await Promise.all([
-          readRemoteCategories({ client, since, userId: normalizedUserId }),
-          readRemoteTransactions({ client, since, userId: normalizedUserId }),
-        ]);
+        const [categories, transactions, balanceTypes, balanceEntries] =
+          await Promise.all([
+            readRemoteCategories({ client, since, userId: normalizedUserId }),
+            readRemoteTransactions({ client, since, userId: normalizedUserId }),
+            readRemoteBalanceTypes({ client, since, userId: normalizedUserId }),
+            readRemoteBalanceEntries({
+              client,
+              since,
+              userId: normalizedUserId,
+            }),
+          ]);
 
         return {
           categories,
           transactions,
+          balanceTypes,
+          balanceEntries,
         };
       } catch {
         throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
       }
     },
 
-    async pushChanges({ categories, transactions }) {
+    async pushChanges({
+      balanceEntries,
+      balanceTypes,
+      categories,
+      transactions,
+    }) {
       const client = getClient();
 
       if (!client) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
 
       try {
         await upsertRemoteCategories({ categories, client });
+        await upsertRemoteBalanceTypes({ balanceTypes, client });
         await upsertRemoteTransactions({ client, transactions });
+        await upsertRemoteBalanceEntries({ balanceEntries, client });
       } catch {
         throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
       }
@@ -97,6 +123,8 @@ export function createSupabaseRemoteSyncAdapter({
       return {
         pushedTransactionsCount: transactions.length,
         pushedCategoriesCount: categories.length,
+        pushedBalanceTypesCount: balanceTypes.length,
+        pushedBalanceEntriesCount: balanceEntries.length,
       };
     },
   };
@@ -156,6 +184,58 @@ async function readRemoteTransactions({
   return result.data.map(mapRemoteTransactionRow);
 }
 
+async function readRemoteBalanceTypes({
+  client,
+  since,
+  userId,
+}: {
+  client: SupabaseRemoteSyncClient;
+  since: number | null;
+  userId: string;
+}) {
+  const query = client
+    .from('remote_balance_types')
+    .select(REMOTE_BALANCE_TYPE_COLUMNS)
+    .eq('user_id', userId);
+
+  const result = (await applySinceFilter({
+    query,
+    since,
+  })) as SupabaseReadResult<RemoteBalanceTypeRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteBalanceTypeRow);
+}
+
+async function readRemoteBalanceEntries({
+  client,
+  since,
+  userId,
+}: {
+  client: SupabaseRemoteSyncClient;
+  since: number | null;
+  userId: string;
+}) {
+  const query = client
+    .from('remote_balance_entries')
+    .select(REMOTE_BALANCE_ENTRY_COLUMNS)
+    .eq('user_id', userId);
+
+  const result = (await applySinceFilter({
+    query,
+    since,
+  })) as SupabaseReadResult<RemoteBalanceEntryRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteBalanceEntryRow);
+}
+
 function applySinceFilter({
   query,
   since,
@@ -195,6 +275,24 @@ async function upsertRemoteCategories({
   if (result.error) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
 }
 
+async function upsertRemoteBalanceTypes({
+  balanceTypes,
+  client,
+}: {
+  balanceTypes: RemoteBalanceType[];
+  client: SupabaseRemoteSyncClient;
+}) {
+  if (balanceTypes.length === 0) return;
+
+  const result = (await client
+    .from('remote_balance_types')
+    .upsert(balanceTypes.map(mapRemoteBalanceTypeToRow), {
+      onConflict: 'user_id,id',
+    })) as SupabaseWriteResult;
+
+  if (result.error) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+}
+
 async function upsertRemoteTransactions({
   client,
   transactions,
@@ -207,6 +305,24 @@ async function upsertRemoteTransactions({
   const result = (await client
     .from('remote_transactions')
     .upsert(transactions.map(mapRemoteTransactionToRow), {
+      onConflict: 'user_id,id',
+    })) as SupabaseWriteResult;
+
+  if (result.error) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+}
+
+async function upsertRemoteBalanceEntries({
+  balanceEntries,
+  client,
+}: {
+  balanceEntries: RemoteBalanceEntry[];
+  client: SupabaseRemoteSyncClient;
+}) {
+  if (balanceEntries.length === 0) return;
+
+  const result = (await client
+    .from('remote_balance_entries')
+    .upsert(balanceEntries.map(mapRemoteBalanceEntryToRow), {
       onConflict: 'user_id,id',
     })) as SupabaseWriteResult;
 

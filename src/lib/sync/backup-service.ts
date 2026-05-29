@@ -4,6 +4,8 @@ import {
   type LocalBackupDataSource,
 } from '@/lib/sync/local-backup-data-source';
 import {
+  mapLocalBalanceEntryToRemote,
+  mapLocalBalanceTypeToRemote,
   mapLocalCategoryToRemote,
   mapLocalTransactionToRemote,
   toRemoteTimestamp,
@@ -44,24 +46,33 @@ export function createBackupService({
 
     const localData = await dataSource.getBackupData();
 
-    const nonDeletedCategories = localData.categories.filter(
-      (category) => category.deletedAt === null,
-    );
-
     return {
       userId: normalizedUserId,
       schemaVersion: BACKUP_PAYLOAD_SCHEMA_VERSION,
       createdAt: toRemoteTimestamp(now()),
       includesTombstones: true,
+      includesBalance: true,
       transactions: localData.transactions.map((transaction) =>
         mapLocalTransactionToRemote({
           transaction,
           userId: normalizedUserId,
         }),
       ),
-      categories: nonDeletedCategories.map((category) =>
+      categories: localData.categories.map((category) =>
         mapLocalCategoryToRemote({
           category,
+          userId: normalizedUserId,
+        }),
+      ),
+      balanceTypes: localData.balanceTypes.map((balanceType) =>
+        mapLocalBalanceTypeToRemote({
+          balanceType,
+          userId: normalizedUserId,
+        }),
+      ),
+      balanceEntries: localData.balanceEntries.map((entry) =>
+        mapLocalBalanceEntryToRemote({
+          entry,
           userId: normalizedUserId,
         }),
       ),
@@ -97,6 +108,8 @@ export function createBackupService({
           payload,
           uploadedTransactionsCount: writeResult.uploadedTransactionsCount,
           uploadedCategoriesCount: writeResult.uploadedCategoriesCount,
+          uploadedBalanceTypesCount: writeResult.uploadedBalanceTypesCount,
+          uploadedBalanceEntriesCount: writeResult.uploadedBalanceEntriesCount,
         };
       } catch {
         return createFailedResult('remote_write_failed');

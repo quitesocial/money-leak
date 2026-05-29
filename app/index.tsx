@@ -22,8 +22,8 @@ export default function IndexRoute() {
         setBootstrapRoute(
           hasCompletedOnboarding ? '/(tabs)' : ('/onboarding' as Href),
         );
-      } catch (error) {
-        console.error('Failed to read onboarding completion', error);
+      } catch {
+        console.error('Failed to read onboarding completion');
 
         if (!isMounted) return;
 

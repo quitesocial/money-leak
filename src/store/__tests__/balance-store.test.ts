@@ -29,11 +29,15 @@ function createBalanceType(
 ): BalanceType {
   return {
     id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
     name: overrides.name ?? overrides.id,
     createdAt: overrides.createdAt ?? 1,
     updatedAt: overrides.updatedAt ?? 1,
     isDefault: overrides.isDefault ?? false,
     isArchived: overrides.isArchived ?? false,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
     sortOrder: overrides.sortOrder ?? 1,
   };
 }
@@ -43,9 +47,14 @@ function createBalanceEntry(
 ): BalanceEntry {
   return {
     id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
     amount: overrides.amount ?? 100,
     typeId: overrides.typeId ?? 'salary',
     createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? overrides.createdAt ?? 1,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
   };
 }
 

@@ -1,5 +1,7 @@
 import type {
   BackupPayload,
+  RemoteBalanceEntry,
+  RemoteBalanceType,
   RemoteBackupAdapter,
   RemoteCategory,
   RemoteTransaction,
@@ -12,6 +14,8 @@ type FakeRemoteBackupAdapterOptions = {
 export type FakeRemoteBackupAdapter = RemoteBackupAdapter & {
   getTransactions: () => RemoteTransaction[];
   getCategories: () => RemoteCategory[];
+  getBalanceTypes: () => RemoteBalanceType[];
+  getBalanceEntries: () => RemoteBalanceEntry[];
   getWriteCount: () => number;
   setShouldFail: (shouldFail: boolean) => void;
 };
@@ -21,6 +25,8 @@ export function createFakeRemoteBackupAdapter({
 }: FakeRemoteBackupAdapterOptions = {}): FakeRemoteBackupAdapter {
   const transactionsByKey = new Map<string, RemoteTransaction>();
   const categoriesByKey = new Map<string, RemoteCategory>();
+  const balanceTypesByKey = new Map<string, RemoteBalanceType>();
+  const balanceEntriesByKey = new Map<string, RemoteBalanceEntry>();
   let writeCount = 0;
   let isFailing = shouldFail;
 
@@ -54,9 +60,31 @@ export function createFakeRemoteBackupAdapter({
         categoriesByKey.set(getUserOwnedKey(category), category);
       }
 
+      for (const balanceType of payload.balanceTypes) {
+        if (balanceType.userId !== userId) {
+          throw new Error(
+            'Remote balance type user id does not match payload.',
+          );
+        }
+
+        balanceTypesByKey.set(getUserOwnedKey(balanceType), balanceType);
+      }
+
+      for (const entry of payload.balanceEntries) {
+        if (entry.userId !== userId) {
+          throw new Error(
+            'Remote balance entry user id does not match payload.',
+          );
+        }
+
+        balanceEntriesByKey.set(getUserOwnedKey(entry), entry);
+      }
+
       return {
         uploadedTransactionsCount: payload.transactions.length,
         uploadedCategoriesCount: payload.categories.length,
+        uploadedBalanceTypesCount: payload.balanceTypes.length,
+        uploadedBalanceEntriesCount: payload.balanceEntries.length,
       };
     },
     getTransactions() {
@@ -64,6 +92,12 @@ export function createFakeRemoteBackupAdapter({
     },
     getCategories() {
       return [...categoriesByKey.values()];
+    },
+    getBalanceTypes() {
+      return [...balanceTypesByKey.values()];
+    },
+    getBalanceEntries() {
+      return [...balanceEntriesByKey.values()];
     },
     getWriteCount() {
       return writeCount;

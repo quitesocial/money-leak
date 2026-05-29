@@ -69,6 +69,10 @@ const migrations: Migration[] = [
     id: '003_add_category_icons',
     up: addCategoryIcons,
   },
+  {
+    id: '004_add_balance_sync_ready_local_fields',
+    up: addBalanceSyncReadyLocalFields,
+  },
 ];
 
 export async function ensureSchemaMigrationsTable(
@@ -372,6 +376,175 @@ export async function addCategoryIcons(database: MigrationTransactionDatabase) {
   }
 }
 
+export async function addBalanceSyncReadyLocalFields(
+  database: MigrationTransactionDatabase,
+  { localOwnerId, deviceId, now }: MigrationContext,
+) {
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_types',
+    columnName: 'owner_id',
+    sql: "ALTER TABLE balance_types ADD COLUMN owner_id TEXT NOT NULL DEFAULT '';",
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_types',
+    columnName: 'updated_at',
+    sql: 'ALTER TABLE balance_types ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_types',
+    columnName: 'deleted_at',
+    sql: 'ALTER TABLE balance_types ADD COLUMN deleted_at INTEGER;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_types',
+    columnName: 'schema_version',
+    sql: 'ALTER TABLE balance_types ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_types',
+    columnName: 'source_device_id',
+    sql: "ALTER TABLE balance_types ADD COLUMN source_device_id TEXT NOT NULL DEFAULT '';",
+  });
+
+  await database.runAsync(
+    `
+      UPDATE balance_types
+      SET owner_id = ?
+      WHERE owner_id IS NULL OR owner_id = ''
+    `,
+    localOwnerId,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_types
+      SET updated_at = CASE
+        WHEN updated_at IS NOT NULL AND updated_at > 0 THEN updated_at
+        WHEN created_at IS NOT NULL AND created_at > 0 THEN created_at
+        ELSE ?
+      END
+      WHERE updated_at IS NULL OR updated_at <= 0
+    `,
+    now(),
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_types
+      SET deleted_at = NULL
+      WHERE deleted_at IS NOT NULL AND deleted_at <= 0
+    `,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_types
+      SET schema_version = 1
+      WHERE schema_version IS NULL OR schema_version <= 0
+    `,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_types
+      SET source_device_id = ?
+      WHERE source_device_id IS NULL OR source_device_id = ''
+    `,
+    deviceId,
+  );
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_entries',
+    columnName: 'owner_id',
+    sql: "ALTER TABLE balance_entries ADD COLUMN owner_id TEXT NOT NULL DEFAULT '';",
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_entries',
+    columnName: 'updated_at',
+    sql: 'ALTER TABLE balance_entries ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_entries',
+    columnName: 'deleted_at',
+    sql: 'ALTER TABLE balance_entries ADD COLUMN deleted_at INTEGER;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_entries',
+    columnName: 'schema_version',
+    sql: 'ALTER TABLE balance_entries ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 1;',
+  });
+
+  await addColumnIfMissing({
+    database,
+    tableName: 'balance_entries',
+    columnName: 'source_device_id',
+    sql: "ALTER TABLE balance_entries ADD COLUMN source_device_id TEXT NOT NULL DEFAULT '';",
+  });
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET owner_id = ?
+      WHERE owner_id IS NULL OR owner_id = ''
+    `,
+    localOwnerId,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET updated_at = CASE
+        WHEN updated_at IS NOT NULL AND updated_at > 0 THEN updated_at
+        WHEN created_at IS NOT NULL AND created_at > 0 THEN created_at
+        ELSE ?
+      END
+      WHERE updated_at IS NULL OR updated_at <= 0
+    `,
+    now(),
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET deleted_at = NULL
+      WHERE deleted_at IS NOT NULL AND deleted_at <= 0
+    `,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET schema_version = 1
+      WHERE schema_version IS NULL OR schema_version <= 0
+    `,
+  );
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET source_device_id = ?
+      WHERE source_device_id IS NULL OR source_device_id = ''
+    `,
+    deviceId,
+  );
+}
+
 async function addColumnIfMissing({
   database,
   tableName,
@@ -379,7 +552,11 @@ async function addColumnIfMissing({
   sql,
 }: {
   database: MigrationTransactionDatabase;
-  tableName: 'categories' | 'transactions';
+  tableName:
+    | 'balance_entries'
+    | 'balance_types'
+    | 'categories'
+    | 'transactions';
   columnName: string;
   sql: string;
 }) {
@@ -392,7 +569,11 @@ async function addColumnIfMissing({
 
 async function getTableColumns(
   database: MigrationTransactionDatabase,
-  tableName: 'categories' | 'transactions',
+  tableName:
+    | 'balance_entries'
+    | 'balance_types'
+    | 'categories'
+    | 'transactions',
 ) {
   const rows = await database.getAllAsync<TableInfoRow>(
     `PRAGMA table_info(${tableName})`,

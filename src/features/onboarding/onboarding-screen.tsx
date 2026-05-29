@@ -76,8 +76,8 @@ export function OnboardingScreen() {
 
         setIsReminderEnabled(storedReminderEnabled);
         setReminderPermissionStatus(permissionStatus);
-      } catch (error) {
-        console.error('Failed to load reminder settings', error);
+      } catch {
+        console.error('Failed to load reminder settings');
 
         if (!isMounted) return;
 
@@ -103,8 +103,8 @@ export function OnboardingScreen() {
     try {
       await setHasCompletedOnboarding();
       router.replace('/(tabs)');
-    } catch (error) {
-      console.error('Failed to persist onboarding completion', error);
+    } catch {
+      console.error('Failed to persist onboarding completion');
       setSaveError("Couldn't finish setup. Try again.");
       setIsSaving(false);
     }
@@ -156,8 +156,8 @@ export function OnboardingScreen() {
       await cancelDailyCheckInReminder();
       await setReminderEnabled(false);
       setIsReminderEnabled(false);
-    } catch (error) {
-      console.error('Failed to update reminder preference', error);
+    } catch {
+      console.error('Failed to update reminder preference');
       setIsReminderEnabled(previousEnabled);
       setReminderError(
         nextEnabled
