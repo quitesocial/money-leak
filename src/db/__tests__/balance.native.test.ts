@@ -5,10 +5,12 @@ import type { BalanceEntryInput, BalanceTypeInput } from '@/types/balance';
 import {
   createBalanceEntry,
   createBalanceType,
+  deleteBalanceEntry,
   getBalanceEntries,
   getBalanceEntriesForBackup,
   getBalanceTypes,
   getBalanceTypesForBackup,
+  updateBalanceEntry,
 } from '../balance.native';
 
 const mockInitDatabase = jest.fn<() => Promise<void>>();
@@ -87,6 +89,17 @@ class FakeBalanceDatabase {
     if (source.includes('INSERT INTO balance_entries')) {
       this.insertEntry(params);
       return { changes: 1 };
+    }
+
+    if (
+      source.includes('UPDATE balance_entries') &&
+      source.includes('deleted_at = ?')
+    ) {
+      return { changes: this.deleteEntry(params) };
+    }
+
+    if (source.includes('UPDATE balance_entries')) {
+      return { changes: this.updateEntry(params) };
     }
 
     if (source.includes('INSERT INTO balance_types')) {
@@ -224,6 +237,60 @@ class FakeBalanceDatabase {
       sort_order: sortOrder,
     });
   }
+
+  private updateEntry(params: unknown[]) {
+    const [amount, typeId, createdAt, updatedAt, sourceDeviceId, id] = params;
+
+    if (
+      typeof amount !== 'number' ||
+      typeof typeId !== 'string' ||
+      typeof createdAt !== 'number' ||
+      typeof updatedAt !== 'number' ||
+      typeof sourceDeviceId !== 'string' ||
+      typeof id !== 'string'
+    ) {
+      throw new Error('Invalid balance entry update params.');
+    }
+
+    const entry = this.entries.find((currentEntry) => {
+      return currentEntry.id === id && currentEntry.deleted_at === null;
+    });
+
+    if (!entry) return 0;
+
+    entry.amount = amount;
+    entry.type_id = typeId;
+    entry.created_at = createdAt;
+    entry.updated_at = updatedAt;
+    entry.source_device_id = sourceDeviceId;
+
+    return 1;
+  }
+
+  private deleteEntry(params: unknown[]) {
+    const [deletedAt, updatedAt, sourceDeviceId, id] = params;
+
+    if (
+      typeof deletedAt !== 'number' ||
+      typeof updatedAt !== 'number' ||
+      typeof sourceDeviceId !== 'string' ||
+      typeof id !== 'string'
+    ) {
+      throw new Error('Invalid balance entry delete params.');
+    }
+
+    const entry = this.entries.find((currentEntry) => {
+      return currentEntry.id === id && currentEntry.deleted_at === null;
+    });
+
+    if (!entry) return 0;
+
+    entry.deleted_at = deletedAt;
+    entry.updated_at = updatedAt;
+    entry.source_device_id = sourceDeviceId;
+
+    return 1;
+  }
 }
 
 describe('native balance persistence', () => {
@@ -307,6 +374,43 @@ describe('native balance persistence', () => {
         deletedAt: null,
         schemaVersion: 1,
         sourceDeviceId: 'device_test-device',
+      }),
+    ]);
+  });
+
+  it('updates and soft-deletes balance entries', async () => {
+    const entry: BalanceEntryInput = {
+      id: 'entry-1',
+      amount: 100,
+      typeId: 'salary',
+      createdAt: 1000,
+    };
+
+    await createBalanceEntry(entry);
+    await updateBalanceEntry({
+      ...entry,
+      amount: 175,
+      typeId: 'investment',
+      createdAt: 2000,
+    });
+
+    expect(await getBalanceEntries()).toEqual([
+      expect.objectContaining({
+        id: 'entry-1',
+        amount: 175,
+        typeId: 'investment',
+        createdAt: 2000,
+        sourceDeviceId: 'device_test-device',
+      }),
+    ]);
+
+    await deleteBalanceEntry('entry-1');
+
+    expect(await getBalanceEntries()).toEqual([]);
+    expect(await getBalanceEntriesForBackup()).toEqual([
+      expect.objectContaining({
+        id: 'entry-1',
+        deletedAt: expect.any(Number),
       }),
     ]);
   });

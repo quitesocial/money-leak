@@ -79,6 +79,13 @@ export default function RootLayout() {
           name="transaction/[id]/edit"
           options={{ title: 'Edit Transaction' }}
         />
+
+        <Stack.Screen
+          name="balance/[id]/edit"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );

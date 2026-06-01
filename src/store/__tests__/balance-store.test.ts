@@ -11,6 +11,9 @@ import type {
 const mockGetBalanceEntries = jest.fn<() => Promise<BalanceEntry[]>>();
 const mockCreateBalanceEntry =
   jest.fn<(entry: BalanceEntryInput) => Promise<void>>();
+const mockUpdateBalanceEntry =
+  jest.fn<(entry: BalanceEntryInput) => Promise<void>>();
+const mockDeleteBalanceEntry = jest.fn<(id: string) => Promise<void>>();
 const mockGetBalanceTypes = jest.fn<() => Promise<BalanceType[]>>();
 const mockCreateBalanceType =
   jest.fn<(balanceType: BalanceTypeInput) => Promise<void>>();
@@ -19,6 +22,9 @@ jest.mock('@/db/balance', () => ({
   getBalanceEntries: () => mockGetBalanceEntries(),
   createBalanceEntry: (entry: BalanceEntryInput) =>
     mockCreateBalanceEntry(entry),
+  updateBalanceEntry: (entry: BalanceEntryInput) =>
+    mockUpdateBalanceEntry(entry),
+  deleteBalanceEntry: (id: string) => mockDeleteBalanceEntry(id),
   getBalanceTypes: () => mockGetBalanceTypes(),
   createBalanceType: (balanceType: BalanceTypeInput) =>
     mockCreateBalanceType(balanceType),
@@ -127,6 +133,31 @@ describe('balance store', () => {
 
     expect(mockCreateBalanceEntry).toHaveBeenCalledWith(entry);
     expect(useBalanceStore.getState().balanceEntries).toEqual([entry]);
+  });
+
+  it('updates a balance entry then refreshes entries', async () => {
+    const entry = createBalanceEntry({
+      id: 'entry-existing',
+      amount: 200,
+    });
+
+    mockUpdateBalanceEntry.mockResolvedValue(undefined);
+    mockGetBalanceEntries.mockResolvedValue([entry]);
+
+    await useBalanceStore.getState().updateBalanceEntry(entry);
+
+    expect(mockUpdateBalanceEntry).toHaveBeenCalledWith(entry);
+    expect(useBalanceStore.getState().balanceEntries).toEqual([entry]);
+  });
+
+  it('removes a balance entry then refreshes entries', async () => {
+    mockDeleteBalanceEntry.mockResolvedValue(undefined);
+    mockGetBalanceEntries.mockResolvedValue([]);
+
+    await useBalanceStore.getState().removeBalanceEntry('entry-existing');
+
+    expect(mockDeleteBalanceEntry).toHaveBeenCalledWith('entry-existing');
+    expect(useBalanceStore.getState().balanceEntries).toEqual([]);
   });
 
   it('creates a trimmed custom balance type', async () => {

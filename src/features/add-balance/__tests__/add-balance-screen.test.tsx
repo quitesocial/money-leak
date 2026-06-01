@@ -10,7 +10,11 @@ import {
 
 import { AddBalanceScreen } from '@/features/add-balance/add-balance-screen';
 import { normalizeBalanceTypeName } from '@/lib/balance-utils';
-import type { BalanceEntryInput, BalanceType } from '@/types/balance';
+import type {
+  BalanceEntry,
+  BalanceEntryInput,
+  BalanceType,
+} from '@/types/balance';
 
 const mockRouter = {
   back: jest.fn(),
@@ -20,6 +24,8 @@ const mockRouter = {
 
 const mockLoadBalance = jest.fn<() => Promise<void>>();
 const mockAddBalanceEntry =
+  jest.fn<(entry: BalanceEntryInput) => Promise<void>>();
+const mockUpdateBalanceEntry =
   jest.fn<(entry: BalanceEntryInput) => Promise<void>>();
 const mockAddBalanceType =
   jest.fn<(input: { name: string }) => Promise<void>>();
@@ -32,7 +38,7 @@ const mockText = Text;
 const mockView = View;
 
 type MockBalanceStoreState = {
-  balanceEntries: BalanceEntryInput[];
+  balanceEntries: BalanceEntry[];
   balanceTypes: BalanceType[];
   activeBalanceTypes: BalanceType[];
   isLoading: boolean;
@@ -40,6 +46,7 @@ type MockBalanceStoreState = {
   error: string | null;
   loadBalance: () => Promise<void>;
   addBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
+  updateBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
   addBalanceType: (input: { name: string }) => Promise<void>;
   clearError: () => void;
 };
@@ -53,6 +60,7 @@ const mockBalanceStoreState: MockBalanceStoreState = {
   error: null,
   loadBalance: mockLoadBalance,
   addBalanceEntry: mockAddBalanceEntry,
+  updateBalanceEntry: mockUpdateBalanceEntry,
   addBalanceType: mockAddBalanceType,
   clearError: mockClearBalanceError,
 };
@@ -131,6 +139,24 @@ function createBalanceType(
     schemaVersion: overrides.schemaVersion ?? 1,
     sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
     sortOrder: overrides.sortOrder ?? 1,
+  };
+}
+
+function createBalanceEntry(
+  overrides: Partial<BalanceEntry> & Pick<BalanceEntry, 'id'>,
+): BalanceEntry {
+  const createdAt = overrides.createdAt ?? 1;
+
+  return {
+    id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
+    amount: overrides.amount ?? 100,
+    typeId: overrides.typeId ?? 'salary',
+    createdAt,
+    updatedAt: overrides.updatedAt ?? createdAt,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
   };
 }
 
@@ -260,6 +286,30 @@ async function renderAddBalanceScreen() {
   return renderResult.renderer;
 }
 
+async function renderEditBalanceScreen(initialEntry: BalanceEntry) {
+  const renderResult: { renderer: ReactTestRenderer | null } = {
+    renderer: null,
+  };
+
+  await act(async () => {
+    renderResult.renderer = create(
+      React.createElement(AddBalanceScreen, {
+        initialEntry,
+        onSubmit: mockUpdateBalanceEntry,
+        submitLabel: 'Save Changes',
+        title: 'Edit Balance',
+      }),
+    );
+    await flushPromises();
+  });
+
+  if (!renderResult.renderer) {
+    throw new Error('Edit Balance screen did not render.');
+  }
+
+  return renderResult.renderer;
+}
+
 async function enterText(
   renderer: ReactTestRenderer,
   placeholder: string,
@@ -300,6 +350,7 @@ beforeEach(() => {
   mockBalanceStoreState.error = null;
 
   mockAddBalanceEntry.mockResolvedValue(undefined);
+  mockUpdateBalanceEntry.mockResolvedValue(undefined);
   mockLoadBalance.mockResolvedValue(undefined);
   mockAddBalanceType.mockImplementation(async ({ name }) => {
     const normalizedName = normalizeBalanceTypeName(name);
@@ -455,5 +506,30 @@ describe('AddBalanceScreen', () => {
 
     expect(mockRouter.back).not.toHaveBeenCalled();
     expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
+  });
+
+  it('edits an existing balance entry with its stable ID', async () => {
+    const initialEntry = createBalanceEntry({
+      id: 'balance-1',
+      amount: 250,
+      typeId: 'salary',
+      createdAt: 1000,
+    });
+    const renderer = await renderEditBalanceScreen(initialEntry);
+
+    expectText(renderer, 'Edit Balance');
+    expectText(renderer, 'Save Changes');
+
+    await enterText(renderer, '0.00', '300');
+    await pressButton(renderer, 'Investment');
+    await pressButton(renderer, 'Save Changes');
+
+    expect(mockUpdateBalanceEntry).toHaveBeenCalledWith({
+      id: 'balance-1',
+      amount: 300,
+      typeId: 'investment',
+      createdAt: 1000,
+    });
+    expect(mockAddBalanceEntry).not.toHaveBeenCalled();
   });
 });

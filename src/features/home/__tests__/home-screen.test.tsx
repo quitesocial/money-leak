@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as React from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import {
   act,
   create,
@@ -20,6 +20,7 @@ const mockRouter = {
 const mockLoadBalance = jest.fn<() => Promise<void>>();
 const mockLoadCategories = jest.fn<() => Promise<void>>();
 const mockLoadTransactions = jest.fn<() => Promise<void>>();
+const mockRemoveBalanceEntry = jest.fn<(_id: string) => Promise<void>>();
 const mockRemoveTransaction = jest.fn<(_id: string) => Promise<void>>();
 const mockSetSelectedCustomDate = jest.fn();
 const mockSetSelectedPeriod = jest.fn();
@@ -36,6 +37,7 @@ type MockBalanceStoreState = {
   isLoading: boolean;
   isInitialized: boolean;
   loadBalance: () => Promise<void>;
+  removeBalanceEntry: (id: string) => Promise<void>;
 };
 
 type MockTransactionsStoreState = {
@@ -66,6 +68,7 @@ const mockBalanceStoreState: MockBalanceStoreState = {
   isLoading: false,
   isInitialized: true,
   loadBalance: mockLoadBalance,
+  removeBalanceEntry: mockRemoveBalanceEntry,
 };
 
 const mockTransactionsStoreState: MockTransactionsStoreState = {
@@ -304,6 +307,18 @@ function findNodeByProp(
   return node;
 }
 
+function findTextNode(renderer: ReactTestRenderer, text: string) {
+  const node = findAllNodes(renderer.root, (candidate) => {
+    return getNodeText(candidate) === text;
+  })[0];
+
+  if (!node) {
+    throw new Error(`Could not find text node ${text}.`);
+  }
+
+  return node;
+}
+
 function getPressHandler(node: ReactTestInstance) {
   const { onPress } = node.props;
 
@@ -346,6 +361,9 @@ async function renderHomeScreen() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+
+  mockRemoveBalanceEntry.mockResolvedValue(undefined);
+  mockRemoveTransaction.mockResolvedValue(undefined);
 
   mockBalanceStoreState.balanceEntries = [];
   mockBalanceStoreState.balanceTypes = [
@@ -514,6 +532,17 @@ describe('HomeScreen', () => {
     expect(screenText.indexOf('Food')).toBeLessThan(
       screenText.indexOf('Salary'),
     );
+
+    expect(
+      StyleSheet.flatten(findTextNode(renderer, '+100.00 €').props.style),
+    ).toMatchObject({
+      color: '#34c759',
+    });
+    expect(
+      StyleSheet.flatten(findTextNode(renderer, '-20.00 €').props.style),
+    ).toMatchObject({
+      color: '#050505',
+    });
   });
 
   it('applies the Today History period filter to additions and expenses', async () => {
@@ -673,7 +702,7 @@ describe('HomeScreen', () => {
     );
   });
 
-  it('does not expose swipe edit or delete actions for balance rows', async () => {
+  it('keeps balance addition edit and delete affordances testable', async () => {
     mockBalanceStoreState.balanceEntries = [
       createBalanceEntry({
         id: 'balance-1',
@@ -683,25 +712,52 @@ describe('HomeScreen', () => {
     ];
 
     const renderer = await renderHomeScreen();
-    const balanceRow = findNodeByProp(
+    expect(
+      findNodeByProp(renderer, 'testID', 'balance-history-row-balance-1'),
+    ).toBeTruthy();
+
+    const editAction = findNodeByProp(
       renderer,
-      'testID',
-      'balance-history-row-balance-1',
+      'accessibilityLabel',
+      'Edit balance addition',
+    );
+    const deleteAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Delete balance addition',
     );
 
-    expect(
-      findAllNodes(
-        renderer.root,
-        (node) => node.props.accessibilityLabel === 'Edit transaction',
-      ),
-    ).toHaveLength(0);
-    expect(
-      findAllNodes(
-        renderer.root,
-        (node) => node.props.accessibilityLabel === 'Delete transaction',
-      ),
-    ).toHaveLength(0);
-    expect(balanceRow.props.onMoveShouldSetResponder).toBeUndefined();
+    await act(async () => {
+      getPressHandler(editAction)();
+      await flushPromises();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/balance/balance-1/edit');
+
+    await act(async () => {
+      getPressHandler(deleteAction)();
+      await flushPromises();
+    });
+
+    expect(mockAlert).toHaveBeenCalledWith(
+      'Delete balance addition?',
+      expect.any(String),
+      expect.any(Array),
+    );
+
+    const alertButtons = mockAlert.mock.calls.at(-1)?.[2] as
+      | { onPress?: () => void; text: string }[]
+      | undefined;
+    const confirmDeleteButton = alertButtons?.find((button) => {
+      return button.text === 'Delete';
+    });
+
+    await act(async () => {
+      confirmDeleteButton?.onPress?.();
+      await flushPromises();
+    });
+
+    expect(mockRemoveBalanceEntry).toHaveBeenCalledWith('balance-1');
   });
 
   it('uses a safe fallback type name for missing balance types', async () => {

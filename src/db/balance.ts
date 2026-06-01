@@ -18,6 +18,8 @@ type BalanceModule = {
   getBalanceEntries: () => Promise<BalanceEntry[]>;
   getBalanceEntriesForBackup: () => Promise<BalanceEntry[]>;
   createBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
+  updateBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
+  deleteBalanceEntry: (id: string) => Promise<void>;
   restoreBalanceEntries: (
     entries: BalanceEntryRestoreInput[],
   ) => Promise<number>;
@@ -52,6 +54,8 @@ export const {
   getBalanceEntries,
   getBalanceEntriesForBackup,
   createBalanceEntry,
+  updateBalanceEntry,
+  deleteBalanceEntry,
   restoreBalanceEntries,
   restoreBalanceEntryTombstones,
   getBalanceTypes,

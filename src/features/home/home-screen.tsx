@@ -529,47 +529,250 @@ function HistoryTransactionItem({
 function HistoryBalanceItem({
   amountLabel,
   entry,
+  isDeleting,
+  isDisabled,
+  isOpen,
+  onDelete,
+  onEdit,
+  onSwipeClose,
+  onSwipeInteractionStart,
+  onSwipeOpen,
   typeName,
 }: {
   amountLabel: string;
   entry: BalanceEntry;
+  isDeleting: boolean;
+  isDisabled: boolean;
+  isOpen: boolean;
+  onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
+  onSwipeClose: (id: string) => void;
+  onSwipeInteractionStart: (id: string) => void;
+  onSwipeOpen: (id: string) => void;
   typeName: string;
 }) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const isHorizontallyLockedRef = useRef(false);
+
+  const animateTo = useCallback(
+    (toValue: number) => {
+      Animated.spring(translateX, {
+        toValue,
+        damping: 22,
+        mass: 0.72,
+        stiffness: 260,
+        useNativeDriver: false,
+      }).start();
+    },
+    [translateX],
+  );
+
+  const closeActions = useCallback(() => {
+    animateTo(0);
+    onSwipeClose(entry.id);
+  }, [animateTo, entry.id, onSwipeClose]);
+
+  const revealDelete = useCallback(() => {
+    onSwipeOpen(entry.id);
+    animateTo(SWIPE_ACTION_WIDTH);
+  }, [animateTo, entry.id, onSwipeOpen]);
+
+  const revealEdit = useCallback(() => {
+    onSwipeOpen(entry.id);
+    animateTo(-SWIPE_ACTION_WIDTH);
+  }, [animateTo, entry.id, onSwipeOpen]);
+
+  const handleTouchStart = useCallback(() => {
+    if (isDisabled) return;
+
+    onSwipeInteractionStart(entry.id);
+  }, [entry.id, isDisabled, onSwipeInteractionStart]);
+
+  const handleDeletePress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onDelete(entry.id);
+  }, [closeActions, entry.id, isDisabled, onDelete]);
+
+  const handleEditPress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onEdit(entry.id);
+  }, [closeActions, entry.id, isDisabled, onEdit]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
+        },
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
+        },
+        onPanResponderGrant: () => {
+          onSwipeInteractionStart(entry.id);
+          translateX.stopAnimation();
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          if (isDisabled || !isHorizontallyLockedRef.current) return;
+
+          translateX.setValue(clampSwipeTranslation(gestureState.dx));
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const wasHorizontallyLocked = isHorizontallyLockedRef.current;
+          isHorizontallyLockedRef.current = false;
+
+          if (!wasHorizontallyLocked) {
+            closeActions();
+
+            return;
+          }
+
+          if (
+            gestureState.dx > SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx > SWIPE_VELOCITY_THRESHOLD
+          ) {
+            revealDelete();
+
+            return;
+          }
+
+          if (
+            gestureState.dx < -SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx < -SWIPE_VELOCITY_THRESHOLD
+          ) {
+            revealEdit();
+
+            return;
+          }
+
+          closeActions();
+        },
+        onPanResponderTerminationRequest: () =>
+          !isHorizontallyLockedRef.current,
+        onPanResponderTerminate: () => {
+          isHorizontallyLockedRef.current = false;
+          closeActions();
+        },
+      }),
+    [
+      closeActions,
+      entry.id,
+      isDisabled,
+      onSwipeInteractionStart,
+      revealDelete,
+      revealEdit,
+      translateX,
+    ],
+  );
+
+  useEffect(() => {
+    if (isDisabled) closeActions();
+  }, [closeActions, isDisabled]);
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    animateTo(0);
+  }, [animateTo, isOpen]);
+
+  const cardBackgroundColor = translateX.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
+  });
+
   return (
-    <View
-      style={[styles.transactionCard, styles.balanceEntryCard]}
-      testID={`balance-history-row-${entry.id}`}
-    >
-      <View style={styles.transactionMainRow}>
-        <View style={styles.transactionInfoRow}>
-          <View style={styles.transactionIconSlot}>
-            <SymbolView
-              fallback={<Text style={styles.balanceIconFallback}>+</Text>}
-              name="arrow.down.left"
-              resizeMode="scaleAspectFit"
-              size={18}
-              testID={`balance-entry-icon-${entry.id}`}
-              tintColor="#111111"
-              type="monochrome"
-              weight="semibold"
-            />
+    <View style={styles.swipeContainer}>
+      <View style={styles.swipeActionLayer}>
+        <Pressable
+          accessibilityLabel="Delete balance addition"
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleDeletePress}
+          style={[
+            styles.swipeActionCircle,
+            styles.deleteSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Del" name="trash" />
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel="Edit balance addition"
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleEditPress}
+          style={[
+            styles.swipeActionCircle,
+            styles.editSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
+        </Pressable>
+      </View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        onTouchStart={handleTouchStart}
+        style={[
+          styles.transactionCard,
+          styles.balanceEntryCard,
+          {
+            backgroundColor: cardBackgroundColor,
+            transform: [{ translateX }],
+          },
+        ]}
+        testID={`balance-history-row-${entry.id}`}
+      >
+        <View style={styles.transactionMainRow}>
+          <View style={styles.transactionInfoRow}>
+            <View style={styles.transactionIconSlot}>
+              <SymbolView
+                fallback={<Text style={styles.balanceIconFallback}>+</Text>}
+                name="arrow.down.left"
+                resizeMode="scaleAspectFit"
+                size={18}
+                testID={`balance-entry-icon-${entry.id}`}
+                tintColor="#111111"
+                type="monochrome"
+                weight="semibold"
+              />
+            </View>
+
+            <View style={styles.transactionCopy}>
+              <Text numberOfLines={1} style={styles.categoryText}>
+                {typeName}
+              </Text>
+
+              <Text style={styles.timestampText}>
+                {formatTransactionTimestamp(entry.createdAt)}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.transactionCopy}>
-            <Text numberOfLines={1} style={styles.categoryText}>
-              {typeName}
-            </Text>
-
-            <Text style={styles.timestampText}>
-              {formatTransactionTimestamp(entry.createdAt)}
-            </Text>
-          </View>
+          <Text style={[styles.amountText, styles.amountTextPositive]}>
+            {amountLabel}
+          </Text>
         </View>
 
-        <Text style={[styles.amountText, styles.amountTextPositive]}>
-          {amountLabel}
-        </Text>
-      </View>
+        {isDeleting ? (
+          <Text style={styles.deletingText}>Deleting...</Text>
+        ) : null}
+      </Animated.View>
     </View>
   );
 }
@@ -599,6 +802,9 @@ export function HomeScreen() {
   const isBalanceLoading = useBalanceStore((state) => state.isLoading);
   const isBalanceInitialized = useBalanceStore((state) => state.isInitialized);
   const loadBalance = useBalanceStore((state) => state.loadBalance);
+  const removeBalanceEntry = useBalanceStore(
+    (state) => state.removeBalanceEntry,
+  );
   const selectedPeriod = usePeriodScopeStore((state) => state.selectedPeriod);
   const categories = useCategoriesStore((state) => state.categories);
 
@@ -679,8 +885,14 @@ export function HomeScreen() {
   const [deletingTransactionId, setDeletingTransactionId] = useState<
     string | null
   >(null);
+  const [deletingBalanceEntryId, setDeletingBalanceEntryId] = useState<
+    string | null
+  >(null);
 
   const [openSwipeTransactionId, setOpenSwipeTransactionId] = useState<
+    string | null
+  >(null);
+  const [openSwipeBalanceEntryId, setOpenSwipeBalanceEntryId] = useState<
     string | null
   >(null);
 
@@ -730,15 +942,41 @@ export function HomeScreen() {
   }, [filteredTransactions, openSwipeTransactionId]);
 
   useEffect(() => {
-    if (!isLoading && deletingTransactionId === null) return;
+    if (!openSwipeBalanceEntryId) return;
+
+    const isOpenBalanceEntryVisible = filteredBalanceEntries.some(
+      (entry) => entry.id === openSwipeBalanceEntryId,
+    );
+
+    if (isOpenBalanceEntryVisible) return;
+
+    setOpenSwipeBalanceEntryId(null);
+  }, [filteredBalanceEntries, openSwipeBalanceEntryId]);
+
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !isBalanceLoading &&
+      deletingTransactionId === null &&
+      deletingBalanceEntryId === null
+    ) {
+      return;
+    }
 
     setOpenSwipeTransactionId(null);
-  }, [deletingTransactionId, isLoading]);
+    setOpenSwipeBalanceEntryId(null);
+  }, [
+    deletingBalanceEntryId,
+    deletingTransactionId,
+    isBalanceLoading,
+    isLoading,
+  ]);
 
   const handleSwipeInteractionStart = useCallback((id: string) => {
     setOpenSwipeTransactionId((currentId) =>
       currentId === id ? currentId : null,
     );
+    setOpenSwipeBalanceEntryId(null);
   }, []);
 
   const handleSwipeOpen = useCallback((id: string) => {
@@ -751,9 +989,33 @@ export function HomeScreen() {
     );
   }, []);
 
+  const handleBalanceSwipeInteractionStart = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId((currentId) =>
+      currentId === id ? currentId : null,
+    );
+    setOpenSwipeTransactionId(null);
+  }, []);
+
+  const handleBalanceSwipeOpen = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId(id);
+  }, []);
+
+  const handleBalanceSwipeClose = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId((currentId) =>
+      currentId === id ? null : currentId,
+    );
+  }, []);
+
   const handleDeleteTransaction = useCallback(
     (id: string) => {
-      if (isLoading || deletingTransactionId) return;
+      if (
+        isLoading ||
+        isBalanceLoading ||
+        deletingTransactionId ||
+        deletingBalanceEntryId
+      ) {
+        return;
+      }
 
       Alert.alert(
         'Delete transaction?',
@@ -777,16 +1039,77 @@ export function HomeScreen() {
         ],
       );
     },
-    [deletingTransactionId, isLoading, removeTransaction],
+    [
+      deletingBalanceEntryId,
+      deletingTransactionId,
+      isBalanceLoading,
+      isLoading,
+      removeTransaction,
+    ],
   );
 
   const handleEditTransaction = useCallback(
     (id: string) => {
-      if (deletingTransactionId !== null) return;
+      if (deletingTransactionId !== null || deletingBalanceEntryId !== null) {
+        return;
+      }
 
       router.push(`/transaction/${id}/edit` as Href);
     },
-    [deletingTransactionId, router],
+    [deletingBalanceEntryId, deletingTransactionId, router],
+  );
+
+  const handleDeleteBalanceEntry = useCallback(
+    (id: string) => {
+      if (
+        isLoading ||
+        isBalanceLoading ||
+        deletingTransactionId ||
+        deletingBalanceEntryId
+      ) {
+        return;
+      }
+
+      Alert.alert(
+        'Delete balance addition?',
+        'This will remove this income entry from your balance history.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              setDeletingBalanceEntryId(id);
+
+              void removeBalanceEntry(id).finally(() => {
+                setDeletingBalanceEntryId(null);
+              });
+            },
+          },
+        ],
+      );
+    },
+    [
+      deletingBalanceEntryId,
+      deletingTransactionId,
+      isBalanceLoading,
+      isLoading,
+      removeBalanceEntry,
+    ],
+  );
+
+  const handleEditBalanceEntry = useCallback(
+    (id: string) => {
+      if (deletingTransactionId !== null || deletingBalanceEntryId !== null) {
+        return;
+      }
+
+      router.push(`/balance/${id}/edit` as Href);
+    },
+    [deletingBalanceEntryId, deletingTransactionId, router],
   );
 
   const handleMorePress = useCallback(() => {
@@ -924,6 +1247,14 @@ export function HomeScreen() {
             <View style={styles.transactionList}>
               {historyItems.map((item) => {
                 if (item.kind === 'balance') {
+                  const isDeletingThisBalanceEntry =
+                    deletingBalanceEntryId === item.entry.id;
+                  const isBalanceActionDisabled =
+                    isLoading ||
+                    isBalanceLoading ||
+                    deletingTransactionId !== null ||
+                    deletingBalanceEntryId !== null;
+
                   return (
                     <HistoryBalanceItem
                       amountLabel={formatSignedEuro({
@@ -931,7 +1262,17 @@ export function HomeScreen() {
                         sign: '+',
                       })}
                       entry={item.entry}
+                      isDeleting={isDeletingThisBalanceEntry}
+                      isDisabled={isBalanceActionDisabled}
+                      isOpen={openSwipeBalanceEntryId === item.entry.id}
                       key={item.id}
+                      onDelete={handleDeleteBalanceEntry}
+                      onEdit={handleEditBalanceEntry}
+                      onSwipeClose={handleBalanceSwipeClose}
+                      onSwipeInteractionStart={
+                        handleBalanceSwipeInteractionStart
+                      }
+                      onSwipeOpen={handleBalanceSwipeOpen}
                       typeName={getBalanceTypeDisplayName({
                         balanceTypes,
                         typeId: item.entry.typeId,
@@ -945,7 +1286,10 @@ export function HomeScreen() {
                   deletingTransactionId === transaction.id;
 
                 const isTransactionActionDisabled =
-                  isLoading || deletingTransactionId !== null;
+                  isLoading ||
+                  isBalanceLoading ||
+                  deletingTransactionId !== null ||
+                  deletingBalanceEntryId !== null;
 
                 return (
                   <HistoryTransactionItem
@@ -1274,7 +1618,7 @@ const styles = StyleSheet.create({
     color: '#050505',
   },
   amountTextPositive: {
-    color: '#050505',
+    color: '#34c759',
   },
   balanceEntryCard: {
     backgroundColor: '#f7f7f5',

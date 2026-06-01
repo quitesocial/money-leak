@@ -3,8 +3,10 @@ import { create } from 'zustand';
 import {
   createBalanceEntry,
   createBalanceType,
+  deleteBalanceEntry,
   getBalanceEntries,
   getBalanceTypes,
+  updateBalanceEntry,
 } from '@/db/balance';
 import {
   createBalanceTypeFromName,
@@ -27,6 +29,8 @@ type BalanceStore = {
   error: string | null;
   loadBalance: () => Promise<void>;
   addBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
+  updateBalanceEntry: (entry: BalanceEntryInput) => Promise<void>;
+  removeBalanceEntry: (id: string) => Promise<void>;
   addBalanceType: (input: { name: string }) => Promise<void>;
   clearError: () => void;
 };
@@ -97,6 +101,50 @@ export const useBalanceStore = create<BalanceStore>((set, get) => ({
       set({
         isLoading: false,
         error: getErrorMessage(error, 'Failed to add balance.'),
+      });
+    }
+  },
+
+  updateBalanceEntry: async (entry) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      await updateBalanceEntry(entry);
+
+      const balanceEntries = await getBalanceEntries();
+
+      set({
+        balanceEntries,
+        isLoading: false,
+        isInitialized: true,
+        error: null,
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: getErrorMessage(error, 'Failed to update balance.'),
+      });
+    }
+  },
+
+  removeBalanceEntry: async (id) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      await deleteBalanceEntry(id);
+
+      const balanceEntries = await getBalanceEntries();
+
+      set({
+        balanceEntries,
+        isLoading: false,
+        isInitialized: true,
+        error: null,
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: getErrorMessage(error, 'Failed to remove balance.'),
       });
     }
   },
