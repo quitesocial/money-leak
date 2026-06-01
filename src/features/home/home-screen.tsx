@@ -26,11 +26,7 @@ import {
   type CategoryIconDefinition,
 } from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
-import {
-  formatEuro,
-  formatLabel,
-  formatPercentage,
-} from '@/lib/display-formatters';
+import { formatLabel, formatPercentage } from '@/lib/display-formatters';
 import {
   filterItemsByPeriod,
   filterTransactionsByPeriod,
@@ -65,6 +61,11 @@ const VERTICAL_SCROLL_DISTANCE = 8;
 const HORIZONTAL_INTENT_RATIO = 0.75;
 const SWIPE_OPEN_THRESHOLD = 44;
 const SWIPE_VELOCITY_THRESHOLD = 0.35;
+const HOME_LOAD_ERROR_TITLE = "Couldn't load Home";
+const HOME_LOAD_ERROR_MESSAGE =
+  'Something went wrong while loading Home. Try again.';
+const HOME_REFRESH_ERROR_MESSAGE =
+  "Home couldn't refresh right now. Try again.";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
@@ -96,6 +97,14 @@ function formatTransactionTimestamp(value: number) {
   return shortDateTimeFormatter.format(date);
 }
 
+function sanitizeHomeNumber(value: number) {
+  return Number.isFinite(value) ? value : 0;
+}
+
+function formatHomeEuro(value: number) {
+  return `${sanitizeHomeNumber(value).toFixed(2)} €`;
+}
+
 function formatSignedEuro({
   amount,
   sign,
@@ -103,7 +112,7 @@ function formatSignedEuro({
   amount: number;
   sign: '+' | '-';
 }) {
-  return `${sign}${formatEuro(amount)}`;
+  return `${sign}${formatHomeEuro(amount)}`;
 }
 
 function getBalanceTypeDisplayName({
@@ -425,6 +434,10 @@ function HistoryTransactionItem({
   const categoryIcon = getCategoryIcon(
     getCategoryDisplayIconName(transaction.category, categories),
   );
+  const detailLabel =
+    isLeak && transaction.leakReason
+      ? formatLabel(transaction.leakReason)
+      : transaction.note;
 
   const cardBackgroundColor = translateX.interpolate({
     inputRange: [-1, 0, 1],
@@ -474,6 +487,7 @@ function HistoryTransactionItem({
             transform: [{ translateX }],
           },
         ]}
+        testID={`transaction-history-row-${transaction.id}`}
       >
         <View style={styles.transactionMainRow}>
           <View style={styles.transactionInfoRow}>
@@ -483,33 +497,19 @@ function HistoryTransactionItem({
             />
 
             <View style={styles.transactionCopy}>
-              <View style={styles.categoryRow}>
-                <Text style={styles.categoryText}>
-                  {getCategoryDisplayName(transaction.category, categories)}
-                </Text>
-
-                <View
-                  style={[
-                    styles.typeBadge,
-                    isLeak ? styles.typeBadgeLeak : styles.typeBadgeNormal,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.typeBadgeText,
-                      isLeak
-                        ? styles.typeBadgeTextLeak
-                        : styles.typeBadgeTextNormal,
-                    ]}
-                  >
-                    {isLeak ? 'Leak' : 'Normal'}
-                  </Text>
-                </View>
-              </View>
+              <Text numberOfLines={1} style={styles.categoryText}>
+                {getCategoryDisplayName(transaction.category, categories)}
+              </Text>
 
               <Text style={styles.timestampText}>
                 {formatTransactionTimestamp(transaction.createdAt)}
               </Text>
+
+              {detailLabel ? (
+                <Text numberOfLines={1} style={styles.detailText}>
+                  {detailLabel}
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -517,16 +517,6 @@ function HistoryTransactionItem({
             {amountLabel}
           </Text>
         </View>
-
-        {isLeak && transaction.leakReason ? (
-          <Text style={styles.detailText}>
-            {formatLabel(transaction.leakReason)}
-          </Text>
-        ) : null}
-
-        {transaction.note ? (
-          <Text style={styles.noteText}>{transaction.note}</Text>
-        ) : null}
 
         {isDeleting ? (
           <Text style={styles.deletingText}>Deleting...</Text>
@@ -546,7 +536,10 @@ function HistoryBalanceItem({
   typeName: string;
 }) {
   return (
-    <View style={[styles.transactionCard, styles.balanceEntryCard]}>
+    <View
+      style={[styles.transactionCard, styles.balanceEntryCard]}
+      testID={`balance-history-row-${entry.id}`}
+    >
       <View style={styles.transactionMainRow}>
         <View style={styles.transactionInfoRow}>
           <View style={styles.transactionIconSlot}>
@@ -556,24 +549,16 @@ function HistoryBalanceItem({
               resizeMode="scaleAspectFit"
               size={18}
               testID={`balance-entry-icon-${entry.id}`}
-              tintColor="#177245"
+              tintColor="#111111"
               type="monochrome"
               weight="semibold"
             />
           </View>
 
           <View style={styles.transactionCopy}>
-            <View style={styles.categoryRow}>
-              <Text style={styles.categoryText}>{typeName}</Text>
-
-              <View style={[styles.typeBadge, styles.typeBadgeBalance]}>
-                <Text
-                  style={[styles.typeBadgeText, styles.typeBadgeTextBalance]}
-                >
-                  Added
-                </Text>
-              </View>
-            </View>
+            <Text numberOfLines={1} style={styles.categoryText}>
+              {typeName}
+            </Text>
 
             <Text style={styles.timestampText}>
               {formatTransactionTimestamp(entry.createdAt)}
@@ -684,7 +669,6 @@ export function HomeScreen() {
   const hasHistoryItems = historyItems.length > 0;
   const hasAnyHistoryItems =
     transactions.length > 0 || balanceEntries.length > 0;
-  const hasTodayTransactions = todaySummary.transactionCount > 0;
   const isHistoryRefreshing = isLoading || isBalanceLoading;
 
   const selectedPeriodLabel = getPeriodLabel(
@@ -836,11 +820,9 @@ export function HomeScreen() {
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
           <View style={styles.centeredState}>
-            <Text style={styles.stateTitle}>
-              {"Couldn't load transactions"}
-            </Text>
+            <Text style={styles.stateTitle}>{HOME_LOAD_ERROR_TITLE}</Text>
 
-            <Text style={styles.stateMessage}>{error}</Text>
+            <Text style={styles.stateMessage}>{HOME_LOAD_ERROR_MESSAGE}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -853,7 +835,9 @@ export function HomeScreen() {
         <Text style={styles.pageTitle}>Home</Text>
 
         <View style={styles.balanceHero}>
-          <Text style={styles.balanceAmount}>{formatEuro(currentBalance)}</Text>
+          <Text style={styles.balanceAmount}>
+            {formatHomeEuro(currentBalance)}
+          </Text>
 
           <View style={styles.balanceActions}>
             <BalanceActionButton
@@ -880,12 +864,12 @@ export function HomeScreen() {
           <View style={styles.summaryRows}>
             <SummaryRow
               label="Total"
-              value={formatEuro(todaySummary.totalSpent)}
+              value={formatHomeEuro(todaySummary.totalSpent)}
             />
 
             <SummaryRow
               label="Leak"
-              value={formatEuro(todaySummary.totalLeaks)}
+              value={formatHomeEuro(todaySummary.totalLeaks)}
             />
 
             <SummaryRow
@@ -893,14 +877,6 @@ export function HomeScreen() {
               value={formatPercentage(todaySummary.leakPercentage)}
             />
           </View>
-
-          <Text style={styles.summaryMessage}>
-            {hasTodayTransactions
-              ? todaySummary.totalLeaks > 0
-                ? "Today's leaks are worth noticing."
-                : 'No leaks logged today.'
-              : 'No expenses logged today yet.'}
-          </Text>
         </View>
 
         <View style={styles.section}>
@@ -940,7 +916,7 @@ export function HomeScreen() {
 
           {error ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText}>{HOME_REFRESH_ERROR_MESSAGE}</Text>
             </View>
           ) : null}
 
@@ -1019,10 +995,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f7f5',
   },
   content: {
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 156,
-    gap: 36,
+    alignItems: 'center',
+    paddingHorizontal: 21,
+    paddingTop: 0,
+    paddingBottom: 168,
+    gap: 48,
   },
   stateContent: {
     flexGrow: 1,
@@ -1037,19 +1014,23 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   pageTitle: {
+    width: '100%',
+    maxWidth: 360,
     fontFamily: TITLE_FONT_FAMILY,
     fontSize: 36,
-    lineHeight: 44,
+    lineHeight: 43,
     fontWeight: TITLE_FONT_WEIGHT,
     color: '#0f0f0f',
   },
   balanceHero: {
+    width: '100%',
+    maxWidth: 360,
     gap: 48,
   },
   balanceAmount: {
     fontSize: 40,
     lineHeight: 48,
-    fontWeight: '600',
+    fontWeight: '500',
     textAlign: 'center',
     color: '#000000',
   },
@@ -1087,12 +1068,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   section: {
-    gap: 18,
+    width: '100%',
+    maxWidth: 360,
+    gap: 24,
   },
   sectionTitle: {
     fontFamily: TITLE_FONT_FAMILY,
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 31,
     fontWeight: TITLE_FONT_WEIGHT,
     color: '#0f0f0f',
   },
@@ -1132,30 +1115,28 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   summaryRows: {
-    gap: 22,
+    gap: 0,
   },
   summaryRow: {
+    minHeight: 49,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
   },
   summaryLabel: {
     flex: 1,
     fontSize: 16,
-    lineHeight: 20,
+    lineHeight: 21,
     color: '#111111',
   },
   summaryValue: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: '800',
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '700',
     color: '#050505',
-  },
-  summaryMessage: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#5d5d5d',
   },
   errorBox: {
     borderWidth: 1,
@@ -1170,7 +1151,7 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
   },
   transactionList: {
-    gap: 14,
+    gap: 0,
   },
   emptyState: {
     gap: 8,
@@ -1189,15 +1170,16 @@ const styles = StyleSheet.create({
     color: '#5d5d5d',
   },
   swipeContainer: {
+    minHeight: 100,
     overflow: 'hidden',
-    borderRadius: 8,
+    borderRadius: 24,
   },
   swipeActionLayer: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
   swipeActionCircle: {
     width: 52,
@@ -1222,10 +1204,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   transactionCard: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    gap: 8,
+    minHeight: 100,
+    justifyContent: 'center',
+    borderRadius: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    gap: 4,
   },
   transactionCardNormal: {
     backgroundColor: '#f7f7f5',
@@ -1235,7 +1219,7 @@ const styles = StyleSheet.create({
   },
   transactionMainRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
@@ -1261,7 +1245,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   balanceIconFallback: {
-    color: '#177245',
+    color: '#111111',
     fontSize: 17,
     lineHeight: 20,
     fontWeight: '900',
@@ -1270,79 +1254,39 @@ const styles = StyleSheet.create({
   transactionCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 5,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   categoryText: {
-    flexShrink: 1,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '800',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '700',
     color: '#111111',
   },
   amountText: {
     flexShrink: 0,
     fontSize: 20,
-    lineHeight: 26,
-    fontWeight: '800',
+    lineHeight: 25,
+    fontWeight: '700',
     textAlign: 'right',
     color: '#050505',
   },
   amountTextNegative: {
-    color: '#9f1239',
+    color: '#050505',
   },
   amountTextPositive: {
-    color: '#177245',
-  },
-  typeBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  typeBadgeNormal: {
-    backgroundColor: '#e9e9e4',
-  },
-  typeBadgeLeak: {
-    backgroundColor: '#ffe1e1',
-  },
-  typeBadgeBalance: {
-    backgroundColor: '#dcfce7',
-  },
-  typeBadgeText: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '800',
-  },
-  typeBadgeTextNormal: {
-    color: '#363633',
-  },
-  typeBadgeTextLeak: {
-    color: '#bd1f1f',
-  },
-  typeBadgeTextBalance: {
-    color: '#166534',
+    color: '#050505',
   },
   balanceEntryCard: {
-    backgroundColor: '#f4fbf5',
+    backgroundColor: '#f7f7f5',
   },
   timestampText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 21,
     color: '#111111',
   },
   detailText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#2d2d2a',
-  },
-  noteText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     color: '#2d2d2a',
   },
   deletingText: {

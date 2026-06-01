@@ -8,7 +8,7 @@ import {
   type PeriodScope,
 } from '@/lib/period-scope';
 
-const SEGMENTED_CONTROL_PADDING = 3;
+const SEGMENTED_CONTROL_PADDING = 2;
 
 type PeriodSelectorProps = {
   selectedPeriod: PeriodScope;
@@ -156,8 +156,9 @@ const styles = StyleSheet.create({
   },
   segmentedControl: {
     flexDirection: 'row',
+    height: 32,
     borderRadius: 999,
-    backgroundColor: '#e9e9e4',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
     padding: SEGMENTED_CONTROL_PADDING,
   },
   activeSegment: {
@@ -171,22 +172,22 @@ const styles = StyleSheet.create({
   segment: {
     zIndex: 1,
     flex: 1,
-    minHeight: 30,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 3,
   },
   segmentText: {
     width: '100%',
     fontSize: 13,
-    lineHeight: 16,
-    fontWeight: '700',
+    lineHeight: 18,
+    fontWeight: '500',
     textAlign: 'center',
     color: '#111111',
   },
   segmentTextSelected: {
+    fontWeight: '700',
     color: '#111111',
   },
 });
