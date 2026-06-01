@@ -3241,3 +3241,48 @@ Manual QA:
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - No new auth, sync triggers, Supabase schema, service-role/admin mobile usage, raw backend errors, secrets, tokens, owner IDs, localOwnerIds, device IDs, or row payloads are exposed.
+
+## ML-84 Add Transaction One-Page Redesign
+
+### 56. Add Transaction one-page flow and regressions
+
+**Preconditions**
+
+- Local data includes at least the default active categories with icons.
+- Test against Figma node `132:1437` on a native iPhone-width device or simulator.
+
+**Steps**
+
+1. Open `Add Transaction` from Home and compare the custom header, amount field, date row, type chips, reason chips, category chips, add-category action, and bottom CTA against Figma.
+2. Confirm Amount, Date, Type, and the bottom `Save` CTA are visible initially without a Details -> Reason -> Category wizard.
+3. Enter an amount, choose `Normal`, and confirm Category appears and the screen scrolls to it.
+4. Enter an amount, choose `Leak`, and confirm Reason appears and the screen scrolls to it.
+5. Choose a leak reason and confirm Category appears and the screen scrolls to it.
+6. Save a Normal transaction with amount, date, and category.
+7. Select Leak, try saving without a reason, then choose a reason and save.
+8. Select Leak with a reason, switch back to Normal, save, and confirm the reason is cleared.
+9. Try saving without a category after Category is visible and confirm category validation appears.
+10. Change the date and confirm the transaction uses the selected `createdAt`.
+11. Confirm category icons are visible in Add Transaction category chips.
+12. Tap `Add`, create a category from Add Transaction, select an icon, and save it.
+13. Confirm the new category appears, is auto-selected, and can be used for transaction creation.
+14. Confirm the keyboard does not hide the bottom CTA and the screen scrolls on smaller devices.
+15. Smoke-test Edit Transaction to confirm it still uses the shared edit form.
+16. Confirm Home and Analytics refresh after normal and leak saves.
+17. Review CSV import/export, auth, sync, backup, restore, balance, and navigation regressions.
+
+**Expected result**
+
+- Add Transaction remains `/add-transaction` as a pushed root Stack screen with the native Stack header hidden.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Balance and Shame Card remain root Stack screens, not bottom tabs.
+- The `Save` CTA saves the transaction directly and does not navigate to another wizard step.
+- Category is hidden until `Normal` is selected or until a Leak reason is selected.
+- Selecting `Normal` scrolls to Category; selecting `Leak` scrolls to Reason; selecting a Leak reason scrolls to Category.
+- Normal transactions save with `isLeak: false` and `leakReason: null`.
+- Leak transactions require and save a supported leak reason.
+- Switching Leak -> Normal clears the leak reason before save.
+- `Transaction.category` stores the stable category ID only, not the display name or icon.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
+- No auth, sync, backup, restore, Supabase schema, service-role/admin mobile usage, forbidden UI dependency, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
