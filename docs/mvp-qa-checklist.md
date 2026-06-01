@@ -3199,3 +3199,45 @@ Manual QA:
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, and Shame Card are root Stack screens, not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+
+## ML-83 Update Home Screen
+
+### 55. Home visual update and behavior regression
+
+**Preconditions**
+
+- Local data includes expense transactions and balance additions for Today, Yesterday, and This week.
+- Include at least one leak transaction with a leak reason, one transaction with a note, and one balance entry whose type is missing or archived.
+- Test against Figma node `132:2083` on a native iPhone-width device or simulator.
+
+**Steps**
+
+1. Open `Home` and compare the title, current balance, Add/Spend buttons, Today summary, History header, segmented control, rows, and bottom spacing against Figma.
+2. Tap `Add`, then return to Home and tap `Spend`.
+3. Tap `More` in the History header.
+4. Review Today summary values with balance additions present.
+5. Switch History between `Today`, `Yesterday`, and `This week`.
+6. Swipe expense transaction rows left and right, then try the same gestures on balance rows.
+7. Scroll to the last History row with enough data to fill the screen.
+8. Review CSV export/import, auth, backup, restore, sync, and bottom navigation regressions.
+
+**Expected result**
+
+- Home uses the updated Figma-style layout without recreating the status bar or bottom tab bar inside the screen.
+- Current balance equals active balance entries minus active/non-deleted expense transactions.
+- `Add` opens `/add-balance`; `Spend` opens `/add-transaction`.
+- `More` opens `Analytics & Leaks`.
+- Today summary remains transaction-only and shows safe zero values without `NaN` or `Infinity`.
+- History is a newest-first union feed of expense transactions and balance additions.
+- Home History segmented control shows only `Today`, `Yesterday`, and `This week`; `Choose date` is not visible on Home.
+- Period filters apply to both expense transactions and balance additions.
+- Expense transaction rows show category icon/name, time/date, leak reason or note when present, and a signed negative amount.
+- Expense transaction rows preserve swipe edit/delete behavior and delete confirmation.
+- Balance rows show the balance type name, or `Balance addition` when missing, and a signed positive amount.
+- Balance rows are not swipeable and do not expose edit/delete actions.
+- The floating bottom tab bar does not cover the last History item.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, and Shame Card remain root Stack screens, not bottom tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
+- No new auth, sync triggers, Supabase schema, service-role/admin mobile usage, raw backend errors, secrets, tokens, owner IDs, localOwnerIds, device IDs, or row payloads are exposed.

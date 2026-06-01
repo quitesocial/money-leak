@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as React from 'react';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
 import {
   act,
   create,
@@ -28,6 +28,7 @@ const mockUseCategoriesRefresh = jest.fn();
 const mockUseTransactionsRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
+const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
@@ -272,6 +273,55 @@ function findButton(renderer: ReactTestRenderer, label: string) {
   };
 }
 
+function findAllNodes(
+  node: ReactTestInstance,
+  predicate: (node: ReactTestInstance) => boolean,
+): ReactTestInstance[] {
+  const matches = predicate(node) ? [node] : [];
+
+  for (const child of node.children) {
+    if (typeof child === 'string') continue;
+
+    matches.push(...findAllNodes(child, predicate));
+  }
+
+  return matches;
+}
+
+function findNodeByProp(
+  renderer: ReactTestRenderer,
+  propName: string,
+  value: unknown,
+) {
+  const node = findAllNodes(renderer.root, (candidate) => {
+    return candidate.props[propName] === value;
+  })[0];
+
+  if (!node) {
+    throw new Error(`Could not find node with ${propName}.`);
+  }
+
+  return node;
+}
+
+function getPressHandler(node: ReactTestInstance) {
+  const { onPress } = node.props;
+
+  if (typeof onPress !== 'function') {
+    throw new Error('Expected node to have an onPress handler.');
+  }
+
+  return onPress as () => void;
+}
+
+function getPastDate(daysAgo: number) {
+  const date = new Date();
+
+  date.setDate(date.getDate() - daysAgo);
+
+  return date;
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -337,7 +387,7 @@ describe('HomeScreen', () => {
 
     const renderer = await renderHomeScreen();
 
-    expect(getNodeText(renderer.root)).toContain('1234.56€');
+    expect(getNodeText(renderer.root)).toContain('1234.56 €');
   });
 
   it('opens Add Balance from the Add button', async () => {
@@ -362,6 +412,17 @@ describe('HomeScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/add-transaction');
   });
 
+  it('opens Analytics from the More button', async () => {
+    const renderer = await renderHomeScreen();
+
+    await act(async () => {
+      findButton(renderer, 'More').props.onPress();
+      await flushPromises();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/analytics');
+  });
+
   it('subtracts transaction totals from the current balance', async () => {
     mockBalanceStoreState.balanceEntries = [
       createBalanceEntry({
@@ -378,7 +439,7 @@ describe('HomeScreen', () => {
 
     const renderer = await renderHomeScreen();
 
-    expect(getNodeText(renderer.root)).toContain('60.00€');
+    expect(getNodeText(renderer.root)).toContain('60.00 €');
   });
 
   it('keeps Today summary based on transactions only', async () => {
@@ -400,9 +461,22 @@ describe('HomeScreen', () => {
     const renderer = await renderHomeScreen();
     const screenText = getNodeText(renderer.root);
 
-    expect(screenText).toContain('90.00€');
+    expect(screenText).toContain('90.00 €');
     expect(screenText).toContain('Today summary');
-    expect(screenText).toContain('10.00€');
+    expect(screenText).toContain('10.00 €');
+    expect(screenText).toContain('100%');
+    expect(screenText).not.toContain('100.00 €');
+  });
+
+  it('shows safe empty values without invalid numbers', async () => {
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('0.00 €');
+    expect(screenText).toContain('0%');
+    expect(screenText).not.toContain('NaN');
+    expect(screenText).not.toContain('Infinity');
+    expect(screenText).not.toContain('Choose date');
   });
 
   it('renders balance additions with plus signs and expenses with minus signs', async () => {
@@ -421,6 +495,9 @@ describe('HomeScreen', () => {
         id: 'txn-1',
         amount: 20,
         category: 'food',
+        isLeak: true,
+        leakReason: 'impulse',
+        note: 'Hidden note',
         createdAt: now + 1,
       }),
     ];
@@ -429,16 +506,58 @@ describe('HomeScreen', () => {
     const screenText = getNodeText(renderer.root);
 
     expect(screenText).toContain('Salary');
-    expect(screenText).toContain('+100.00€');
+    expect(screenText).toContain('+100.00 €');
     expect(screenText).toContain('Food');
-    expect(screenText).toContain('-20.00€');
+    expect(screenText).toContain('-20.00 €');
+    expect(screenText).toContain('Impulse');
+    expect(screenText).not.toContain('Hidden note');
+    expect(screenText.indexOf('Food')).toBeLessThan(
+      screenText.indexOf('Salary'),
+    );
   });
 
-  it('applies the Home History period filter to additions and expenses', async () => {
+  it('applies the Today History period filter to additions and expenses', async () => {
     const today = new Date();
-    const yesterday = new Date(today);
+    const yesterday = getPastDate(1);
 
-    yesterday.setDate(today.getDate() - 1);
+    mockPeriodScopeStoreState.selectedPeriod = 'today';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-today',
+        amount: 125,
+        createdAt: today.getTime(),
+      }),
+      createBalanceEntry({
+        id: 'balance-yesterday',
+        amount: 75,
+        createdAt: yesterday.getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+      createTransaction({
+        id: 'txn-yesterday',
+        amount: 25,
+        createdAt: yesterday.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('+125.00 €');
+    expect(screenText).toContain('-35.00 €');
+    expect(screenText).not.toContain('+75.00 €');
+    expect(screenText).not.toContain('-25.00 €');
+  });
+
+  it('applies the Yesterday History period filter to additions and expenses', async () => {
+    const today = new Date();
+    const yesterday = getPastDate(1);
 
     mockPeriodScopeStoreState.selectedPeriod = 'yesterday';
     mockBalanceStoreState.balanceEntries = [
@@ -469,10 +588,120 @@ describe('HomeScreen', () => {
     const renderer = await renderHomeScreen();
     const screenText = getNodeText(renderer.root);
 
-    expect(screenText).toContain('+75.00€');
-    expect(screenText).toContain('-25.00€');
-    expect(screenText).not.toContain('+125.00€');
-    expect(screenText).not.toContain('-35.00€');
+    expect(screenText).toContain('+75.00 €');
+    expect(screenText).toContain('-25.00 €');
+    expect(screenText).not.toContain('+125.00 €');
+    expect(screenText).not.toContain('-35.00 €');
+  });
+
+  it('applies the This week History period filter to additions and expenses', async () => {
+    const today = new Date();
+    const olderThanThisWeek = getPastDate(8);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'this_week';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-this-week',
+        amount: 125,
+        createdAt: today.getTime(),
+      }),
+      createBalanceEntry({
+        id: 'balance-old',
+        amount: 75,
+        createdAt: olderThanThisWeek.getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-this-week',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+      createTransaction({
+        id: 'txn-old',
+        amount: 25,
+        createdAt: olderThanThisWeek.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('+125.00 €');
+    expect(screenText).toContain('-35.00 €');
+    expect(screenText).not.toContain('+75.00 €');
+    expect(screenText).not.toContain('-25.00 €');
+  });
+
+  it('keeps transaction edit and delete affordances testable', async () => {
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-1',
+        amount: 20,
+        createdAt: new Date().getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const editAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Edit transaction',
+    );
+    const deleteAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Delete transaction',
+    );
+
+    await act(async () => {
+      getPressHandler(editAction)();
+      await flushPromises();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/transaction/txn-1/edit');
+
+    await act(async () => {
+      getPressHandler(deleteAction)();
+      await flushPromises();
+    });
+
+    expect(mockAlert).toHaveBeenCalledWith(
+      'Delete transaction?',
+      expect.any(String),
+      expect.any(Array),
+    );
+  });
+
+  it('does not expose swipe edit or delete actions for balance rows', async () => {
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-1',
+        amount: 100,
+        createdAt: new Date().getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const balanceRow = findNodeByProp(
+      renderer,
+      'testID',
+      'balance-history-row-balance-1',
+    );
+
+    expect(
+      findAllNodes(
+        renderer.root,
+        (node) => node.props.accessibilityLabel === 'Edit transaction',
+      ),
+    ).toHaveLength(0);
+    expect(
+      findAllNodes(
+        renderer.root,
+        (node) => node.props.accessibilityLabel === 'Delete transaction',
+      ),
+    ).toHaveLength(0);
+    expect(balanceRow.props.onMoveShouldSetResponder).toBeUndefined();
   });
 
   it('uses a safe fallback type name for missing balance types', async () => {
@@ -487,5 +716,18 @@ describe('HomeScreen', () => {
     const renderer = await renderHomeScreen();
 
     expect(getNodeText(renderer.root)).toContain('Balance addition');
+  });
+
+  it('does not render raw store errors on Home', async () => {
+    mockTransactionsStoreState.error =
+      'raw backend owner_id token deviceIds row payload';
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('Something went wrong while loading Home.');
+    expect(screenText).not.toContain('owner_id');
+    expect(screenText).not.toContain('deviceIds');
+    expect(screenText).not.toContain('row payload');
   });
 });
