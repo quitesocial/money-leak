@@ -1,6 +1,6 @@
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -37,7 +37,8 @@ import {
   type TransactionInput,
 } from '@/types/transaction';
 
-type WizardStep = 'details' | 'leakReason' | 'category' | 'addCategory';
+type ScreenMode = 'transaction' | 'addCategory';
+type ScrollTarget = 'reason' | 'category';
 type TransactionType = 'normal' | 'leak';
 
 type AmountParseResult =
@@ -51,8 +52,8 @@ type AmountParseResult =
     };
 
 type HeaderProps = {
-  title: string;
   onBackPress: () => void;
+  title: string;
 };
 
 type SymbolIconProps = {
@@ -64,10 +65,10 @@ type SymbolIconProps = {
 };
 
 type ChipProps = {
-  label: string;
-  isSelected: boolean;
-  onPress: () => void;
   fallbackSymbol?: string;
+  isSelected: boolean;
+  label: string;
+  onPress: () => void;
   symbolName?: SFSymbol;
 };
 
@@ -78,27 +79,14 @@ type CategoryChipProps = {
 };
 
 type PrimaryActionProps = {
-  label: string;
   isDisabled?: boolean;
+  label: string;
   onPress: () => void;
-};
-
-type CategoryStepProps = {
-  activeCategories: Category[];
-  amount: number;
-  categoriesError: string | null;
-  date: Date;
-  isReady: boolean;
-  leakReason: LeakReason | null;
-  onAddCategoryPress: () => void;
-  onCategoryPress: (categoryId: TransactionCategory) => void;
-  selectedCategory: TransactionCategory | null;
-  transactionType: TransactionType;
-  validationError: string | null;
 };
 
 const AMOUNT_INPUT_FOCUS_DELAY_MS = 250;
 const NAME_INPUT_FOCUS_DELAY_MS = 250;
+const SCROLL_ALIGNMENT_OFFSET = 12;
 const TITLE_FONT_FAMILY = Platform.select({
   ios: 'NewYork',
   default: 'serif',
@@ -112,11 +100,6 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
-});
-
-const amountFormatter = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 2,
 });
 
 const leakReasonSet = new Set<string>(LEAK_REASONS);
@@ -172,10 +155,6 @@ function formatDateLabel(date: Date) {
   return dateFormatter.format(date);
 }
 
-function formatAmountLabel(amount: number) {
-  return amountFormatter.format(amount);
-}
-
 function isSupportedLeakReason(value: LeakReason | null) {
   return Boolean(value && leakReasonSet.has(value));
 }
@@ -208,7 +187,7 @@ function SymbolIcon({
   );
 }
 
-function Header({ title, onBackPress }: HeaderProps) {
+function Header({ onBackPress, title }: HeaderProps) {
   return (
     <View style={styles.header}>
       <Pressable
@@ -231,10 +210,10 @@ function Header({ title, onBackPress }: HeaderProps) {
 }
 
 function Chip({
-  label,
-  isSelected,
-  onPress,
   fallbackSymbol,
+  isSelected,
+  label,
+  onPress,
   symbolName,
 }: ChipProps) {
   const contentColor = isSelected ? '#ffffff' : '#100f10';
@@ -255,11 +234,7 @@ function Chip({
         />
       ) : null}
 
-      <Text
-        style={[styles.chipText, isSelected ? styles.chipTextSelected : null]}
-      >
-        {label}
-      </Text>
+      <Text style={[styles.chipText, { color: contentColor }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -305,13 +280,7 @@ function CategoryChip({ category, isSelected, onPress }: CategoryChipProps) {
         testID={`category-icon-${category.id}`}
       />
 
-      <Text
-        style={[
-          styles.chipText,
-          { color: contentColor },
-          isSelected ? styles.chipTextSelected : null,
-        ]}
-      >
+      <Text style={[styles.chipText, { color: contentColor }]}>
         {category.name}
       </Text>
     </Pressable>
@@ -319,8 +288,8 @@ function CategoryChip({ category, isSelected, onPress }: CategoryChipProps) {
 }
 
 function PrimaryAction({
-  label,
   isDisabled = false,
+  label,
   onPress,
 }: PrimaryActionProps) {
   return (
@@ -341,102 +310,6 @@ function FieldLabel({ children }: { children: string }) {
 
 function ErrorText({ children }: { children: string }) {
   return <Text style={styles.errorText}>{children}</Text>;
-}
-
-function CompactSummary({
-  amount,
-  date,
-  leakReason,
-  transactionType,
-}: {
-  amount: number;
-  date: Date;
-  leakReason: LeakReason | null;
-  transactionType: TransactionType;
-}) {
-  const typeCopy =
-    transactionType === 'leak' && leakReason
-      ? `Leak / ${formatLabel(leakReason)}`
-      : 'Normal';
-
-  return (
-    <View style={styles.summary}>
-      <Text style={styles.summaryAmount}>{formatAmountLabel(amount)}</Text>
-      <Text style={styles.summaryDate}>{formatDateLabel(date)}</Text>
-      <Text style={styles.summaryType}>{typeCopy}</Text>
-    </View>
-  );
-}
-
-function CategoryStep({
-  activeCategories,
-  amount,
-  categoriesError,
-  date,
-  isReady,
-  leakReason,
-  onAddCategoryPress,
-  onCategoryPress,
-  selectedCategory,
-  transactionType,
-  validationError,
-}: CategoryStepProps) {
-  return (
-    <>
-      <CompactSummary
-        amount={amount}
-        date={date}
-        leakReason={leakReason}
-        transactionType={transactionType}
-      />
-
-      <View style={styles.categoryPanel}>
-        <View style={styles.sectionHeader}>
-          <FieldLabel>Category</FieldLabel>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={onAddCategoryPress}
-            style={styles.addCategoryLink}
-          >
-            <SymbolIcon
-              color="#0088ff"
-              fallbackLabel="+"
-              name="plus"
-              size={16}
-            />
-            <Text style={styles.addCategoryLinkText}>Add</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.chipList}>
-          {activeCategories.map((category) => {
-            const isSelected = selectedCategory === category.id;
-
-            return (
-              <CategoryChip
-                category={category}
-                key={category.id}
-                isSelected={isSelected}
-                onPress={() => onCategoryPress(category.id)}
-              />
-            );
-          })}
-        </View>
-
-        {!isReady ? (
-          <Text style={styles.metaText}>Loading categories...</Text>
-        ) : null}
-
-        {isReady && activeCategories.length === 0 ? (
-          <Text style={styles.metaText}>Add a category before saving.</Text>
-        ) : null}
-
-        {validationError ? <ErrorText>{validationError}</ErrorText> : null}
-        {categoriesError ? <ErrorText>{categoriesError}</ErrorText> : null}
-      </View>
-    </>
-  );
 }
 
 function getCategoryByNormalizedName({
@@ -460,6 +333,11 @@ export function AddTransactionScreen() {
   const router = useRouter();
   const amountInputRef = useRef<TextInput>(null);
   const categoryNameInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const sectionOffsetsRef = useRef<Record<ScrollTarget, number | null>>({
+    reason: null,
+    category: null,
+  });
 
   const addTransaction = useTransactionsStore((state) => state.addTransaction);
   const clearTransactionError = useTransactionsStore(
@@ -481,7 +359,7 @@ export function AddTransactionScreen() {
   const addCategory = useCategoriesStore((state) => state.addCategory);
   const clearCategoriesError = useCategoriesStore((state) => state.clearError);
 
-  const [step, setStep] = useState<WizardStep>('details');
+  const [screenMode, setScreenMode] = useState<ScreenMode>('transaction');
   const [amountText, setAmountText] = useState('');
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [transactionType, setTransactionType] =
@@ -500,9 +378,20 @@ export function AddTransactionScreen() {
   const [typeError, setTypeError] = useState<string | null>(null);
   const [leakReasonError, setLeakReasonError] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [pendingScrollTarget, setPendingScrollTarget] =
+    useState<ScrollTarget | null>(null);
   const [addCategoryNameError, setAddCategoryNameError] = useState<
     string | null
   >(null);
+
+  const visibleCategories = useMemo(
+    () => activeCategories.filter((category) => !category.isArchived),
+    [activeCategories],
+  );
+  const shouldShowReason = transactionType === 'leak';
+  const shouldShowCategory =
+    transactionType === 'normal' ||
+    (transactionType === 'leak' && isSupportedLeakReason(selectedLeakReason));
 
   useCategoriesRefresh({
     isInitialized: isCategoriesInitialized,
@@ -515,7 +404,7 @@ export function AddTransactionScreen() {
   }, [clearCategoriesError, clearTransactionError]);
 
   useEffect(() => {
-    if (step !== 'details') return;
+    if (screenMode !== 'transaction') return;
 
     const focusTimer = setTimeout(() => {
       try {
@@ -528,10 +417,10 @@ export function AddTransactionScreen() {
     return () => {
       clearTimeout(focusTimer);
     };
-  }, [step]);
+  }, [screenMode]);
 
   useEffect(() => {
-    if (step !== 'addCategory') return;
+    if (screenMode !== 'addCategory') return;
 
     const focusTimer = setTimeout(() => {
       try {
@@ -544,19 +433,44 @@ export function AddTransactionScreen() {
     return () => {
       clearTimeout(focusTimer);
     };
-  }, [step]);
+  }, [screenMode]);
 
   useEffect(() => {
     if (!isCategoriesInitialized || !selectedCategory) return;
 
-    const isSelectedCategoryActive = activeCategories.some(
+    const isSelectedCategoryActive = visibleCategories.some(
       (category) => category.id === selectedCategory,
     );
 
     if (!isSelectedCategoryActive) {
       setSelectedCategory(null);
     }
-  }, [activeCategories, isCategoriesInitialized, selectedCategory]);
+  }, [isCategoriesInitialized, selectedCategory, visibleCategories]);
+
+  useEffect(() => {
+    if (!pendingScrollTarget) return;
+
+    const scrollTimer = setTimeout(() => {
+      scrollToSection(pendingScrollTarget);
+    }, 0);
+
+    return () => {
+      clearTimeout(scrollTimer);
+    };
+  }, [pendingScrollTarget, shouldShowCategory, shouldShowReason]);
+
+  function scrollToSection(target: ScrollTarget) {
+    const sectionOffset = sectionOffsetsRef.current[target];
+
+    if (sectionOffset === null) return;
+
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(sectionOffset - SCROLL_ALIGNMENT_OFFSET, 0),
+      animated: true,
+    });
+
+    setPendingScrollTarget(null);
+  }
 
   function exitAddTransaction() {
     if (router.canGoBack()) {
@@ -566,13 +480,17 @@ export function AddTransactionScreen() {
     }
   }
 
+  function resetAddCategoryState() {
+    setCategoryName('');
+    setSelectedCategoryIconName(null);
+    setIsCategoryIconPickerExpanded(false);
+    setAddCategoryNameError(null);
+  }
+
   function handleHeaderBackPress() {
-    if (step === 'addCategory') {
-      setStep('category');
-      setCategoryName('');
-      setSelectedCategoryIconName(null);
-      setIsCategoryIconPickerExpanded(false);
-      setAddCategoryNameError(null);
+    if (screenMode === 'addCategory') {
+      setScreenMode('transaction');
+      resetAddCategoryState();
       clearCategoriesError();
 
       return;
@@ -581,72 +499,63 @@ export function AddTransactionScreen() {
     exitAddTransaction();
   }
 
-  function validateAmountForNextStep() {
-    const result = parseAmountText(amountText);
-    setAmountError(result.error);
-
-    return result;
-  }
-
-  function goToStepForType(nextTransactionType: TransactionType) {
+  function handleTransactionTypePress(nextTransactionType: TransactionType) {
     setTransactionType(nextTransactionType);
     setTypeError(null);
 
     if (nextTransactionType === 'normal') {
       setSelectedLeakReason(null);
       setLeakReasonError(null);
-    }
-
-    const amountResult = validateAmountForNextStep();
-
-    if (amountResult.error) return;
-
-    setStep(nextTransactionType === 'leak' ? 'leakReason' : 'category');
-  }
-
-  function handleDetailsNextPress() {
-    const amountResult = validateAmountForNextStep();
-    const nextTypeError = transactionType ? null : 'Choose Normal or Leak.';
-
-    setTypeError(nextTypeError);
-
-    if (amountResult.error || nextTypeError || !transactionType) return;
-
-    setStep(transactionType === 'leak' ? 'leakReason' : 'category');
-  }
-
-  function handleNormalPress() {
-    goToStepForType('normal');
-  }
-
-  function handleLeakPress() {
-    goToStepForType('leak');
-  }
-
-  function handleReasonNextPress() {
-    if (!isSupportedLeakReason(selectedLeakReason)) {
-      setLeakReasonError('Choose why this felt like a leak.');
+      setPendingScrollTarget('category');
 
       return;
     }
 
-    setLeakReasonError(null);
-    setStep('category');
-  }
-
-  function handleCategoryBackPress() {
-    setCategoryError(null);
-
-    if (transactionType === 'leak') {
-      setStep('leakReason');
-    } else {
-      setStep('details');
-    }
+    setPendingScrollTarget('reason');
   }
 
   function handleCategoryPress(categoryId: TransactionCategory) {
     setSelectedCategory(categoryId);
     setCategoryError(null);
+  }
+
+  function handleLeakReasonPress(reason: LeakReason) {
+    setSelectedLeakReason(reason);
+    setLeakReasonError(null);
+    setPendingScrollTarget('category');
+  }
+
+  function validateTransactionForm() {
+    const amountResult = parseAmountText(amountText);
+    const nextTypeError = transactionType ? null : 'Choose Normal or Leak.';
+    const nextLeakReasonError =
+      transactionType === 'leak' && !isSupportedLeakReason(selectedLeakReason)
+        ? 'Choose why this felt like a leak.'
+        : null;
+    const validCategoryIds = new Set(
+      visibleCategories.map((category) => category.id),
+    );
+    const nextCategoryError =
+      !shouldShowCategory ||
+      (selectedCategory && validCategoryIds.has(selectedCategory))
+        ? null
+        : 'Choose a category.';
+
+    setAmountError(amountResult.error);
+    setTypeError(nextTypeError);
+    setLeakReasonError(nextLeakReasonError);
+    setCategoryError(nextCategoryError);
+
+    if (
+      amountResult.error ||
+      nextTypeError ||
+      nextLeakReasonError ||
+      nextCategoryError
+    ) {
+      return null;
+    }
+
+    return amountResult.amount;
   }
 
   async function handleSaveTransaction() {
@@ -660,50 +569,14 @@ export function AddTransactionScreen() {
 
     clearTransactionError();
 
-    const amountResult = parseAmountText(amountText);
-
-    if (amountResult.error) {
-      setAmountError(amountResult.error);
-      setStep('details');
-
-      return;
-    }
-
-    const amount = amountResult.amount;
+    const amount = validateTransactionForm();
 
     if (amount === null) return;
-
-    if (!transactionType) {
-      setTypeError('Choose Normal or Leak.');
-      setStep('details');
-
-      return;
-    }
-
-    if (
-      transactionType === 'leak' &&
-      !isSupportedLeakReason(selectedLeakReason)
-    ) {
-      setLeakReasonError('Choose why this felt like a leak.');
-      setStep('leakReason');
-
-      return;
-    }
-
-    const validCategoryIds = new Set(
-      activeCategories.map((category) => category.id),
-    );
-
-    if (!selectedCategory || !validCategoryIds.has(selectedCategory)) {
-      setCategoryError('Choose a category.');
-
-      return;
-    }
 
     const transaction: TransactionInput = {
       id: generateTransactionId(),
       amount,
-      category: selectedCategory,
+      category: selectedCategory as TransactionCategory,
       isLeak: transactionType === 'leak',
       leakReason: transactionType === 'leak' ? selectedLeakReason : null,
       note: null,
@@ -719,11 +592,8 @@ export function AddTransactionScreen() {
 
   function handleStartAddCategory() {
     clearCategoriesError();
-    setCategoryName('');
-    setSelectedCategoryIconName(null);
-    setIsCategoryIconPickerExpanded(false);
-    setAddCategoryNameError(null);
-    setStep('addCategory');
+    resetAddCategoryState();
+    setScreenMode('addCategory');
   }
 
   async function handleSaveCategory() {
@@ -758,59 +628,13 @@ export function AddTransactionScreen() {
         setCategoryError(null);
       }
 
-      setCategoryName('');
-      setSelectedCategoryIconName(null);
-      setIsCategoryIconPickerExpanded(false);
-      setAddCategoryNameError(null);
-      setStep('category');
+      resetAddCategoryState();
+      setScreenMode('transaction');
     }
   }
 
-  const amountResult = parseAmountText(amountText);
-  const summaryAmount = amountResult.amount ?? 0;
-  const selectedType = transactionType ?? 'normal';
   const isSaveDisabled =
     isTransactionLoading || isCategoriesLoading || !isCategoriesInitialized;
-  const footerContent =
-    step === 'details' ? (
-      <PrimaryAction label="Next" onPress={handleDetailsNextPress} />
-    ) : step === 'leakReason' ? (
-      <PrimaryAction label="Next" onPress={handleReasonNextPress} />
-    ) : step === 'category' && transactionType ? (
-      <View style={styles.bottomActions}>
-        <Pressable
-          accessibilityLabel="Previous step"
-          accessibilityRole="button"
-          onPress={handleCategoryBackPress}
-          style={styles.secondaryIconAction}
-        >
-          <SymbolIcon
-            color="#100f10"
-            fallbackLabel="<"
-            name="arrow.left"
-            size={19}
-          />
-        </Pressable>
-
-        <View style={styles.primaryActionFlex}>
-          <PrimaryAction
-            isDisabled={isSaveDisabled}
-            label={isTransactionLoading ? 'Saving...' : 'Save Transaction'}
-            onPress={() => {
-              void handleSaveTransaction();
-            }}
-          />
-        </View>
-      </View>
-    ) : step === 'addCategory' ? (
-      <PrimaryAction
-        isDisabled={isCategoriesLoading}
-        label={isCategoriesLoading ? 'Saving...' : 'Save Category'}
-        onPress={() => {
-          void handleSaveCategory();
-        }}
-      />
-    ) : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -820,6 +644,7 @@ export function AddTransactionScreen() {
       >
         <View style={styles.screen}>
           <ScrollView
+            ref={scrollViewRef}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             style={styles.scrollArea}
@@ -827,12 +652,14 @@ export function AddTransactionScreen() {
             <Header
               onBackPress={handleHeaderBackPress}
               title={
-                step === 'addCategory' ? 'Add Category' : 'Add Transaction'
+                screenMode === 'addCategory'
+                  ? 'Add Category'
+                  : 'Add Transaction'
               }
             />
 
-            {step === 'details' ? (
-              <>
+            {screenMode === 'transaction' ? (
+              <View style={styles.contentColumn}>
                 <View style={styles.formGroup}>
                   <View style={styles.field}>
                     <FieldLabel>Amount</FieldLabel>
@@ -847,6 +674,7 @@ export function AddTransactionScreen() {
                         ref={amountInputRef}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        autoFocus
                         inputMode="decimal"
                         keyboardType="decimal-pad"
                         onChangeText={(value) => {
@@ -892,7 +720,7 @@ export function AddTransactionScreen() {
                         fallbackSymbol="N"
                         isSelected={transactionType === 'normal'}
                         label="Normal"
-                        onPress={handleNormalPress}
+                        onPress={() => handleTransactionTypePress('normal')}
                         symbolName="hand.thumbsup"
                       />
 
@@ -900,168 +728,190 @@ export function AddTransactionScreen() {
                         fallbackSymbol="L"
                         isSelected={transactionType === 'leak'}
                         label="Leak"
-                        onPress={handleLeakPress}
+                        onPress={() => handleTransactionTypePress('leak')}
                         symbolName="drop.halffull"
                       />
                     </View>
 
                     {typeError ? <ErrorText>{typeError}</ErrorText> : null}
                   </View>
+
+                  {shouldShowReason ? (
+                    <View
+                      onLayout={(event) => {
+                        sectionOffsetsRef.current.reason =
+                          event.nativeEvent.layout.y;
+
+                        if (pendingScrollTarget === 'reason') {
+                          scrollToSection('reason');
+                        }
+                      }}
+                      style={styles.field}
+                    >
+                      <FieldLabel>Reason</FieldLabel>
+
+                      <View style={styles.chipList}>
+                        {LEAK_REASONS.map((reason) => (
+                          <Chip
+                            key={reason}
+                            isSelected={selectedLeakReason === reason}
+                            label={formatLabel(reason)}
+                            onPress={() => handleLeakReasonPress(reason)}
+                          />
+                        ))}
+                      </View>
+
+                      {leakReasonError ? (
+                        <ErrorText>{leakReasonError}</ErrorText>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
+
+                {shouldShowCategory ? (
+                  <View
+                    onLayout={(event) => {
+                      sectionOffsetsRef.current.category =
+                        event.nativeEvent.layout.y;
+
+                      if (pendingScrollTarget === 'category') {
+                        scrollToSection('category');
+                      }
+                    }}
+                    style={styles.categoryPanel}
+                  >
+                    <View style={styles.sectionHeader}>
+                      <FieldLabel>Category</FieldLabel>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={handleStartAddCategory}
+                        style={styles.addCategoryLink}
+                      >
+                        <SymbolIcon
+                          color="#0088ff"
+                          fallbackLabel="+"
+                          name="plus"
+                          size={16}
+                        />
+                        <Text style={styles.addCategoryLinkText}>Add</Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.chipList}>
+                      {visibleCategories.map((category) => {
+                        const isSelected = selectedCategory === category.id;
+
+                        return (
+                          <CategoryChip
+                            category={category}
+                            key={category.id}
+                            isSelected={isSelected}
+                            onPress={() => handleCategoryPress(category.id)}
+                          />
+                        );
+                      })}
+                    </View>
+
+                    {!isCategoriesInitialized ? (
+                      <Text style={styles.metaText}>Loading categories...</Text>
+                    ) : null}
+
+                    {isCategoriesInitialized &&
+                    visibleCategories.length === 0 ? (
+                      <Text style={styles.metaText}>
+                        Add a category before saving.
+                      </Text>
+                    ) : null}
+
+                    {categoryError ? (
+                      <ErrorText>{categoryError}</ErrorText>
+                    ) : null}
+                    {categoriesError ? (
+                      <ErrorText>{categoriesError}</ErrorText>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 {transactionError ? (
                   <ErrorText>{transactionError}</ErrorText>
                 ) : null}
-              </>
+              </View>
             ) : null}
 
-            {step === 'leakReason' ? (
-              <>
+            {screenMode === 'addCategory' ? (
+              <View style={styles.contentColumn}>
                 <View style={styles.formGroup}>
                   <View style={styles.field}>
-                    <FieldLabel>Amount</FieldLabel>
-                    <View style={styles.readonlyPill}>
-                      <Text style={styles.readonlyAmount}>
-                        {formatAmountLabel(summaryAmount)}
-                      </Text>
-                      <Text style={styles.currencySuffix}>€</Text>
-                    </View>
-                  </View>
+                    <FieldLabel>Name</FieldLabel>
 
-                  <View style={styles.field}>
-                    <FieldLabel>Date</FieldLabel>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setIsDatePickerVisible(true)}
-                      style={styles.dateButton}
-                    >
-                      <SymbolIcon
-                        color="#100f10"
-                        fallbackLabel="[]"
-                        name="calendar"
-                        size={17}
-                      />
-                      <Text style={styles.dateButtonText}>
-                        {formatDateLabel(selectedDate)}
-                      </Text>
-                    </Pressable>
-                  </View>
+                    <TextInput
+                      ref={categoryNameInputRef}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      onChangeText={(value) => {
+                        setCategoryName(value);
+                        setAddCategoryNameError(null);
+                      }}
+                      onSubmitEditing={() => {
+                        void handleSaveCategory();
+                      }}
+                      placeholder="Travel"
+                      returnKeyType="done"
+                      style={[
+                        styles.nameInput,
+                        addCategoryNameError ? styles.inputFrameError : null,
+                      ]}
+                      value={categoryName}
+                    />
 
-                  <View style={styles.field}>
-                    <FieldLabel>Type</FieldLabel>
-                    <View style={styles.chipList}>
-                      <Chip
-                        fallbackSymbol="N"
-                        isSelected={transactionType === 'normal'}
-                        label="Normal"
-                        onPress={handleNormalPress}
-                        symbolName="hand.thumbsup"
-                      />
+                    {addCategoryNameError ? (
+                      <ErrorText>{addCategoryNameError}</ErrorText>
+                    ) : null}
 
-                      <Chip
-                        fallbackSymbol="L"
-                        isSelected={transactionType === 'leak'}
-                        label="Leak"
-                        onPress={() => setTransactionType('leak')}
-                        symbolName="drop.halffull"
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.field}>
-                    <FieldLabel>Reason</FieldLabel>
-
-                    <View style={styles.chipList}>
-                      {LEAK_REASONS.map((reason) => (
-                        <Chip
-                          key={reason}
-                          isSelected={selectedLeakReason === reason}
-                          label={formatLabel(reason)}
-                          onPress={() => {
-                            setSelectedLeakReason(reason);
-                            setLeakReasonError(null);
-                          }}
-                        />
-                      ))}
-                    </View>
-
-                    {leakReasonError ? (
-                      <ErrorText>{leakReasonError}</ErrorText>
+                    {categoriesError ? (
+                      <ErrorText>{categoriesError}</ErrorText>
                     ) : null}
                   </View>
-                </View>
-              </>
-            ) : null}
 
-            {step === 'category' && transactionType ? (
-              <CategoryStep
-                activeCategories={activeCategories}
-                amount={summaryAmount}
-                categoriesError={categoriesError}
-                date={selectedDate}
-                isReady={isCategoriesInitialized}
-                leakReason={selectedLeakReason}
-                onAddCategoryPress={handleStartAddCategory}
-                onCategoryPress={handleCategoryPress}
-                selectedCategory={selectedCategory}
-                transactionType={selectedType}
-                validationError={categoryError}
-              />
-            ) : null}
+                  <View style={styles.field}>
+                    <Text style={styles.label}>
+                      Icon <Text style={styles.optionalLabel}>(optional)</Text>
+                    </Text>
 
-            {step === 'addCategory' ? (
-              <View style={styles.formGroup}>
-                <View style={styles.field}>
-                  <FieldLabel>Name</FieldLabel>
-
-                  <TextInput
-                    ref={categoryNameInputRef}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    onChangeText={(value) => {
-                      setCategoryName(value);
-                      setAddCategoryNameError(null);
-                    }}
-                    onSubmitEditing={() => {
-                      void handleSaveCategory();
-                    }}
-                    placeholder="Travel"
-                    returnKeyType="done"
-                    style={[
-                      styles.nameInput,
-                      addCategoryNameError ? styles.inputFrameError : null,
-                    ]}
-                    value={categoryName}
-                  />
-
-                  {addCategoryNameError ? (
-                    <ErrorText>{addCategoryNameError}</ErrorText>
-                  ) : null}
-
-                  {categoriesError ? (
-                    <ErrorText>{categoriesError}</ErrorText>
-                  ) : null}
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={styles.label}>
-                    Icon <Text style={styles.optionalLabel}>(optional)</Text>
-                  </Text>
-
-                  <CategoryIconPicker
-                    isExpanded={isCategoryIconPickerExpanded}
-                    onExpand={() => setIsCategoryIconPickerExpanded(true)}
-                    onIconPress={setSelectedCategoryIconName}
-                    selectedIconName={selectedCategoryIconName}
-                  />
+                    <CategoryIconPicker
+                      isExpanded={isCategoryIconPickerExpanded}
+                      onExpand={() => setIsCategoryIconPickerExpanded(true)}
+                      onIconPress={setSelectedCategoryIconName}
+                      selectedIconName={selectedCategoryIconName}
+                    />
+                  </View>
                 </View>
               </View>
             ) : null}
           </ScrollView>
 
-          {footerContent ? (
-            <View style={styles.footer}>{footerContent}</View>
-          ) : null}
+          <View style={styles.footer}>
+            <View style={styles.footerColumn}>
+              {screenMode === 'addCategory' ? (
+                <PrimaryAction
+                  isDisabled={isCategoriesLoading}
+                  label={isCategoriesLoading ? 'Saving...' : 'Save Category'}
+                  onPress={() => {
+                    void handleSaveCategory();
+                  }}
+                />
+              ) : (
+                <PrimaryAction
+                  isDisabled={isSaveDisabled}
+                  label="Save"
+                  onPress={() => {
+                    void handleSaveTransaction();
+                  }}
+                />
+              )}
+            </View>
+          </View>
         </View>
 
         <LocalDatePicker
@@ -1092,18 +942,31 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+    alignItems: 'center',
+    gap: 48,
     paddingHorizontal: 21,
     paddingTop: 24,
     paddingBottom: 16,
-    gap: 48,
+  },
+  contentColumn: {
+    width: '100%',
+    maxWidth: 360,
+    gap: 24,
   },
   footer: {
+    alignItems: 'center',
     paddingHorizontal: 21,
     paddingTop: 12,
     paddingBottom: 24,
     backgroundColor: '#f7f7f5',
   },
+  footerColumn: {
+    width: '100%',
+    maxWidth: 360,
+  },
   header: {
+    width: '100%',
+    maxWidth: 360,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1159,7 +1022,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 10,
-    borderWidth: 3,
+    borderWidth: 1,
     borderColor: '#100f10',
     borderRadius: 999,
     paddingHorizontal: 16,
@@ -1218,68 +1081,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#100f10',
   },
   chipText: {
-    color: '#100f10',
     fontSize: 16,
     fontWeight: '600',
-  },
-  chipTextSelected: {
-    color: '#ffffff',
-  },
-  primaryAction: {
-    minHeight: 50,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-    backgroundColor: '#100f10',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  primaryActionText: {
-    color: '#ffffff',
-    fontSize: 17,
-  },
-  primaryActionFlex: {
-    flex: 1,
-  },
-  actionDisabled: {
-    opacity: 0.5,
-  },
-  readonlyPill: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#100f10',
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    backgroundColor: '#f7f7f5',
-  },
-  readonlyAmount: {
-    color: '#000000',
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  summary: {
-    gap: 4,
-  },
-  summaryAmount: {
-    color: '#000000',
-    fontFamily: TITLE_FONT_FAMILY,
-    fontSize: 32,
-    fontWeight: TITLE_FONT_WEIGHT,
-  },
-  summaryDate: {
-    color: 'rgba(60, 60, 67, 0.6)',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  summaryType: {
-    color: 'rgba(60, 60, 67, 0.8)',
-    fontSize: 14,
-    fontWeight: '500',
   },
   categoryPanel: {
     gap: 8,
@@ -1302,19 +1105,22 @@ const styles = StyleSheet.create({
     color: '#0088ff',
     fontSize: 15,
   },
-  bottomActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  secondaryIconAction: {
-    width: 50,
-    height: 50,
+  primaryAction: {
+    minHeight: 50,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#100f10',
-    borderRadius: 25,
+    borderRadius: 999,
+    backgroundColor: '#100f10',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  primaryActionText: {
+    color: '#ffffff',
+    fontSize: 17,
+  },
+  actionDisabled: {
+    opacity: 0.5,
   },
   nameInput: {
     minHeight: 50,

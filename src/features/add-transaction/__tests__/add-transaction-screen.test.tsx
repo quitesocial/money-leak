@@ -14,6 +14,19 @@ import { normalizeCategoryName } from '@/lib/category-utils';
 import type { Category } from '@/types/category';
 import type { TransactionInput } from '@/types/transaction';
 
+type LocalDatePickerMockProps = {
+  visible: boolean;
+  value: Date;
+  onCancel: () => void;
+  onConfirm: (date: Date) => void;
+};
+
+type LocalDatePickerTestNode = ReactTestInstance & {
+  props: {
+    onConfirm: (date: Date) => void;
+  };
+};
+
 const mockRouter = {
   back: jest.fn(),
   canGoBack: jest.fn(() => true),
@@ -35,6 +48,7 @@ const mockClearTransactionError = jest.fn();
 const mockUseCategoriesRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
+let mockLatestDatePickerProps: LocalDatePickerMockProps | null = null;
 
 type MockCategoriesStoreState = {
   categories: Category[];
@@ -102,7 +116,19 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('@/components/local-date-picker', () => ({
-  LocalDatePicker: () => null,
+  LocalDatePicker: (props: LocalDatePickerMockProps) => {
+    mockLatestDatePickerProps = props;
+
+    return mockReact.createElement(
+      mockView as React.ComponentType<Record<string, unknown>>,
+      {
+        onConfirm: props.onConfirm,
+        testID: 'local-date-picker',
+        value: props.value,
+        visible: props.visible,
+      },
+    );
+  },
 }));
 
 jest.mock('@/lib/use-categories-refresh', () => ({
@@ -258,6 +284,10 @@ function expectText(renderer: ReactTestRenderer, text: string) {
   expect(getNodeText(renderer.root)).toContain(text);
 }
 
+function expectNoText(renderer: ReactTestRenderer, text: string) {
+  expect(getNodeText(renderer.root)).not.toContain(text);
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -306,8 +336,22 @@ async function pressAccessibleButton(
   });
 }
 
+async function selectDate(renderer: ReactTestRenderer, date: Date) {
+  if (!mockLatestDatePickerProps) {
+    throw new Error('LocalDatePicker was not rendered.');
+  }
+
+  await act(async () => {
+    (
+      findByTestID(renderer, 'local-date-picker') as LocalDatePickerTestNode
+    ).props.onConfirm(date);
+    await flushPromises();
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockLatestDatePickerProps = null;
 
   resetCategories();
 
@@ -343,7 +387,48 @@ beforeEach(() => {
 });
 
 describe('AddTransactionScreen', () => {
-  it('renders category options with inline icons', async () => {
+  it('renders the initial fields before the type-gated sections', async () => {
+    const renderer = await renderAddTransactionScreen();
+
+    expectText(renderer, 'Amount');
+    expectText(renderer, 'Date');
+    expectText(renderer, 'Type');
+    expectText(renderer, 'Normal');
+    expectText(renderer, 'Leak');
+    expectNoText(renderer, 'Reason');
+    expectNoText(renderer, 'Category');
+    expectNoText(renderer, 'Food');
+    expectNoText(renderer, 'Transport');
+  });
+
+  it('shows categories after Normal is selected', async () => {
+    const renderer = await renderAddTransactionScreen();
+
+    await enterText(renderer, '0.00', '12.50');
+    await pressButton(renderer, 'Normal');
+
+    expectText(renderer, 'Category');
+    expectText(renderer, 'Food');
+    expectText(renderer, 'Transport');
+  });
+
+  it('shows Reason after Leak and categories after a reason is selected', async () => {
+    const renderer = await renderAddTransactionScreen();
+
+    await enterText(renderer, '0.00', '9.99');
+    await pressButton(renderer, 'Leak');
+
+    expectText(renderer, 'Reason');
+    expectNoText(renderer, 'Category');
+    expectNoText(renderer, 'Food');
+
+    await pressButton(renderer, 'Boredom');
+
+    expectText(renderer, 'Category');
+    expectText(renderer, 'Food');
+  });
+
+  it('renders category options with inline icons after category reveal', async () => {
     const renderer = await renderAddTransactionScreen();
 
     await enterText(renderer, '0.00', '12.50');
@@ -353,13 +438,13 @@ describe('AddTransactionScreen', () => {
     expect(findByTestID(renderer, 'category-icon-transport')).toBeTruthy();
   });
 
-  it('creates a normal transaction through the details and category steps', async () => {
+  it('creates a normal transaction from the one-page screen', async () => {
     const renderer = await renderAddTransactionScreen();
 
     await enterText(renderer, '0.00', '12.50');
     await pressButton(renderer, 'Normal');
     await pressButton(renderer, 'Food');
-    await pressButton(renderer, 'Save Transaction');
+    await pressButton(renderer, 'Save');
 
     expect(mockAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -380,9 +465,8 @@ describe('AddTransactionScreen', () => {
     await enterText(renderer, '0.00', '9,99');
     await pressButton(renderer, 'Leak');
     await pressButton(renderer, 'Boredom');
-    await pressButton(renderer, 'Next');
     await pressButton(renderer, 'Transport');
-    await pressButton(renderer, 'Save Transaction');
+    await pressButton(renderer, 'Save');
 
     expect(mockAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -395,14 +479,15 @@ describe('AddTransactionScreen', () => {
     expect(mockAddTransaction.mock.calls[0][0]).not.toHaveProperty('iconName');
   });
 
-  it('requires a leak reason before continuing from the leak reason step', async () => {
+  it('requires a leak reason before saving', async () => {
     const renderer = await renderAddTransactionScreen();
 
     await enterText(renderer, '0.00', '9,99');
     await pressButton(renderer, 'Leak');
-    await pressButton(renderer, 'Next');
+    await pressButton(renderer, 'Save');
 
     expectText(renderer, 'Choose why this felt like a leak.');
+    expectNoText(renderer, 'Choose a category.');
     expect(mockAddTransaction).not.toHaveBeenCalled();
   });
 
@@ -414,7 +499,7 @@ describe('AddTransactionScreen', () => {
     await pressButton(renderer, 'Boredom');
     await pressButton(renderer, 'Normal');
     await pressButton(renderer, 'Food');
-    await pressButton(renderer, 'Save Transaction');
+    await pressButton(renderer, 'Save');
 
     expect(mockAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -431,7 +516,7 @@ describe('AddTransactionScreen', () => {
 
     await enterText(renderer, '0.00', '7');
     await pressButton(renderer, 'Normal');
-    await pressButton(renderer, 'Save Transaction');
+    await pressButton(renderer, 'Save');
 
     expectText(renderer, 'Choose a category.');
     expect(mockAddTransaction).not.toHaveBeenCalled();
@@ -483,7 +568,7 @@ describe('AddTransactionScreen', () => {
     expect(findByTestID(renderer, 'category-icon-travel')).toBeTruthy();
     expect(findSelectedCategoryButton(renderer, 'Travel')).toBeTruthy();
 
-    await pressButton(renderer, 'Save Transaction');
+    await pressButton(renderer, 'Save');
 
     expect(mockAddCategory).toHaveBeenCalledWith({
       name: 'Travel',
@@ -539,5 +624,36 @@ describe('AddTransactionScreen', () => {
 
     expect(findByTestID(renderer, 'category-icon-legacy')).toBeTruthy();
     expectText(renderer, 'Legacy');
+  });
+
+  it('saves the selected date as createdAt', async () => {
+    const renderer = await renderAddTransactionScreen();
+    const selectedDate = new Date(2026, 10, 12);
+
+    await selectDate(renderer, selectedDate);
+    await enterText(renderer, '0.00', '18');
+    await pressButton(renderer, 'Normal');
+    await pressButton(renderer, 'Food');
+    await pressButton(renderer, 'Save');
+
+    expect(mockAddTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdAt: selectedDate.getTime(),
+      }),
+    );
+  });
+
+  it('falls back to the tabs route after save when there is no back stack', async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+
+    const renderer = await renderAddTransactionScreen();
+
+    await enterText(renderer, '0.00', '22');
+    await pressButton(renderer, 'Normal');
+    await pressButton(renderer, 'Food');
+    await pressButton(renderer, 'Save');
+
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockRouter.replace).toHaveBeenCalledWith('/(tabs)');
   });
 });
