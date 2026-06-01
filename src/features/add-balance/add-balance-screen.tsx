@@ -20,7 +20,11 @@ import {
 } from '@/lib/balance-utils';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useBalanceStore } from '@/store/balance-store';
-import type { BalanceEntryInput, BalanceType } from '@/types/balance';
+import type {
+  BalanceEntry,
+  BalanceEntryInput,
+  BalanceType,
+} from '@/types/balance';
 
 type AmountParseResult =
   | {
@@ -54,6 +58,13 @@ type PrimaryActionProps = {
   isDisabled?: boolean;
   label: string;
   onPress: () => void;
+};
+
+export type AddBalanceScreenProps = {
+  initialEntry?: BalanceEntry | null;
+  submitLabel?: string;
+  title?: string;
+  onSubmit?: (entry: BalanceEntryInput) => Promise<void>;
 };
 
 const AMOUNT_INPUT_FOCUS_DELAY_MS = 250;
@@ -124,6 +135,12 @@ function parseAmountText(amountText: string): AmountParseResult {
 
 function formatDateLabel(date: Date) {
   return dateFormatter.format(date);
+}
+
+function formatInitialAmount(entry: BalanceEntry | null | undefined) {
+  if (!entry) return '';
+
+  return String(entry.amount);
 }
 
 function SymbolIcon({
@@ -231,7 +248,12 @@ function getBalanceTypeByNormalizedName({
   });
 }
 
-export function AddBalanceScreen() {
+export function AddBalanceScreen({
+  initialEntry = null,
+  onSubmit,
+  submitLabel = 'Save Balance',
+  title = 'Add Balance',
+}: AddBalanceScreenProps) {
   const router = useRouter();
   const amountInputRef = useRef<TextInput>(null);
   const typeNameInputRef = useRef<TextInput>(null);
@@ -248,9 +270,15 @@ export function AddBalanceScreen() {
   const isBalanceLoading = useBalanceStore((state) => state.isLoading);
   const loadBalance = useBalanceStore((state) => state.loadBalance);
 
-  const [amountText, setAmountText] = useState('');
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
+  const [amountText, setAmountText] = useState(() =>
+    formatInitialAmount(initialEntry),
+  );
+  const [selectedDate, setSelectedDate] = useState(
+    () => new Date(initialEntry?.createdAt ?? Date.now()),
+  );
+  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(
+    initialEntry?.typeId ?? null,
+  );
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [isAddingType, setIsAddingType] = useState(false);
   const [typeName, setTypeName] = useState('');
@@ -403,13 +431,13 @@ export function AddBalanceScreen() {
     }
 
     const entry: BalanceEntryInput = {
-      id: generateBalanceEntryId(),
+      id: initialEntry?.id ?? generateBalanceEntryId(),
       amount: amountResult.amount,
       typeId: validSelectedTypeId,
       createdAt: selectedDate.getTime(),
     };
 
-    await addBalanceEntry(entry);
+    await (onSubmit ?? addBalanceEntry)(entry);
 
     if (!useBalanceStore.getState().error) {
       exitAddBalance();
@@ -432,7 +460,7 @@ export function AddBalanceScreen() {
           >
             <Header
               onBackPress={handleHeaderBackPress}
-              title={isAddingType ? 'Add Type' : 'Add Balance'}
+              title={isAddingType ? 'Add Type' : title}
             />
 
             <View style={styles.formGroup}>
@@ -584,7 +612,7 @@ export function AddBalanceScreen() {
           <View style={styles.footer}>
             <PrimaryAction
               isDisabled={isSaveDisabled}
-              label={isBalanceLoading ? 'Saving...' : 'Save Balance'}
+              label={isBalanceLoading ? 'Saving...' : submitLabel}
               onPress={() => {
                 void handleSaveBalance();
               }}

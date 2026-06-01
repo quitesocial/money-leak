@@ -3183,7 +3183,7 @@ Manual QA:
 2. Confirm current balance equals active balance entries minus active/non-deleted expense transactions.
 3. Switch Home History between `Today`, `Yesterday`, and `This week`.
 4. Add a balance entry whose type is later missing or archived.
-5. Swipe transaction rows left/right.
+5. Swipe transaction and balance rows left/right.
 
 **Expected result**
 
@@ -3192,7 +3192,7 @@ Manual QA:
 - Expense transactions show a minus sign, for example `-20.00€`.
 - Balance rows show the balance type name, or a safe fallback when missing.
 - Transaction rows keep category icons and existing swipe edit/delete behavior.
-- Balance rows are not encoded as Transactions and do not add edit/delete UI.
+- Balance rows expose swipe edit/delete behavior while remaining outside Transactions.
 - Period filters apply to both balance additions and expenses.
 - Today summary remains transaction-only.
 - `Add` routes to `/add-balance`; `Spend` routes to `/add-transaction`.
@@ -3217,7 +3217,7 @@ Manual QA:
 3. Tap `More` in the History header.
 4. Review Today summary values with balance additions present.
 5. Switch History between `Today`, `Yesterday`, and `This week`.
-6. Swipe expense transaction rows left and right, then try the same gestures on balance rows.
+6. Swipe expense transaction rows and balance rows left/right.
 7. Scroll to the last History row with enough data to fill the screen.
 8. Review CSV export/import, auth, backup, restore, sync, and bottom navigation regressions.
 
@@ -3234,7 +3234,7 @@ Manual QA:
 - Expense transaction rows show category icon/name, time/date, leak reason or note when present, and a signed negative amount.
 - Expense transaction rows preserve swipe edit/delete behavior and delete confirmation.
 - Balance rows show the balance type name, or `Balance addition` when missing, and a signed positive amount.
-- Balance rows are not swipeable and do not expose edit/delete actions.
+- Balance rows preserve swipe edit/delete behavior and delete confirmation.
 - The floating bottom tab bar does not cover the last History item.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, and Shame Card remain root Stack screens, not bottom tabs.

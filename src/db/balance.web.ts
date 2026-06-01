@@ -25,6 +25,14 @@ export async function createBalanceEntry(_entry: BalanceEntryInput) {
   throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
 }
 
+export async function updateBalanceEntry(_entry: BalanceEntryInput) {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
+export async function deleteBalanceEntry(_id: string) {
+  throw new Error(NATIVE_ONLY_ERROR_MESSAGE);
+}
+
 export async function restoreBalanceEntries(
   _entries: BalanceEntryRestoreInput[],
 ): Promise<number> {

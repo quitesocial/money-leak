@@ -97,6 +97,56 @@ export async function createBalanceEntry(entry: BalanceEntryInput) {
   );
 }
 
+export async function updateBalanceEntry(entry: BalanceEntryInput) {
+  await initDatabase();
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  const updatedAt = Date.now();
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET
+        amount = ?,
+        type_id = ?,
+        created_at = ?,
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
+    `,
+    entry.amount,
+    entry.typeId,
+    entry.createdAt,
+    updatedAt,
+    identity.deviceId,
+    entry.id,
+  );
+}
+
+export async function deleteBalanceEntry(id: string) {
+  await initDatabase();
+
+  const database = await getDatabase();
+  const identity = await ensureLocalIdentity(database);
+  const deletedAt = Date.now();
+
+  await database.runAsync(
+    `
+      UPDATE balance_entries
+      SET
+        deleted_at = ?,
+        updated_at = ?,
+        source_device_id = ?
+      WHERE id = ? AND deleted_at IS NULL
+    `,
+    deletedAt,
+    deletedAt,
+    identity.deviceId,
+    id,
+  );
+}
+
 export async function getBalanceEntriesForBackup() {
   await initDatabase();
 
