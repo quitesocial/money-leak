@@ -384,7 +384,7 @@ export function AddBalanceScreen({
 
     const normalizedName = normalizeBalanceTypeName(typeName);
 
-    await addBalanceType({ name: typeName });
+    await addBalanceType({ name: normalizedName });
 
     if (!useBalanceStore.getState().error) {
       const createdType = getBalanceTypeByNormalizedName({
@@ -463,63 +463,94 @@ export function AddBalanceScreen({
               title={isAddingType ? 'Add Type' : title}
             />
 
-            <View style={styles.formGroup}>
-              <View style={styles.field}>
-                <FieldLabel>Amount</FieldLabel>
+            {isAddingType ? (
+              <View style={styles.formGroup}>
+                <View style={styles.field}>
+                  <FieldLabel>Name</FieldLabel>
 
-                <View
-                  style={[
-                    styles.amountInputFrame,
-                    amountError ? styles.inputFrameError : null,
-                  ]}
-                >
                   <TextInput
-                    ref={amountInputRef}
-                    autoCapitalize="none"
+                    ref={typeNameInputRef}
+                    autoCapitalize="words"
                     autoCorrect={false}
-                    inputMode="decimal"
-                    keyboardType="decimal-pad"
                     onChangeText={(value) => {
-                      setAmountText(value);
-                      setAmountError(null);
+                      setTypeName(value);
+                      setTypeNameError(null);
                     }}
-                    placeholder="0.00"
-                    style={styles.amountInput}
-                    value={amountText}
+                    onSubmitEditing={() => {
+                      void handleSaveType();
+                    }}
+                    placeholder="Bonus"
+                    returnKeyType="done"
+                    style={[
+                      styles.nameInput,
+                      typeNameError ? styles.inputFrameError : null,
+                    ]}
+                    value={typeName}
                   />
 
-                  <Text style={styles.currencySuffix}>€</Text>
+                  {typeNameError ? (
+                    <ErrorText>{typeNameError}</ErrorText>
+                  ) : null}
+                  {balanceError ? <ErrorText>{balanceError}</ErrorText> : null}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.formGroup}>
+                <View style={styles.field}>
+                  <FieldLabel>Amount</FieldLabel>
+
+                  <View
+                    style={[
+                      styles.amountInputFrame,
+                      amountError ? styles.inputFrameError : null,
+                    ]}
+                  >
+                    <TextInput
+                      ref={amountInputRef}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      inputMode="decimal"
+                      keyboardType="decimal-pad"
+                      onChangeText={(value) => {
+                        setAmountText(value);
+                        setAmountError(null);
+                      }}
+                      placeholder="0.00"
+                      style={styles.amountInput}
+                      value={amountText}
+                    />
+
+                    <Text style={styles.currencySuffix}>€</Text>
+                  </View>
+
+                  {amountError ? <ErrorText>{amountError}</ErrorText> : null}
                 </View>
 
-                {amountError ? <ErrorText>{amountError}</ErrorText> : null}
-              </View>
+                <View style={styles.field}>
+                  <FieldLabel>Date</FieldLabel>
 
-              <View style={styles.field}>
-                <FieldLabel>Date</FieldLabel>
+                  <Pressable
+                    accessibilityLabel="Choose balance date"
+                    accessibilityRole="button"
+                    onPress={() => setIsDatePickerVisible(true)}
+                    style={styles.dateButton}
+                  >
+                    <SymbolIcon
+                      color="#100f10"
+                      fallbackLabel="[]"
+                      name="calendar"
+                      size={17}
+                    />
+                    <Text style={styles.dateButtonText}>
+                      {formatDateLabel(selectedDate)}
+                    </Text>
+                  </Pressable>
+                </View>
 
-                <Pressable
-                  accessibilityLabel="Choose balance date"
-                  accessibilityRole="button"
-                  onPress={() => setIsDatePickerVisible(true)}
-                  style={styles.dateButton}
-                >
-                  <SymbolIcon
-                    color="#100f10"
-                    fallbackLabel="[]"
-                    name="calendar"
-                    size={17}
-                  />
-                  <Text style={styles.dateButtonText}>
-                    {formatDateLabel(selectedDate)}
-                  </Text>
-                </Pressable>
-              </View>
+                <View style={styles.field}>
+                  <View style={styles.sectionHeader}>
+                    <FieldLabel>Type</FieldLabel>
 
-              <View style={styles.field}>
-                <View style={styles.sectionHeader}>
-                  <FieldLabel>Type</FieldLabel>
-
-                  {!isAddingType ? (
                     <Pressable
                       accessibilityRole="button"
                       onPress={handleStartAddType}
@@ -533,90 +564,57 @@ export function AddBalanceScreen({
                       />
                       <Text style={styles.addTypeLinkText}>Add</Text>
                     </Pressable>
-                  ) : null}
-                </View>
-
-                <View style={styles.chipList}>
-                  {activeBalanceTypes.map((balanceType) => (
-                    <TypeChip
-                      key={balanceType.id}
-                      isSelected={selectedTypeId === balanceType.id}
-                      onPress={() => handleTypePress(balanceType.id)}
-                      type={balanceType}
-                    />
-                  ))}
-                </View>
-
-                {!isBalanceInitialized ? (
-                  <Text style={styles.metaText}>Loading balance types...</Text>
-                ) : null}
-
-                {isBalanceInitialized && activeBalanceTypes.length === 0 ? (
-                  <Text style={styles.metaText}>
-                    Add a balance type before saving.
-                  </Text>
-                ) : null}
-
-                {typeError ? <ErrorText>{typeError}</ErrorText> : null}
-              </View>
-
-              {isAddingType ? (
-                <View style={styles.addTypePanel}>
-                  <View style={styles.field}>
-                    <FieldLabel>Name</FieldLabel>
-
-                    <TextInput
-                      ref={typeNameInputRef}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      onChangeText={(value) => {
-                        setTypeName(value);
-                        setTypeNameError(null);
-                      }}
-                      onSubmitEditing={() => {
-                        void handleSaveType();
-                      }}
-                      placeholder="Bonus"
-                      returnKeyType="done"
-                      style={[
-                        styles.nameInput,
-                        typeNameError ? styles.inputFrameError : null,
-                      ]}
-                      value={typeName}
-                    />
-
-                    {typeNameError ? (
-                      <ErrorText>{typeNameError}</ErrorText>
-                    ) : null}
-                    {balanceError ? (
-                      <ErrorText>{balanceError}</ErrorText>
-                    ) : null}
                   </View>
 
-                  <PrimaryAction
-                    isDisabled={isBalanceLoading}
-                    label={isBalanceLoading ? 'Saving...' : 'Save Type'}
-                    onPress={() => {
-                      void handleSaveType();
-                    }}
-                  />
-                </View>
-              ) : null}
+                  <View style={styles.chipList}>
+                    {activeBalanceTypes.map((balanceType) => (
+                      <TypeChip
+                        key={balanceType.id}
+                        isSelected={selectedTypeId === balanceType.id}
+                        onPress={() => handleTypePress(balanceType.id)}
+                        type={balanceType}
+                      />
+                    ))}
+                  </View>
 
-              {!isAddingType && balanceError ? (
-                <ErrorText>{balanceError}</ErrorText>
-              ) : null}
-            </View>
+                  {!isBalanceInitialized ? (
+                    <Text style={styles.metaText}>
+                      Loading balance types...
+                    </Text>
+                  ) : null}
+
+                  {isBalanceInitialized && activeBalanceTypes.length === 0 ? (
+                    <Text style={styles.metaText}>
+                      Add a balance type before saving.
+                    </Text>
+                  ) : null}
+
+                  {typeError ? <ErrorText>{typeError}</ErrorText> : null}
+                </View>
+
+                {balanceError ? <ErrorText>{balanceError}</ErrorText> : null}
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.footer}>
-            <PrimaryAction
-              isDisabled={isSaveDisabled}
-              label={isBalanceLoading ? 'Saving...' : submitLabel}
-              onPress={() => {
-                void handleSaveBalance();
-              }}
-            />
+            {isAddingType ? (
+              <PrimaryAction
+                isDisabled={isBalanceLoading}
+                label={isBalanceLoading ? 'Saving...' : 'Save Type'}
+                onPress={() => {
+                  void handleSaveType();
+                }}
+              />
+            ) : (
+              <PrimaryAction
+                isDisabled={isSaveDisabled}
+                label={isBalanceLoading ? 'Saving...' : submitLabel}
+                onPress={() => {
+                  void handleSaveBalance();
+                }}
+              />
+            )}
           </View>
         </View>
 
@@ -796,9 +794,6 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     color: '#ffffff',
-  },
-  addTypePanel: {
-    gap: 14,
   },
   nameInput: {
     minHeight: 50,
