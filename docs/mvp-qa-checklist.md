@@ -3286,3 +3286,36 @@ Manual QA:
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - No auth, sync, backup, restore, Supabase schema, service-role/admin mobile usage, forbidden UI dependency, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
+
+## ML-85 Add Type To Add Balance
+
+### 57. Add Balance type creation flow
+
+**Preconditions**
+
+- Local data includes the default active balance types.
+- Test against the ML-85 PDF/Figma fallback on a native iPhone-width device or simulator.
+
+**Steps**
+
+1. Open `Add Balance` from Home.
+2. Enter an amount, choose an existing type, and save.
+3. Reopen `Add Balance`, tap `+ Add` in the Type section, and confirm the Add Type state only shows the back button, `Add Type`, `Name`, and `Save Type`.
+4. Try saving an empty type name, then a duplicate active type name with different casing.
+5. Enter a new type name with extra surrounding and repeated internal whitespace, then save it.
+6. Save a balance addition with the newly created type.
+7. Open Edit Balance for an existing entry, keep its current type, then choose another type and save.
+8. Review Home History and CSV export/import regressions.
+
+**Expected result**
+
+- Existing type selection still saves a balance entry with the selected `typeId`.
+- Add Type back returns to Add Balance without losing the in-progress amount, date, or selected type.
+- Empty type names and duplicate active type names are blocked with safe user-facing validation.
+- New type names are trimmed/collapsed, created as balance types, auto-selected, and used by `Save Balance`.
+- Edit Balance preserves the existing balance entry ID and selected type behavior.
+- Home History shows balance additions with the correct type name or safe fallback.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`; Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack screens.
+- No package version, Expo config, sync/backup/remote schema, forbidden UI dependency, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.

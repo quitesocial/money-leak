@@ -264,6 +264,10 @@ function expectText(renderer: ReactTestRenderer, text: string) {
   expect(getNodeText(renderer.root)).toContain(text);
 }
 
+function expectNoText(renderer: ReactTestRenderer, text: string) {
+  expect(getNodeText(renderer.root)).not.toContain(text);
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -455,6 +459,40 @@ describe('AddBalanceScreen', () => {
     );
   });
 
+  it('shows add type as its own screen state', async () => {
+    const renderer = await renderAddBalanceScreen();
+
+    await pressButton(renderer, 'Add');
+
+    expectText(renderer, 'Add Type');
+    expectText(renderer, 'Name');
+    expectText(renderer, 'Save Type');
+    expectNoText(renderer, 'Amount');
+    expectNoText(renderer, 'Date');
+    expectNoText(renderer, 'Salary');
+    expectNoText(renderer, 'Save Balance');
+  });
+
+  it('returns from add type without losing the add balance draft', async () => {
+    const renderer = await renderAddBalanceScreen();
+
+    await enterText(renderer, '0.00', '125');
+    await pressButton(renderer, 'Investment');
+    await pressButton(renderer, 'Add');
+    await enterText(renderer, 'Bonus', 'Draft type');
+    await pressAccessibleButton(renderer, 'Go back');
+    await pressButton(renderer, 'Save Balance');
+
+    expectText(renderer, 'Add Balance');
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    expect(mockAddBalanceEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 125,
+        typeId: 'investment',
+      }),
+    );
+  });
+
   it('validates empty and duplicate custom type names', async () => {
     const renderer = await renderAddBalanceScreen();
 
@@ -493,6 +531,17 @@ describe('AddBalanceScreen', () => {
         typeId: 'bonus',
       }),
     );
+  });
+
+  it('trims and collapses a custom type name before saving', async () => {
+    const renderer = await renderAddBalanceScreen();
+
+    await pressButton(renderer, 'Add');
+    await enterText(renderer, 'Bonus', '  Side   Hustle  ');
+    await pressButton(renderer, 'Save Type');
+
+    expect(mockAddBalanceType).toHaveBeenCalledWith({ name: 'Side Hustle' });
+    expect(findSelectedTypeButton(renderer, 'Side Hustle')).toBeTruthy();
   });
 
   it('falls back to tabs when there is no back stack after save', async () => {
