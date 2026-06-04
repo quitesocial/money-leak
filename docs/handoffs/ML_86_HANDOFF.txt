@@ -1,0 +1,271 @@
+ML-86 / Analytics & Leaks Ledger Handoff
+Created: 2026-06-04
+
+Purpose
+This handoff summarizes the Analytics & Leaks work completed in this thread so a
+future AI agent can plan from the current state without re-discovering or
+re-questioning the already accepted implementation.
+
+Current Status
+- ML-86 is implemented.
+- The user completed manual testing and confirmed everything is OK.
+- Current app/package version is 1.23.2.
+- The version bump to 1.23.2 was explicitly requested after the original ML-86
+  plan. The original plan said not to change version metadata, but this was
+  intentionally overridden by the later user request.
+- At the time this handoff was prepared, the repository was clean before adding
+  this handoff file.
+- Current HEAD observed before adding this handoff:
+  86b963c ML-86 Add analytics ledger helpers with tests (#105)
+
+Design Sources
+- Main source of truth was the Money Leak Figma file and the ML-86 nodes shared
+  throughout the implementation.
+- Several final visual details were driven by user screenshots from Figma.
+- The empty Analytics illustration was taken from the user-provided asset:
+  /Users/quitesocial/Downloads/3fd8efc87dc8156d261a2809ed4b2687502a699f.png
+- The app now stores the corresponding committed asset at:
+  assets/images/analytics-empty.png
+
+Implemented Scope
+
+1. Analytics & Leaks is now a read-only ledger
+- src/features/analytics/analytics-screen.tsx was redesigned from the old
+  statistics dashboard into a feed/ledger.
+- The old totals cards, leak percentage card, insight cards, Alternative Reality
+  section, and Shame Card CTA were removed from the Analytics tab UI.
+- The /shame-card route itself was preserved.
+- The screen uses the Figma-style layout:
+  - background #f7f7f5,
+  - centered narrow content column,
+  - large Analytics & Leaks title,
+  - operation header All / Added / Spent,
+  - period segmented control,
+  - enough bottom padding so the existing floating tab bar does not cover rows.
+- The screen does not recreate the iOS status bar or the app tab bar.
+
+2. Analytics ledger helpers were added
+- New internal helper module:
+  src/features/analytics/analytics-ledger.ts
+- It defines internal Analytics types for:
+  - period state,
+  - custom period type,
+  - filter state,
+  - balance/transaction union ledger rows,
+  - grouped ledger sections.
+- It supports:
+  - Today, Week, Month, and Custom ranges,
+  - Monday-start local weeks,
+  - local calendar month/year ranges,
+  - Custom Day / Month / Year / Custom dates,
+  - ascending normalization for custom date ranges,
+  - deleted row exclusion,
+  - newest-first sorting,
+  - deterministic tie-break by ledger item id,
+  - local date grouping such as 23 April 2026,
+  - signed euro labels such as +1 000.00 EUR style with the euro symbol in app
+    UI,
+  - local time formatting,
+  - filter normalization.
+
+3. Data sources and errors
+- Analytics uses existing local stores and refresh hooks:
+  - transactions,
+  - balance entries and balance types,
+  - categories.
+- No backend, sync, backup, restore, auth, schema, or CSV behavior was added or
+  changed for Analytics.
+- User-facing load/refresh failures use generic safe copy only.
+- Raw store/backend errors, raw payloads, IDs, secrets, tokens, owner ids,
+  localOwnerIds, and device ids are not rendered in Analytics UI.
+
+4. Ledger rows
+- Balance rows render as positive additions:
+  - balance type name,
+  - local time,
+  - green positive amount,
+  - no visible icon, matching the final Figma/user feedback,
+  - left indentation is preserved so balance rows align with transaction rows.
+- Transaction rows render as expenses:
+  - category display name,
+  - category icon aligned to the first text row rather than vertically centered
+    against the whole block,
+  - no gray circular icon background,
+  - black negative amount,
+  - Normal or Leak label,
+  - leak reason label when present.
+- Normal / Leak labels use the same visual icon language accepted in the final
+  UI:
+  - Normal uses the thumbs-up style symbol.
+  - Leak uses the app droplet/leak icon style.
+- Leak reason chips/labels also use reason icons where available.
+
+5. Empty states
+- Empty Analytics now uses the Figma box/ladder illustration asset from
+  assets/images/analytics-empty.png.
+- Empty title is No Transactions.
+- Copy changes based on whether the empty result is date-only or filter-driven.
+- Empty states include the Add Transaction CTA.
+- The Add Transaction CTA routes to /add-transaction.
+
+6. Period and custom controls
+- Analytics has its own local period state. It does not mutate the shared Home
+  period state.
+- Period tabs remain Today, Week, Month, Custom.
+- Custom initially shows only Type.
+- Selecting Day, Month, Year, or Custom dates reveals the Date control.
+- Select labels are outside the select fields, matching Figma.
+- Select fields use rounded Figma-style shapes rather than square boxes.
+- Day date selection is now an inline calendar under the Date select:
+  - no modal header,
+  - no Cancel / Done footer,
+  - selecting a day closes the inline picker,
+  - selected date styling matches the accepted Figma direction.
+- Month and Year selection are inline vertical scrolling pickers under the Date
+  select:
+  - no modal header,
+  - no footer buttons,
+  - scroll gestures are captured by the picker rather than the page.
+- Custom dates selection is an inline range calendar under the Date select:
+  - no modal header,
+  - no footer buttons,
+  - the user can select From and To in one picker,
+  - selected range styling matches the single-day picker,
+  - the stored range is normalized to ascending order.
+- The shared LocalDatePicker components were extended to support date, month,
+  year, and range modes where needed, but Analytics currently uses its inline
+  Figma-style picker controls for the custom period UI.
+
+7. Filter by flow
+- Filter by is implemented as an in-screen React Native Modal so it covers the
+  existing tab bar without adding a route.
+- The filter screen now has:
+  - safe-area-aware top spacing,
+  - a back button in the header,
+  - large Filter by title,
+  - Added / Spent operation chips,
+  - sticky Apply button at the bottom.
+- The modal no longer places an awkward close control at the very top edge of
+  the screen.
+- Filter chip sizing was adjusted to be thinner and closer to Figma.
+- Filter chips include icons for Normal, Leak, categories, balance types, and
+  leak reasons where available.
+- Filter changes are staged in draft state and only applied after tapping Apply.
+
+8. Filter semantics
+- Default filter is All.
+- Added shows balance entries.
+- Added plus a balance type filters by BalanceEntry.typeId.
+- Spent shows transactions.
+- Spent plus Normal filters non-leak transactions.
+- Spent plus Leak filters leak transactions.
+- Category filters by transaction category id.
+- Leak reason filters by Transaction.leakReason and implies Leak.
+- The main header label is All, Added, or Spent.
+- Active filters show the secondary "Filtered by ..." line.
+- Tapping the clear affordance resets filters back to All.
+- The filter button has no filled background when no filter is active and shows
+  the active filled style when a filter is selected, matching the final Figma
+  feedback.
+
+9. Documentation and versioning
+- docs/mvp-qa-checklist.md was updated with ML-86 manual QA coverage.
+- package.json and package-lock.json were bumped from 1.23.1 to 1.23.2 after
+  the user explicitly requested a version bump.
+- app.config.js was not changed; it continues to derive Expo version from
+  package.json.
+- app.json and eas.json were not changed.
+
+Key Files Changed
+- assets/images/analytics-empty.png
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+- src/components/local-date-picker.native.tsx
+- src/components/local-date-picker.tsx
+- src/features/analytics/analytics-ledger.ts
+- src/features/analytics/analytics-screen.tsx
+- src/features/analytics/__tests__/analytics-ledger.test.ts
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+
+Tests Added / Updated
+- src/features/analytics/__tests__/analytics-ledger.test.ts covers the internal
+  ledger helper behavior:
+  - period ranges,
+  - custom day/month/year/custom dates,
+  - local grouping,
+  - newest-first deterministic sorting,
+  - balance and transaction inclusion,
+  - filters,
+  - amount/time labels.
+- src/features/analytics/__tests__/analytics-screen.test.tsx covers the screen:
+  - title and default All state,
+  - period labels,
+  - custom controls,
+  - empty states,
+  - Add Transaction CTA,
+  - balance positive rows,
+  - transaction negative rows,
+  - normal/leak labels,
+  - filter modal open/apply/clear,
+  - Added, Spent, balance type, category, leak reason filters.
+
+Automated Validation Already Run
+The validation commands below were run during this work with Node 20.19.4 and
+were observed green:
+
+source /Users/quitesocial/.nvm/nvm.sh
+nvm use 20.19.4
+
+npm run release:preflight
+npm test -- --runInBand
+npm run typecheck
+npm run lint
+npm run format:check
+npx expo config --json
+git diff --check
+
+After the final 1.23.2 version bump, these checks were rerun and passed:
+- npm run release:preflight
+- git diff --check
+
+Manual QA
+- The user manually tested the final implementation after the visual/UI fixes.
+- User-confirmed result: everything is OK.
+
+Preserved Contracts / Guardrails
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance
+  remain non-tab root Stack routes.
+- Analytics rows remain read-only.
+- Balance additions remain separate from expense Transactions.
+- Balance additions are not encoded as Transactions.
+- Transaction CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Balance additions were not added to Transaction CSV import/export.
+- No DB schema, Supabase schema, sync, backup, restore, auth, delete-account, or
+  remote contract changes were made.
+- No forbidden UI dependency was added.
+- No raw backend errors, secrets, tokens, env values, owner identifiers,
+  localOwnerIds, device IDs, or backend row payloads were added to UI or docs.
+- AGENTS.md was not changed.
+
+Recommended Next-Agent Starting Point
+- Treat ML-86 as implemented, manually accepted, and ready for follow-up
+  planning.
+- Do not reintroduce the old Analytics statistics dashboard unless a future task
+  explicitly asks for it.
+- Do not replace the inline Analytics custom date/month/year/range pickers with
+  the generic modal picker; the inline behavior was explicitly requested and
+  accepted.
+- Do not add a Filter by route; the full-screen in-screen modal is intentional.
+- Preserve the empty-state image asset and Add Transaction CTA.
+- Preserve balance row indentation even though balance rows intentionally have
+  no visible icon.
+- Preserve top alignment and no-background styling for transaction category
+  icons.
+- Preserve Normal, Leak, and leak reason icons in list rows and filter chips.
+- If future Analytics planning touches data contracts, keep balance additions
+  outside Transaction CSV v1 and outside the Transaction domain.
+- If future release planning depends on version metadata, start from version
+  1.23.2.
