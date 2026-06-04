@@ -3319,3 +3319,56 @@ Manual QA:
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`; Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack screens.
 - No package version, Expo config, sync/backup/remote schema, forbidden UI dependency, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
+
+## ML-86 Analytics & Leaks Ledger
+
+### 58. Analytics & Leaks ledger, filters, and regressions
+
+**Preconditions**
+
+- Local data includes balance additions and expense transactions for Today, Week, Month, and older dates.
+- Include at least one normal transaction, one leak transaction with a reason, one balance addition for `Salary`, one for `Investment`, one for `Regalo`, and one user-created active balance type if available.
+- Test against the ML-86 Figma nodes on a native iPhone-width device or simulator.
+
+**Steps**
+
+1. Open `Analytics & Leaks` and compare the main layout, title, `All` header, filter button, segmented control, date groups, rows, empty states, and Filter by flow against the Figma nodes.
+2. Confirm the default `All` / `Today` feed shows today's balance additions and expenses only.
+3. Switch to `Week`, then `Month`, and confirm the feed updates to those local periods.
+4. Switch to `Custom`, choose `Day`, `Month`, `Year`, and `Custom dates`, and confirm the date labels and feed ranges update safely.
+5. Open and cancel the date picker, then reopen it and select dates for each Custom type.
+6. Open `Filter by`, close it with the back button, reopen it, select `Added`, and apply.
+7. Reopen `Filter by`, select `Added` plus a balance type such as `Salary`, and apply.
+8. Reopen `Filter by`, select `Spent`, then test `Normal`, `Leak`, leak reason, and category filters.
+9. Clear the active filter from the main screen.
+10. Test an active filter with no matching rows.
+11. Test a date/period with no matching rows.
+12. Scroll to the last ledger row with enough data to fill the screen.
+13. Review Home swipe/edit/delete behavior for transactions and balance rows.
+14. Smoke-test Add Balance, Edit Balance, Add Transaction, and Edit Transaction.
+15. Review CSV export/import, auth/session, backup, restore, sync, delete-account, and bottom navigation regressions.
+
+**Expected result**
+
+- Analytics uses the ML-86 read-only ledger layout and does not show the old totals dashboard, insight cards, Alternative Reality section, or Shame Card CTA.
+- The screen does not recreate the native status bar or floating tab bar inside content.
+- The floating bottom tab bar does not cover the last ledger row.
+- Feed rows are grouped by date like `23 April 2026` and sorted newest-first inside each date.
+- Balance additions show the balance type name and a positive green amount such as `+1 000.00 €`.
+- Expense transactions show the category display name/icon and a negative black amount such as `-10.00 €`.
+- Leak rows show `Leak` and the leak reason label; normal rows show `Normal`.
+- `Today`, `Week`, `Month`, and all Custom period types filter both balance additions and expenses correctly.
+- `Filter by` opens as a full-screen state, closes safely, and applies only after tapping `Apply`.
+- `Added` shows only balance additions; `Spent` shows only expense transactions.
+- Added balance type, Spent normal/leak, leak reason, and category filters apply correctly.
+- Clearing the active filter returns to `All`.
+- Active filters with no results show `No Transactions` and `No transactions match your current filters`.
+- Date/periods with no results show `No Transactions` and `No transactions match your date`.
+- Empty Analytics states show the Figma-style box/ladder illustration and an `Add Transaction` CTA that opens Add Transaction.
+- Analytics rows remain read-only; no edit/delete behavior is added to Analytics.
+- Home swipe edit/delete behavior does not regress.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack screens, not tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
+- No package version, Expo config, DB schema, Supabase schema, sync/backup/restore contract, auth/session, delete-account behavior, forbidden UI dependency, backend/API/AI/bank integration, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
