@@ -2,7 +2,30 @@ import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { TRANSACTIONS_CSV_HEADER } from '@/features/export/transactions-csv-format';
+
 describe('project contracts', () => {
+  it('keeps Transaction CSV v1 header unchanged', () => {
+    const csvFormat = readFileSync(
+      join(process.cwd(), 'src/features/export/transactions-csv-format.ts'),
+      'utf8',
+    );
+
+    expect(TRANSACTIONS_CSV_HEADER).toBe(
+      'id,amount,category,isLeak,leakReason,note,createdAt',
+    );
+    expect(csvFormat).toContain('export const TRANSACTIONS_CSV_COLUMNS = [');
+    expect(csvFormat).toContain("'id'");
+    expect(csvFormat).toContain("'amount'");
+    expect(csvFormat).toContain("'category'");
+    expect(csvFormat).toContain("'isLeak'");
+    expect(csvFormat).toContain("'leakReason'");
+    expect(csvFormat).toContain("'note'");
+    expect(csvFormat).toContain("'createdAt'");
+    expect(csvFormat).not.toContain("'balance");
+    expect(csvFormat).not.toContain("'icon");
+  });
+
   it('keeps bottom tabs limited to Home, Analytics & Leaks, and Settings', () => {
     const tabsLayout = readFileSync(
       join(process.cwd(), 'app/(tabs)/_layout.tsx'),
@@ -23,7 +46,7 @@ describe('project contracts', () => {
     expect(tabsLayout).not.toContain('name="shame-card"');
   });
 
-  it('keeps Add Transaction, Add Balance, and Shame Card as root stack screens', () => {
+  it('keeps pushed app routes as root stack screens', () => {
     const rootLayout = readFileSync(
       join(process.cwd(), 'app/_layout.tsx'),
       'utf8',
@@ -32,6 +55,8 @@ describe('project contracts', () => {
     expect(rootLayout).toContain('name="add-transaction"');
     expect(rootLayout).toContain('name="add-balance"');
     expect(rootLayout).toContain('name="shame-card"');
+    expect(rootLayout).toContain('name="transaction/[id]/edit"');
+    expect(rootLayout).toContain('name="balance/[id]/edit"');
   });
 
   it('does not add forbidden UI dependencies', () => {
@@ -56,5 +81,29 @@ describe('project contracts', () => {
 
     expect(packageJson).not.toMatch(forbiddenDependencyPattern);
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
+  });
+
+  it('keeps ML-87 version and Expo metadata unchanged', () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { version: string };
+    const packageLock = JSON.parse(
+      readFileSync(join(process.cwd(), 'package-lock.json'), 'utf8'),
+    ) as { packages: { '': { version: string } }; version: string };
+    const appConfig = readFileSync(
+      join(process.cwd(), 'app.config.js'),
+      'utf8',
+    );
+    const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
+    const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
+
+    expect(packageJson.version).toBe('1.23.2');
+    expect(packageLock.version).toBe('1.23.2');
+    expect(packageLock.packages[''].version).toBe('1.23.2');
+    expect(appConfig).toContain(
+      "const { version } = require('./package.json');",
+    );
+    expect(appJson).not.toContain('"version"');
+    expect(easJson).toContain('"appVersionSource": "remote"');
   });
 });

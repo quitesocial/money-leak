@@ -3,6 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { getSyncMetadata } from '@/db/sync-status';
 import { featureFlags } from '@/lib/feature-flags';
+import { getForegroundSyncEnabled } from '@/lib/settings-preferences';
 import { manualSyncService } from '@/lib/sync/manual-sync-service';
 import type {
   SyncAuthContext,
@@ -18,6 +19,7 @@ export const FOREGROUND_AUTO_SYNC_THROTTLE_MS = 15 * 60 * 1000;
 
 type ForegroundAutoSyncOptions = {
   now?: () => number;
+  readForegroundSyncEnabled?: () => Promise<boolean>;
   readMetadata?: () => Promise<SyncMetadata>;
   refreshAfterSuccess?: () => Promise<void>;
   syncService?: Pick<
@@ -37,6 +39,7 @@ const DEFAULT_REFRESH_AFTER_SUCCESS = async () => {
 
 export function useForegroundAutoSync({
   now = Date.now,
+  readForegroundSyncEnabled = getForegroundSyncEnabled,
   readMetadata = getSyncMetadata,
   refreshAfterSuccess = DEFAULT_REFRESH_AFTER_SUCCESS,
   syncService = manualSyncService,
@@ -70,6 +73,7 @@ export function useForegroundAutoSync({
         authRef,
         isForegroundSyncInFlightRef,
         now,
+        readForegroundSyncEnabled,
         readMetadata,
         refreshAfterSuccess,
         syncService,
@@ -80,13 +84,21 @@ export function useForegroundAutoSync({
     return () => {
       subscription.remove();
     };
-  }, [now, readMetadata, refreshAfterSuccess, syncService, throttleWindowMs]);
+  }, [
+    now,
+    readForegroundSyncEnabled,
+    readMetadata,
+    refreshAfterSuccess,
+    syncService,
+    throttleWindowMs,
+  ]);
 }
 
 async function runForegroundSyncIfNeeded({
   authRef,
   isForegroundSyncInFlightRef,
   now,
+  readForegroundSyncEnabled,
   readMetadata,
   refreshAfterSuccess,
   syncService,
@@ -95,6 +107,7 @@ async function runForegroundSyncIfNeeded({
   authRef: MutableRefObject<SyncAuthContext>;
   isForegroundSyncInFlightRef: MutableRefObject<boolean>;
   now: () => number;
+  readForegroundSyncEnabled: () => Promise<boolean>;
   readMetadata: () => Promise<SyncMetadata>;
   refreshAfterSuccess: () => Promise<void>;
   syncService: Pick<
@@ -106,6 +119,16 @@ async function runForegroundSyncIfNeeded({
   if (!featureFlags.incrementalSyncEnabled) return;
   if (isForegroundSyncInFlightRef.current) return;
   if (syncService.isIncrementalSyncInFlight()) return;
+
+  let isForegroundSyncEnabled = false;
+
+  try {
+    isForegroundSyncEnabled = await readForegroundSyncEnabled();
+  } catch {
+    return;
+  }
+
+  if (!isForegroundSyncEnabled) return;
 
   const initialAuth = getAuthenticatedSyncContext(authRef.current);
 

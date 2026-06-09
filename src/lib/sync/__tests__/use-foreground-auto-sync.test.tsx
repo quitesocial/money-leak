@@ -35,6 +35,8 @@ const mockAuthStoreState: {
   user: null,
 };
 
+const mockGetForegroundSyncEnabled = jest.fn<() => Promise<boolean>>();
+
 jest.mock('@/store/auth-store', () => ({
   useAuthStore: (selector: (state: typeof mockAuthStoreState) => unknown) => {
     return selector(mockAuthStoreState);
@@ -50,6 +52,10 @@ jest.mock('@/lib/sync/manual-sync-service', () => ({
     isIncrementalSyncInFlight: jest.fn(() => false),
     runIncrementalSync: jest.fn(),
   },
+}));
+
+jest.mock('@/lib/settings-preferences', () => ({
+  getForegroundSyncEnabled: () => mockGetForegroundSyncEnabled(),
 }));
 
 jest.mock('@/store/categories-store', () => ({
@@ -217,6 +223,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 
   mutableFeatureFlags.incrementalSyncEnabled = true;
+  mockGetForegroundSyncEnabled.mockResolvedValue(true);
   mockAuthStoreState.status = 'guest';
   mockAuthStoreState.user = null;
   appStateListener = null;
@@ -292,6 +299,29 @@ describe('useForegroundAutoSync', () => {
 
     await returnToForeground('inactive');
 
+    expect(readMetadata).not.toHaveBeenCalled();
+    expect(syncService.runIncrementalSync).not.toHaveBeenCalled();
+    expect(refreshAfterSuccess).not.toHaveBeenCalled();
+  });
+
+  it('skips foreground sync when the local preference is disabled', async () => {
+    mockGetForegroundSyncEnabled.mockResolvedValue(false);
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.user = createAuthUser();
+    const readMetadata = jest.fn(async () => createMetadata());
+    const refreshAfterSuccess = jest.fn<() => Promise<void>>();
+    const syncService = createSyncService();
+
+    await renderForegroundAutoSync({
+      now: () => TEST_NOW,
+      readMetadata,
+      refreshAfterSuccess,
+      syncService,
+    });
+
+    await returnToForeground('inactive');
+
+    expect(mockGetForegroundSyncEnabled).toHaveBeenCalledTimes(1);
     expect(readMetadata).not.toHaveBeenCalled();
     expect(syncService.runIncrementalSync).not.toHaveBeenCalled();
     expect(refreshAfterSuccess).not.toHaveBeenCalled();

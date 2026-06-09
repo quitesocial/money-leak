@@ -3372,3 +3372,45 @@ Manual QA:
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - No package version, Expo config, DB schema, Supabase schema, sync/backup/restore contract, auth/session, delete-account behavior, forbidden UI dependency, backend/API/AI/bank integration, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
+
+## ML-87 Settings Section Rework
+
+### 59. Settings Figma layout, preferences, and regressions
+
+**Preconditions**
+
+- Test against Figma nodes `203:7919`, `203:7972`, and `203:8047` on a native iPhone-width device or simulator.
+- Use one guest/local session and one authenticated test account.
+- Local data includes active categories, at least one custom category, transactions, balance types, and balance entries.
+
+**Steps**
+
+1. Open `Settings` and compare the title, `Account`, `Category`, and `General` sections against Figma.
+2. Confirm the screen does not recreate the iOS status bar or the floating app tab bar inside Settings content.
+3. Toggle `Daily check-in reminder` on and off, including denied/unsupported notification states when possible.
+4. Toggle `Synchronization` in guest mode and authenticated mode.
+5. Open `Currency`, select a different draft option, close with `x`, reopen, select again, and apply with the checkmark.
+6. Repeat the same cancel/apply flow for `Language`.
+7. Add a category, select an icon, swipe a category row left to edit the name/icon, and swipe a category row right to delete/archive it after confirmation.
+8. Confirm `Other` cannot be deleted and old transactions with archived categories still display safely.
+9. In guest mode, try disabled account, backup, and restore rows and confirm no remote action runs.
+10. In authenticated mode, test sign out, delete account confirmation/cancel/confirm, Import CSV, Export CSV, Create backup, Restore from backup, and `Sync now`.
+11. Open Privacy policy and Support; also test blank or failing links if possible.
+12. Review Home, Analytics & Leaks, Add Transaction, Add Balance, Shame Card, Edit Transaction, Edit Balance, CSV import/export, backup/restore/sync, and bottom navigation regressions.
+
+**Expected result**
+
+- Settings uses the ML-87 row-based layout with `#f7f7f5` background, a centered narrow column, New York-style headings, and enough bottom padding for the floating tab bar.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
+- Reminder behavior and notification permission handling are unchanged.
+- Foreground synchronization preference is local-only, does not trigger sync immediately, and guest mode never invokes remote sync writes.
+- Manual sync remains authenticated, explicit, routed through the sync service boundary, and reports aggregate safe counts only.
+- Currency and Language sheets stage draft selections, cancel without applying, apply selected values locally, and do not implement FX conversion or app-wide i18n.
+- Currency preference does not mutate historical amounts and does not change CSV import/export.
+- Category rows show existing category icons and display names on the Settings background at rest; right swipe shrinks the row to reveal delete with only the left content corners rounded, left swipe shrinks the row to reveal edit with only the right content corners rounded, and add/edit/delete preserve category IDs, iconName contracts, validation, icon picker behavior, and archive semantics.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
+- Import/export/backup/restore/sign out/delete-account behavior remains safe and does not delete local data unless an existing flow explicitly does so.
+- Privacy and Support links use centralized app links and show generic safe failure copy.
+- No package version, Expo config, DB schema, Supabase schema, sync/backup/restore contract, auth/session contract, forbidden UI dependency, service-role/admin mobile usage, raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.
