@@ -18,6 +18,7 @@ import {
 import { SettingsScreen } from '@/features/settings/settings-screen';
 import { APP_LINKS } from '@/lib/app-links';
 import { featureFlags } from '@/lib/feature-flags';
+import type { CategoryIconName } from '@/lib/category-icons';
 import type { SyncMetadata } from '@/lib/sync/sync-types';
 import type {
   AuthError,
@@ -25,6 +26,7 @@ import type {
   AuthStatus,
   AuthUser,
 } from '@/types/auth';
+import type { Category } from '@/types/category';
 
 type MockReminderPermissionStatus =
   | 'granted'
@@ -147,8 +149,17 @@ const mockPickTransactionsCsvImport =
   jest.fn<() => Promise<{ status: 'cancelled' }>>();
 
 const mockUseTransactionsRefresh = jest.fn();
+const mockUseCategoriesRefresh = jest.fn();
+const mockUseBalanceRefresh = jest.fn();
 const mockGetLastSuccessfulBackupAt = jest.fn<() => Promise<number | null>>();
 const mockGetSyncMetadata = jest.fn<() => Promise<SyncMetadata>>();
+const mockGetSettingsCurrency = jest.fn<() => Promise<string>>();
+const mockSetSettingsCurrency = jest.fn<(_currency: string) => Promise<void>>();
+const mockGetSettingsLanguage = jest.fn<() => Promise<string>>();
+const mockSetSettingsLanguage = jest.fn<(_language: string) => Promise<void>>();
+const mockGetForegroundSyncEnabled = jest.fn<() => Promise<boolean>>();
+const mockSetForegroundSyncEnabled =
+  jest.fn<(_enabled: boolean) => Promise<void>>();
 
 const mockSetLastSuccessfulBackupAt =
   jest.fn<(_timestamp: number) => Promise<void>>();
@@ -180,6 +191,23 @@ const mockCancelDailyCheckInReminder = jest.fn<() => Promise<void>>();
 const mockLoadTransactions = jest.fn<() => Promise<void>>();
 const mockLoadCategories = jest.fn<() => Promise<void>>();
 const mockLoadBalance = jest.fn<() => Promise<void>>();
+const mockAddCategory =
+  jest.fn<
+    (input: {
+      iconName?: CategoryIconName | null;
+      name: string;
+    }) => Promise<void>
+  >();
+const mockUpdateCategory = jest.fn<
+  (
+    id: string,
+    input: {
+      iconName?: CategoryIconName | null;
+      name: string;
+    },
+  ) => Promise<void>
+>();
+const mockArchiveCategory = jest.fn<(id: string) => Promise<void>>();
 
 const mockImportTransactions =
   jest.fn<(_transactions: unknown[]) => Promise<number>>();
@@ -205,6 +233,23 @@ const mockAuthSession: AuthSession = {
     photoUrl: null,
   },
 };
+
+function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
+  return {
+    id: overrides.id,
+    ownerId: overrides.ownerId ?? 'local_test-owner',
+    name: overrides.name ?? overrides.id,
+    iconName: overrides.iconName ?? 'tag',
+    createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? 1,
+    isDefault: overrides.isDefault ?? false,
+    isArchived: overrides.isArchived ?? false,
+    deletedAt: overrides.deletedAt ?? null,
+    schemaVersion: overrides.schemaVersion ?? 1,
+    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
+    sortOrder: overrides.sortOrder ?? 1,
+  };
+}
 
 const rawServiceRoleKeyValue = ['service', 'role', 'key'].join('-');
 const rawServiceRoleEnvValue = ['MONEY', 'LEAK', 'SERVICE', 'ROLE', 'KEY'].join(
@@ -262,11 +307,41 @@ const mockTransactionsStoreState = {
   clearError: mockClearError,
 };
 
-const mockCategoriesStoreState = {
+const mockCategoriesStoreState: {
+  categories: Category[];
+  activeCategories: Category[];
+  isLoading: boolean;
+  isInitialized: boolean;
+  error: string | null;
+  loadCategories: () => Promise<void>;
+  addCategory: (input: {
+    iconName?: CategoryIconName | null;
+    name: string;
+  }) => Promise<void>;
+  updateCategory: (
+    id: string,
+    input: {
+      iconName?: CategoryIconName | null;
+      name: string;
+    },
+  ) => Promise<void>;
+  archiveCategory: (id: string) => Promise<void>;
+  clearError: () => void;
+} = {
+  categories: [],
+  activeCategories: [],
+  isLoading: false,
+  isInitialized: true,
+  error: null,
   loadCategories: mockLoadCategories,
+  addCategory: mockAddCategory,
+  updateCategory: mockUpdateCategory,
+  archiveCategory: mockArchiveCategory,
+  clearError: mockClearError,
 };
 
 const mockBalanceStoreState = {
+  isInitialized: true,
   loadBalance: mockLoadBalance,
 };
 
@@ -296,6 +371,10 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+jest.mock('expo-symbols', () => ({
+  SymbolView: ({ fallback }: { fallback?: React.ReactNode }) => fallback,
+}));
+
 jest.mock('@/features/export/export-transactions-csv', () => ({
   exportTransactionsCsv: (transactions: unknown[]) => {
     return mockExportTransactionsCsv(transactions);
@@ -315,6 +394,72 @@ jest.mock('@/lib/use-transactions-refresh', () => ({
     return mockUseTransactionsRefresh(...args);
   },
 }));
+
+jest.mock('@/lib/use-categories-refresh', () => ({
+  useCategoriesRefresh: (...args: unknown[]) => {
+    return mockUseCategoriesRefresh(...args);
+  },
+}));
+
+jest.mock('@/lib/use-balance-refresh', () => ({
+  useBalanceRefresh: (...args: unknown[]) => {
+    return mockUseBalanceRefresh(...args);
+  },
+}));
+
+jest.mock('@/lib/settings-preferences', () => {
+  const languageOptions = [
+    'English',
+    'German',
+    'Francese',
+    'Spanish',
+    'Portugese',
+    'Italian',
+    'Chinese',
+    'Russian',
+    'Indian',
+  ];
+  const currencyOptions = [
+    'Euro',
+    'United States dollar',
+    'Canadian dollar',
+    'Australian dollar',
+    'Russian ruble',
+    'Indian rupee',
+    'Chinese yuan',
+    'Pound sterling',
+    'Japanese yen',
+  ];
+  const currencyCodes: Record<string, string> = {
+    Euro: 'EUR',
+    'United States dollar': 'USD',
+    'Canadian dollar': 'CAD',
+    'Australian dollar': 'AUD',
+    'Russian ruble': 'RUB',
+    'Indian rupee': 'INR',
+    'Chinese yuan': 'CNY',
+    'Pound sterling': 'GBP',
+    'Japanese yen': 'JPY',
+  };
+
+  return {
+    DEFAULT_SETTINGS_CURRENCY: 'Euro',
+    DEFAULT_SETTINGS_LANGUAGE: 'English',
+    SETTINGS_CURRENCY_OPTIONS: currencyOptions,
+    SETTINGS_LANGUAGE_OPTIONS: languageOptions,
+    getCurrencyOptionLabel: (currency: string) =>
+      `${currency} (${currencyCodes[currency]})`,
+    getForegroundSyncEnabled: () => mockGetForegroundSyncEnabled(),
+    getSettingsCurrency: () => mockGetSettingsCurrency(),
+    getSettingsLanguage: () => mockGetSettingsLanguage(),
+    setForegroundSyncEnabled: (enabled: boolean) =>
+      mockSetForegroundSyncEnabled(enabled),
+    setSettingsCurrency: (currency: string) =>
+      mockSetSettingsCurrency(currency),
+    setSettingsLanguage: (language: string) =>
+      mockSetSettingsLanguage(language),
+  };
+});
 
 jest.mock('@/db/backup-status', () => ({
   getLastSuccessfulBackupAt: () => {
@@ -476,11 +621,14 @@ jest.mock('@/store/transactions-store', () => ({
 }));
 
 jest.mock('@/store/categories-store', () => ({
-  useCategoriesStore: (
-    selector: (state: typeof mockCategoriesStoreState) => unknown,
-  ) => {
-    return mockUseCategoriesStore(selector);
-  },
+  useCategoriesStore: Object.assign(
+    (selector: (state: typeof mockCategoriesStoreState) => unknown) => {
+      return mockUseCategoriesStore(selector);
+    },
+    {
+      getState: () => mockCategoriesStoreState,
+    },
+  ),
 }));
 
 jest.mock('@/store/balance-store', () => ({
@@ -546,6 +694,59 @@ function findButton(
   }) as ReactTestInstance & {
     props: {
       onPress: () => void;
+    };
+  };
+}
+
+function findByAccessibilityLabel(
+  renderer: ReactTestRenderer,
+  accessibilityLabel: string,
+) {
+  return renderer.root.find((node: ReactTestInstance) => {
+    return node.props.accessibilityLabel === accessibilityLabel;
+  }) as ReactTestInstance & {
+    props: {
+      onPress?: () => void;
+      onValueChange?: (value: boolean) => void;
+    };
+  };
+}
+
+function findByTestID(renderer: ReactTestRenderer, testID: string) {
+  return renderer.root.find((node: ReactTestInstance) => {
+    return node.props.testID === testID;
+  }) as ReactTestInstance & {
+    props: {
+      onPress?: () => void;
+    };
+  };
+}
+
+function findTextInputByPlaceholder(
+  renderer: ReactTestRenderer,
+  placeholder: string,
+) {
+  return renderer.root.find((node: ReactTestInstance) => {
+    return (
+      typeof node.props.onChangeText === 'function' &&
+      node.props.placeholder === placeholder
+    );
+  }) as ReactTestInstance & {
+    props: {
+      onChangeText: (value: string) => void;
+    };
+  };
+}
+
+function findTextInputByValue(renderer: ReactTestRenderer, value: string) {
+  return renderer.root.find((node: ReactTestInstance) => {
+    return (
+      typeof node.props.onChangeText === 'function' &&
+      node.props.value === value
+    );
+  }) as ReactTestInstance & {
+    props: {
+      onChangeText: (value: string) => void;
     };
   };
 }
@@ -769,12 +970,21 @@ beforeEach(() => {
   mockPickTransactionsCsvImport.mockResolvedValue({ status: 'cancelled' });
   mockGetLastSuccessfulBackupAt.mockResolvedValue(null);
   mockGetSyncMetadata.mockResolvedValue(createEmptySyncMetadata());
+  mockGetSettingsCurrency.mockResolvedValue('Euro');
+  mockSetSettingsCurrency.mockResolvedValue(undefined);
+  mockGetSettingsLanguage.mockResolvedValue('English');
+  mockSetSettingsLanguage.mockResolvedValue(undefined);
+  mockGetForegroundSyncEnabled.mockResolvedValue(true);
+  mockSetForegroundSyncEnabled.mockResolvedValue(undefined);
   mockSetLastSuccessfulBackupAt.mockResolvedValue(undefined);
   mockRunManualBackup.mockResolvedValue(createSucceededBackupResult());
   mockRunManualRestore.mockResolvedValue(createSucceededRestoreResult());
   mockRunManualSync.mockResolvedValue(createSucceededSyncResult());
   mockRunDeleteAccount.mockResolvedValue({ status: 'succeeded' });
   mockHasLocalRestoreData.mockResolvedValue(false);
+  mockAddCategory.mockResolvedValue(undefined);
+  mockUpdateCategory.mockResolvedValue(undefined);
+  mockArchiveCategory.mockResolvedValue(undefined);
   mockGetReminderEnabled.mockResolvedValue(false);
   mockSetReminderEnabled.mockResolvedValue(undefined);
   mockGetReminderPermissionStatus.mockResolvedValue('granted');
@@ -794,6 +1004,33 @@ beforeEach(() => {
   mockAuthStoreState.session = null;
   mockAuthStoreState.user = null;
   mockAuthStoreState.error = null;
+  mockCategoriesStoreState.categories = [
+    createCategory({
+      id: 'food',
+      name: 'Food',
+      iconName: 'food',
+      isDefault: true,
+      sortOrder: 0,
+    }),
+    createCategory({
+      id: 'coffee',
+      name: 'Coffee',
+      iconName: 'coffee',
+      sortOrder: 1,
+    }),
+    createCategory({
+      id: 'other',
+      name: 'Other',
+      iconName: 'other',
+      isDefault: true,
+      sortOrder: 2,
+    }),
+  ];
+  mockCategoriesStoreState.activeCategories =
+    mockCategoriesStoreState.categories;
+  mockCategoriesStoreState.isLoading = false;
+  mockCategoriesStoreState.isInitialized = true;
+  mockCategoriesStoreState.error = null;
   openUrlSpy.mockResolvedValue(undefined);
 });
 
@@ -805,19 +1042,19 @@ afterAll(() => {
 });
 
 describe('SettingsScreen support links', () => {
-  it('renders Privacy & Support in guest mode without a login wall', async () => {
+  it('renders General support rows in guest mode without a login wall', async () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Privacy & Support');
-    expect(text).toContain('Privacy Policy');
+    expect(text).toContain('General');
+    expect(text).toContain('Privacy policy');
     expect(text).toContain('Support');
     expect(text).toContain('Using local guest mode on this device.');
-    expect(text).not.toContain('Delete Account');
+    expect(text).toContain('Delete account');
     expectNoRawSyncUiValues(text);
   });
 
-  it('renders Privacy & Support in authenticated mode', async () => {
+  it('renders General support rows in authenticated mode', async () => {
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
     mockAuthStoreState.user = mockAuthSession.user;
@@ -825,19 +1062,19 @@ describe('SettingsScreen support links', () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Privacy & Support');
-    expect(text).toContain('Privacy Policy');
+    expect(text).toContain('General');
+    expect(text).toContain('Privacy policy');
     expect(text).toContain('Support');
-    expect(text).toContain('Signed in as test@example.com.');
-    expect(text).toContain('Sign Out');
-    expect(text).toContain('Delete Account');
+    expect(text).toContain('test@example.com');
+    expect(text).toContain('Sign out');
+    expect(text).toContain('Delete account');
     expectNoRawSyncUiValues(text);
   });
 
   it('opens the configured privacy policy URL with Linking.openURL', async () => {
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Privacy Policy');
+    await pressButton(renderer, 'Privacy policy');
 
     expect(openUrlSpy).toHaveBeenCalledWith(mutableAppLinks.privacyPolicyUrl);
     expect(alertSpy).not.toHaveBeenCalled();
@@ -859,7 +1096,7 @@ describe('SettingsScreen support links', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Privacy Policy');
+    await pressButton(renderer, 'Privacy policy');
 
     const text = getNodeText(renderer.root);
     const loggedText = JSON.stringify(consoleErrorSpy.mock.calls);
@@ -880,7 +1117,7 @@ describe('SettingsScreen support links', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Privacy Policy');
+    await pressButton(renderer, 'Privacy policy');
 
     expect(openUrlSpy).not.toHaveBeenCalled();
     expect(getNodeText(renderer.root)).toContain(
@@ -897,6 +1134,253 @@ describe('SettingsScreen support links', () => {
   });
 });
 
+describe('SettingsScreen ML-87 preferences and categories', () => {
+  it('renders the Settings title and main sections', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Settings');
+    expect(text).toContain('Account');
+    expect(text).toContain('Category');
+    expect(text).toContain('General');
+    expect(text).toContain('Daily check-in reminder');
+    expect(text).toContain('Synchronization');
+    expect(text).toContain('Currency');
+    expect(text).toContain('Language');
+  });
+
+  it('persists the foreground synchronization preference without syncing in guest mode', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+
+    const renderer = await renderSettingsScreen();
+
+    await act(async () => {
+      findByAccessibilityLabel(
+        renderer,
+        'Enable synchronization when returning to the app',
+      ).props.onValueChange?.(false);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSetForegroundSyncEnabled).toHaveBeenCalledWith(false);
+    expect(mockRunManualSync).not.toHaveBeenCalled();
+  });
+
+  it('opens, stages, cancels, applies, and displays the currency preference', async () => {
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Currency');
+
+    expect(getNodeText(renderer.root)).toContain('Choose Currency');
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-currency-option-United States dollar',
+      ).props.onPress?.();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByAccessibilityLabel(renderer, 'Close sheet').props.onPress?.();
+      await Promise.resolve();
+    });
+
+    expect(getNodeText(renderer.root)).toContain('Euro');
+    expect(getNodeText(renderer.root)).not.toContain('United States dollar');
+    expect(mockSetSettingsCurrency).not.toHaveBeenCalled();
+
+    await pressButton(renderer, 'Currency');
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-currency-option-United States dollar',
+      ).props.onPress?.();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByAccessibilityLabel(renderer, 'Apply selection').props.onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSetSettingsCurrency).toHaveBeenCalledWith(
+      'United States dollar',
+    );
+    expect(getNodeText(renderer.root)).toContain('United States dollar');
+  });
+
+  it('opens, stages, cancels, applies, and displays the language preference', async () => {
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Language');
+
+    expect(getNodeText(renderer.root)).toContain('Choose language');
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-language-option-German',
+      ).props.onPress?.();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByAccessibilityLabel(renderer, 'Close sheet').props.onPress?.();
+      await Promise.resolve();
+    });
+
+    expect(getNodeText(renderer.root)).toContain('English');
+    expect(getNodeText(renderer.root)).not.toContain('German');
+    expect(mockSetSettingsLanguage).not.toHaveBeenCalled();
+
+    await pressButton(renderer, 'Language');
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-language-option-German',
+      ).props.onPress?.();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByAccessibilityLabel(renderer, 'Apply selection').props.onPress?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSetSettingsLanguage).toHaveBeenCalledWith('German');
+    expect(getNodeText(renderer.root)).toContain('German');
+  });
+
+  it('renders category icons and names in Settings', async () => {
+    const renderer = await renderSettingsScreen();
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Food');
+    expect(text).toContain('Coffee');
+    expect(text).toContain('Other');
+    expect(findByTestID(renderer, 'settings-category-icon-food')).toBeTruthy();
+    expect(
+      findByTestID(renderer, 'settings-category-icon-coffee'),
+    ).toBeTruthy();
+  });
+
+  it('renders category rows as shrinkable swipe foreground pills', async () => {
+    const renderer = await renderSettingsScreen();
+    const coffeeRow = findByTestID(renderer, 'settings-category-row-coffee');
+    const styleText = JSON.stringify(coffeeRow.props.style);
+
+    expect(coffeeRow.props.onMoveShouldSetResponder).toEqual(
+      expect.any(Function),
+    );
+    expect(styleText).toContain('backgroundColor');
+    expect(styleText).toContain('width');
+    expect(styleText).not.toContain('translateX');
+  });
+
+  it('adds a category with existing validation and icon picker behavior', async () => {
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Add');
+
+    await act(async () => {
+      findTextInputByPlaceholder(renderer, 'Coffee').props.onChangeText(
+        'Travel',
+      );
+    });
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-add-category-icon-picker-expand',
+      ).props.onPress?.();
+    });
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-add-category-icon-option-travel',
+      ).props.onPress?.();
+    });
+
+    await pressButton(renderer, 'Save');
+
+    expect(mockAddCategory).toHaveBeenCalledWith({
+      name: 'Travel',
+      iconName: 'travel',
+    });
+  });
+
+  it('edits a category with existing store behavior', async () => {
+    const renderer = await renderSettingsScreen();
+
+    await act(async () => {
+      findByAccessibilityLabel(
+        renderer,
+        'Edit Coffee category',
+      ).props.onPress?.();
+    });
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-edit-category-icon-picker-expand',
+      ).props.onPress?.();
+    });
+
+    await act(async () => {
+      findByTestID(
+        renderer,
+        'settings-edit-category-icon-option-snacks',
+      ).props.onPress?.();
+    });
+
+    await act(async () => {
+      findTextInputByValue(renderer, 'Coffee').props.onChangeText(
+        'Coffee Runs',
+      );
+    });
+
+    await pressButton(renderer, 'Save');
+
+    expect(mockUpdateCategory).toHaveBeenCalledWith('coffee', {
+      name: 'Coffee Runs',
+      iconName: 'snacks',
+    });
+  });
+
+  it('confirms before archiving a category through the existing store behavior', async () => {
+    const renderer = await renderSettingsScreen();
+
+    await act(async () => {
+      findByAccessibilityLabel(
+        renderer,
+        'Delete Coffee category',
+      ).props.onPress?.();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete category?',
+      'This hides the category from new transactions. Old transactions will still show it.',
+      expect.any(Array),
+    );
+
+    const alertButtons = getLastAlertButtons();
+
+    await act(async () => {
+      alertButtons[1].onPress?.();
+      await Promise.resolve();
+    });
+
+    expect(mockArchiveCategory).toHaveBeenCalledWith('coffee');
+  });
+});
+
 describe('SettingsScreen account section', () => {
   it('shows guest account state by default', async () => {
     const renderer = await renderSettingsScreen();
@@ -907,10 +1391,10 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).toContain('Continue with Google');
     expect(text).toContain('Continue with Apple');
-    expect(text).not.toContain('Create backup now');
-    expect(text).not.toContain('Restore from backup');
+    expect(text).toContain('Create backup');
+    expect(text).toContain('Restore from backup');
     expect(text).not.toContain('Delete cloud account data');
-    expect(text).not.toContain('Delete Account');
+    expect(text).toContain('Delete account');
     expect(text).not.toContain('googleAuthEnabled');
   });
 
@@ -924,10 +1408,10 @@ describe('SettingsScreen account section', () => {
     expect(text).toContain('Using local guest mode on this device.');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');
-    expect(text).not.toContain('Create backup now');
-    expect(text).not.toContain('Restore from backup');
+    expect(text).toContain('Create backup');
+    expect(text).toContain('Restore from backup');
     expect(text).not.toContain('Delete cloud account data');
-    expect(text).not.toContain('Delete Account');
+    expect(text).toContain('Delete account');
     expect(text).not.toContain('googleAuthEnabled');
     expect(text).not.toContain('hasSupabaseUrl');
     expect(text).not.toContain('hasSupabaseAnonKey');
@@ -958,11 +1442,11 @@ describe('SettingsScreen account section', () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Signed in as test@example.com.');
-    expect(text).toContain('Sign Out');
+    expect(text).toContain('test@example.com');
+    expect(text).toContain('Sign out');
     expect(text).toContain('Privacy');
-    expect(text).toContain('Privacy & Support');
-    expect(text).toContain('Delete Account');
+    expect(text).toContain('General');
+    expect(text).toContain('Delete account');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');
     expect(text).not.toContain('googleAuthEnabled');
@@ -990,9 +1474,9 @@ describe('SettingsScreen account section', () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Signed in as Apple account.');
-    expect(text).toContain('Sign Out');
-    expect(text).toContain('Delete Account');
+    expect(text).toContain('Apple account');
+    expect(text).toContain('Sign out');
+    expect(text).toContain('Delete account');
     expect(text).not.toContain('Continue with Google');
     expect(text).not.toContain('Continue with Apple');
   });
@@ -1111,7 +1595,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Sign Out');
+    await pressButton(renderer, 'Sign out');
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(mockRunManualBackup).not.toHaveBeenCalled();
@@ -1131,7 +1615,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     expect(alertSpy).toHaveBeenCalledWith(
       'Delete account data?',
@@ -1149,7 +1633,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     const alertButtons = getLastAlertButtons();
 
@@ -1171,7 +1655,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     const alertButtons = getLastAlertButtons();
 
@@ -1209,7 +1693,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     const alertButtons = getLastAlertButtons();
 
@@ -1246,7 +1730,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     const alertButtons = getLastAlertButtons();
 
@@ -1282,7 +1766,7 @@ describe('SettingsScreen account section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Delete Account');
+    await pressButton(renderer, 'Delete account');
 
     const alertButtons = getLastAlertButtons();
 
@@ -1317,10 +1801,8 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).not.toContain('Sync now');
-    expect(text).not.toContain('Auto sync: On');
-    expect(text).not.toContain(
-      'Runs when you return to the app. Local tracking still works offline.',
-    );
+    expect(text).toContain('Synchronization');
+    expect(text).toContain('Runs when you return to the app');
     expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockGetSyncMetadata).not.toHaveBeenCalled();
   });
@@ -1334,10 +1816,8 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).not.toContain('Sync now');
-    expect(text).not.toContain('Auto sync: On');
-    expect(text).not.toContain(
-      'Runs when you return to the app. Local tracking still works offline.',
-    );
+    expect(text).toContain('Synchronization');
+    expect(text).toContain('Runs when you return to the app');
     expect(mockRunManualSync).not.toHaveBeenCalled();
     expect(mockGetSyncMetadata).not.toHaveBeenCalled();
   });
@@ -1352,10 +1832,8 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Sync');
-    expect(text).toContain('Auto sync: On');
-    expect(text).toContain(
-      'Runs when you return to the app. Local tracking still works offline.',
-    );
+    expect(text).toContain('Synchronization');
+    expect(text).toContain('Runs when you return to the app');
     expect(text).toContain('Sync now');
     expectNoRawSyncUiValues(text);
   });
@@ -1518,7 +1996,7 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
-    expect(text).toContain('· Manual');
+    expect(text).toContain('- Manual');
     expect(text).toContain(
       'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
     );
@@ -1544,7 +2022,7 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
-    expect(text).toContain('· Auto');
+    expect(text).toContain('- Auto');
     expectNoRawSyncUiValues(text);
   });
 
@@ -1562,8 +2040,8 @@ describe('SettingsScreen sync section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
-    expect(text).not.toContain('· Manual');
-    expect(text).not.toContain('· Auto');
+    expect(text).not.toContain('- Manual');
+    expect(text).not.toContain('- Auto');
     expect(text).not.toContain('Sync complete.');
     expectNoRawSyncUiValues(text);
   });
@@ -1647,7 +2125,7 @@ describe('SettingsScreen backup section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Backup');
-    expect(text).toContain('Create backup now');
+    expect(text).toContain('Create backup');
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('localOwnerId');
     expect(text).not.toContain('deviceId');
@@ -1662,7 +2140,7 @@ describe('SettingsScreen backup section', () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).not.toContain('Create backup now');
+    expect(text).toContain('Create backup');
     expect(mockRunManualBackup).not.toHaveBeenCalled();
   });
 
@@ -1671,8 +2149,8 @@ describe('SettingsScreen backup section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Using local guest mode on this device.');
-    expect(text).not.toContain('Create backup now');
-    expect(text).not.toContain('Restore from backup');
+    expect(text).toContain('Create backup');
+    expect(text).toContain('Restore from backup');
     expect(mockRunManualBackup).not.toHaveBeenCalled();
     expect(mockRunManualRestore).not.toHaveBeenCalled();
   });
@@ -1688,7 +2166,7 @@ describe('SettingsScreen backup section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Create backup now');
+    await pressButton(renderer, 'Create backup');
 
     expect(getNodeText(renderer.root)).toContain('Creating backup...');
     expect(mockRunManualBackup).toHaveBeenCalledWith({
@@ -1717,7 +2195,7 @@ describe('SettingsScreen backup section', () => {
     expect(text).toContain(
       'Backup created. 2 transactions, 4 categories, 3 balance types, and 6 balance entries saved.',
     );
-    expect(text).toContain('Create backup now');
+    expect(text).toContain('Create backup');
     expect(mockSetLastSuccessfulBackupAt).toHaveBeenCalledWith(
       expect.any(Number),
     );
@@ -1750,7 +2228,7 @@ describe('SettingsScreen backup section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Create backup now');
+    await pressButton(renderer, 'Create backup');
 
     const text = getNodeText(renderer.root);
 
@@ -1778,7 +2256,7 @@ describe('SettingsScreen backup section', () => {
 
     const renderer = await renderSettingsScreen();
 
-    await pressButton(renderer, 'Create backup now');
+    await pressButton(renderer, 'Create backup');
 
     expect(getNodeText(renderer.root)).toContain(
       "Couldn't create backup. Try again.",
@@ -1812,7 +2290,7 @@ describe('SettingsScreen restore section', () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);
 
-    expect(text).not.toContain('Restore from backup');
+    expect(text).toContain('Restore from backup');
     expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
     expect(mockRunManualRestore).not.toHaveBeenCalled();
   });
@@ -1822,7 +2300,7 @@ describe('SettingsScreen restore section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Using local guest mode on this device.');
-    expect(text).not.toContain('Restore from backup');
+    expect(text).toContain('Restore from backup');
     expect(mockHasLocalRestoreData).not.toHaveBeenCalled();
     expect(mockRunManualRestore).not.toHaveBeenCalled();
   });

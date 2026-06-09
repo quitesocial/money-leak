@@ -1,38 +1,62 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import {
   Alert,
+  Animated,
   Linking,
+  Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, type Href } from 'expo-router';
 
-import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
-import {
-  IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
-  pickTransactionsCsvImport,
-} from '@/features/export/import-transactions-csv';
+import { CategoryIconPicker } from '@/components/category-icon-picker';
 import {
   getLastSuccessfulBackupAt,
   setLastSuccessfulBackupAt,
 } from '@/db/backup-status';
 import { getSyncMetadata } from '@/db/sync-status';
+import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
-  getGoogleAuthSafeErrorMessage,
-  googleAuthAdapter,
-} from '@/lib/auth/google-auth-adapter';
+  IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
+  pickTransactionsCsvImport,
+} from '@/features/export/import-transactions-csv';
+import { deleteAccountService } from '@/lib/account/delete-account-service';
 import {
   appleAuthAdapter,
   getAppleAuthSafeErrorMessage,
 } from '@/lib/auth/apple-auth-adapter';
-import { deleteAccountService } from '@/lib/account/delete-account-service';
+import {
+  getGoogleAuthSafeErrorMessage,
+  googleAuthAdapter,
+} from '@/lib/auth/google-auth-adapter';
+import { APP_LINKS } from '@/lib/app-links';
+import {
+  CATEGORY_ICON_FALLBACK_NAME,
+  getCategoryIcon,
+  type CategoryIconName,
+} from '@/lib/category-icons';
+import {
+  getArchiveCategoryError,
+  validateCategoryName,
+} from '@/lib/category-utils';
+import { getValidDate } from '@/lib/date-utils';
+import { featureFlags } from '@/lib/feature-flags';
 import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
@@ -40,10 +64,22 @@ import {
   scheduleDailyCheckInReminder,
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
-import { APP_LINKS } from '@/lib/app-links';
-import { getValidDate } from '@/lib/date-utils';
-import { featureFlags } from '@/lib/feature-flags';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
+import {
+  DEFAULT_SETTINGS_CURRENCY,
+  DEFAULT_SETTINGS_LANGUAGE,
+  getCurrencyOptionLabel,
+  getForegroundSyncEnabled,
+  getSettingsCurrency,
+  getSettingsLanguage,
+  SETTINGS_CURRENCY_OPTIONS,
+  SETTINGS_LANGUAGE_OPTIONS,
+  setForegroundSyncEnabled,
+  setSettingsCurrency,
+  setSettingsLanguage,
+  type SettingsCurrency,
+  type SettingsLanguage,
+} from '@/lib/settings-preferences';
 import { manualBackupService } from '@/lib/sync/manual-backup-service';
 import { manualRestoreService } from '@/lib/sync/manual-restore-service';
 import { manualSyncService } from '@/lib/sync/manual-sync-service';
@@ -52,12 +88,15 @@ import type {
   SyncResult,
   SyncSummary,
 } from '@/lib/sync/sync-types';
+import { useBalanceRefresh } from '@/lib/use-balance-refresh';
+import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import type { AuthUser } from '@/types/auth';
+import { OTHER_CATEGORY_ID, type Category } from '@/types/category';
 
 type ImportResult = {
   importedCount: number;
@@ -86,6 +125,36 @@ type SyncUiResult = {
   pushedCount: number;
 };
 
+type SettingsOptionSheet =
+  | {
+      kind: 'currency';
+      title: 'Choose Currency';
+    }
+  | {
+      kind: 'language';
+      title: 'Choose language';
+    };
+
+const TITLE_FONT_FAMILY = Platform.select({
+  ios: 'NewYork',
+  default: 'serif',
+});
+
+const TITLE_FONT_WEIGHT = Platform.select({
+  ios: '700' as const,
+  default: '800' as const,
+});
+
+const CATEGORY_SWIPE_ACTION_SIZE = 52;
+const CATEGORY_SWIPE_ACTION_GAP = 8;
+const CATEGORY_SWIPE_REVEAL_WIDTH =
+  CATEGORY_SWIPE_ACTION_SIZE + CATEGORY_SWIPE_ACTION_GAP;
+const HORIZONTAL_ACTIVATION_DISTANCE = 10;
+const VERTICAL_SCROLL_DISTANCE = 8;
+const HORIZONTAL_INTENT_RATIO = 0.75;
+const SWIPE_OPEN_THRESHOLD = 44;
+const SWIPE_VELOCITY_THRESHOLD = 0.35;
+
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   month: 'short',
   day: 'numeric',
@@ -95,7 +164,7 @@ const timestampFormatter = new Intl.DateTimeFormat(undefined, {
 
 function getReminderPermissionError(
   permissionStatus: ReminderPermissionStatus,
-): string {
+) {
   if (permissionStatus === 'denied') {
     return 'Notifications are off for Money Leak. Turn them on in system settings to get the daily check-in.';
   }
@@ -105,6 +174,31 @@ function getReminderPermissionError(
   }
 
   return 'Allow notifications to get the daily check-in.';
+}
+
+function clampCategorySwipeProgress(value: number) {
+  return Math.max(-1, Math.min(1, value / CATEGORY_SWIPE_REVEAL_WIDTH));
+}
+
+function hasHorizontalSwipeIntent({ dx, dy }: { dx: number; dy: number }) {
+  const absoluteDx = Math.abs(dx);
+  const absoluteDy = Math.abs(dy);
+
+  if (
+    absoluteDx < HORIZONTAL_ACTIVATION_DISTANCE &&
+    absoluteDy < VERTICAL_SCROLL_DISTANCE
+  ) {
+    return false;
+  }
+
+  if (absoluteDy >= VERTICAL_SCROLL_DISTANCE && absoluteDy > absoluteDx) {
+    return false;
+  }
+
+  return (
+    absoluteDx >= HORIZONTAL_ACTIVATION_DISTANCE &&
+    absoluteDy <= absoluteDx * HORIZONTAL_INTENT_RATIO
+  );
 }
 
 function formatCountLabel(
@@ -150,9 +244,7 @@ function formatSyncResult({
 function formatLastBackup(timestamp: number) {
   const date = getValidDate(timestamp);
 
-  if (!date) return null;
-
-  return `Last backup: ${timestampFormatter.format(date)}`;
+  return date ? `Last backup: ${timestampFormatter.format(date)}` : null;
 }
 
 function formatLastSync({
@@ -163,14 +255,46 @@ function formatLastSync({
   timestamp: number;
 }) {
   const date = getValidDate(timestamp);
+  const sourceLabel = getSafeSyncSourceLabel(source);
 
   if (!date) return null;
 
-  const sourceLabel = getSafeSyncSourceLabel(source);
-
   return sourceLabel
-    ? `Last sync: ${timestampFormatter.format(date)} · ${sourceLabel}`
+    ? `Last sync: ${timestampFormatter.format(date)} - ${sourceLabel}`
     : `Last sync: ${timestampFormatter.format(date)}`;
+}
+
+function getSafeSyncCount(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return value;
+}
+
+function getOptionalSafeSyncCount(value: unknown) {
+  return value === undefined ? 0 : getSafeSyncCount(value);
+}
+
+function getSafeSyncTimestamp(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return Math.trunc(value);
+}
+
+function getSafeSyncSource(value: unknown): SyncAttemptSource | null {
+  return value === 'manual' || value === 'foreground' ? value : null;
+}
+
+function getSafeSyncSourceLabel(value: unknown) {
+  const source = getSafeSyncSource(value);
+
+  if (source === 'manual') return 'Manual';
+  if (source === 'foreground') return 'Auto';
+
+  return null;
 }
 
 function createSyncUiResult(
@@ -270,8 +394,9 @@ function createSyncUiResultFromSummary(
     ignoredCategoryTombstonesCount === null ||
     ignoredBalanceTypeTombstonesCount === null ||
     ignoredBalanceEntryTombstonesCount === null
-  )
+  ) {
     return null;
+  }
 
   return {
     appliedCount:
@@ -298,46 +423,538 @@ function createSyncUiResultFromSummary(
   };
 }
 
-function getSafeSyncCount(value: unknown) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return null;
-  }
-
-  return value;
-}
-
-function getOptionalSafeSyncCount(value: unknown) {
-  if (value === undefined) return 0;
-
-  return getSafeSyncCount(value);
-}
-
-function getSafeSyncTimestamp(value: unknown) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return null;
-  }
-
-  return Math.trunc(value);
-}
-
-function getSafeSyncSource(value: unknown): SyncAttemptSource | null {
-  return value === 'manual' || value === 'foreground' ? value : null;
-}
-
-function getSafeSyncSourceLabel(value: unknown) {
-  const source = getSafeSyncSource(value);
-
-  if (source === 'manual') return 'Manual';
-  if (source === 'foreground') return 'Auto';
-
-  return null;
-}
-
 function getAccountDisplayName(user: AuthUser) {
   if (user.email) return user.email;
   if (user.displayName) return user.displayName;
 
   return user.provider === 'apple' ? 'Apple account' : 'Google account';
+}
+
+function SafeSymbol({
+  fallbackLabel,
+  name,
+  size = 17,
+  tintColor,
+}: {
+  fallbackLabel: string;
+  name: SFSymbol;
+  size?: number;
+  tintColor: string;
+}) {
+  return (
+    <SymbolView
+      fallback={
+        <Text style={[styles.symbolFallback, { color: tintColor }]}>
+          {fallbackLabel}
+        </Text>
+      }
+      name={name}
+      resizeMode="scaleAspectFit"
+      size={size}
+      tintColor={tintColor}
+      type="monochrome"
+      weight="semibold"
+    />
+  );
+}
+
+function SettingsRow({
+  disabled = false,
+  onPress,
+  subtitle,
+  testID,
+  title,
+  trailing,
+}: {
+  disabled?: boolean;
+  onPress?: () => void;
+  subtitle?: string;
+  testID?: string;
+  title: string;
+  trailing?: ReactNode;
+}) {
+  const content = (
+    <>
+      <View style={styles.rowCopy}>
+        <Text numberOfLines={1} style={styles.rowTitle}>
+          {title}
+        </Text>
+
+        {subtitle ? (
+          <Text numberOfLines={2} style={styles.rowSubtitle}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+
+      {trailing ? <View style={styles.rowTrailing}>{trailing}</View> : null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        disabled={disabled}
+        onPress={onPress}
+        style={[
+          styles.settingsRow,
+          subtitle ? styles.settingsRowTall : null,
+          disabled ? styles.disabled : null,
+        ]}
+        testID={testID}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.settingsRow,
+        subtitle ? styles.settingsRowTall : null,
+        disabled ? styles.disabled : null,
+      ]}
+      testID={testID}
+    >
+      {content}
+    </View>
+  );
+}
+
+function ActionText({
+  children,
+  destructive = false,
+  disabled = false,
+  icon,
+}: {
+  children: string;
+  destructive?: boolean;
+  disabled?: boolean;
+  icon?: SFSymbol;
+}) {
+  const color = destructive ? '#ff383c' : '#0088ff';
+
+  return (
+    <View style={[styles.actionTextWrap, disabled ? styles.disabled : null]}>
+      {icon ? (
+        <SafeSymbol
+          fallbackLabel="Open"
+          name={icon}
+          size={15}
+          tintColor={color}
+        />
+      ) : null}
+      <Text style={[styles.actionText, { color }]}>{children}</Text>
+    </View>
+  );
+}
+
+function CategoryIcon({ category }: { category: Category }) {
+  const icon = getCategoryIcon(category.iconName);
+
+  return (
+    <SymbolView
+      fallback={
+        <Text style={styles.categoryIconFallback}>{icon.fallbackSymbol}</Text>
+      }
+      name={icon.symbolName}
+      resizeMode="scaleAspectFit"
+      size={16}
+      testID={`settings-category-icon-${category.id}`}
+      tintColor="#100f10"
+      type="monochrome"
+      weight="semibold"
+    />
+  );
+}
+
+type SwipeCategoryRowProps = {
+  category: Category;
+  isDeleteDisabled: boolean;
+  isDisabled: boolean;
+  isOpen: boolean;
+  onDelete: (category: Category) => void;
+  onEdit: (category: Category) => void;
+  onSwipeClose: (id: string) => void;
+  onSwipeInteractionStart: (id: string) => void;
+  onSwipeOpen: (id: string) => void;
+};
+
+function SwipeCategoryRow({
+  category,
+  isDeleteDisabled,
+  isDisabled,
+  isOpen,
+  onDelete,
+  onEdit,
+  onSwipeClose,
+  onSwipeInteractionStart,
+  onSwipeOpen,
+}: SwipeCategoryRowProps) {
+  const swipeProgress = useRef(new Animated.Value(0)).current;
+  const isHorizontallyLockedRef = useRef(false);
+  const [rowWidth, setRowWidth] = useState(360);
+  const actionRevealWidth = Math.min(CATEGORY_SWIPE_REVEAL_WIDTH, rowWidth);
+
+  const animateTo = useCallback(
+    (toValue: number) => {
+      Animated.spring(swipeProgress, {
+        toValue,
+        damping: 22,
+        mass: 0.72,
+        stiffness: 260,
+        useNativeDriver: false,
+      }).start();
+    },
+    [swipeProgress],
+  );
+
+  const closeActions = useCallback(() => {
+    animateTo(0);
+    onSwipeClose(category.id);
+  }, [animateTo, category.id, onSwipeClose]);
+
+  const revealDelete = useCallback(() => {
+    if (isDeleteDisabled) {
+      closeActions();
+
+      return;
+    }
+
+    onSwipeOpen(category.id);
+    animateTo(1);
+  }, [animateTo, category.id, closeActions, isDeleteDisabled, onSwipeOpen]);
+
+  const revealEdit = useCallback(() => {
+    onSwipeOpen(category.id);
+    animateTo(-1);
+  }, [animateTo, category.id, onSwipeOpen]);
+
+  const handleTouchStart = useCallback(() => {
+    if (isDisabled) return;
+
+    onSwipeInteractionStart(category.id);
+  }, [category.id, isDisabled, onSwipeInteractionStart]);
+
+  const handleDeletePress = useCallback(() => {
+    if (isDisabled || isDeleteDisabled) return;
+
+    closeActions();
+    onDelete(category);
+  }, [category, closeActions, isDeleteDisabled, isDisabled, onDelete]);
+
+  const handleEditPress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onEdit(category);
+  }, [category, closeActions, isDisabled, onEdit]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
+        },
+        onMoveShouldSetPanResponderCapture: (_event, gestureState) => {
+          if (isDisabled) return false;
+
+          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
+          isHorizontallyLockedRef.current = shouldLockSwipe;
+
+          return shouldLockSwipe;
+        },
+        onPanResponderGrant: () => {
+          onSwipeInteractionStart(category.id);
+          swipeProgress.stopAnimation();
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          if (isDisabled || !isHorizontallyLockedRef.current) return;
+
+          swipeProgress.setValue(clampCategorySwipeProgress(gestureState.dx));
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const wasHorizontallyLocked = isHorizontallyLockedRef.current;
+          isHorizontallyLockedRef.current = false;
+
+          if (!wasHorizontallyLocked) {
+            closeActions();
+
+            return;
+          }
+
+          if (
+            gestureState.dx > SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx > SWIPE_VELOCITY_THRESHOLD
+          ) {
+            revealDelete();
+
+            return;
+          }
+
+          if (
+            gestureState.dx < -SWIPE_OPEN_THRESHOLD ||
+            gestureState.vx < -SWIPE_VELOCITY_THRESHOLD
+          ) {
+            revealEdit();
+
+            return;
+          }
+
+          closeActions();
+        },
+        onPanResponderTerminationRequest: () =>
+          !isHorizontallyLockedRef.current,
+        onPanResponderTerminate: () => {
+          isHorizontallyLockedRef.current = false;
+          closeActions();
+        },
+      }),
+    [
+      category.id,
+      closeActions,
+      isDisabled,
+      onSwipeInteractionStart,
+      revealDelete,
+      revealEdit,
+      swipeProgress,
+    ],
+  );
+
+  useEffect(() => {
+    if (isDisabled) closeActions();
+  }, [closeActions, isDisabled]);
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    animateTo(0);
+  }, [animateTo, isOpen]);
+
+  const leftActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, actionRevealWidth],
+  });
+  const rightActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [actionRevealWidth, 0, 0],
+  });
+  const contentWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [
+      rowWidth - actionRevealWidth,
+      rowWidth,
+      rowWidth - actionRevealWidth,
+    ],
+  });
+  const contentBackgroundColor = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
+  });
+  const contentLeftRadius = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 26, 24],
+  });
+  const contentRightRadius = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [24, 26, 0],
+  });
+  const leftActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, 1],
+  });
+  const rightActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [1, 0, 0],
+  });
+
+  return (
+    <View
+      onLayout={(event) => {
+        setRowWidth(event.nativeEvent.layout.width);
+      }}
+      style={styles.categorySwipeContainer}
+    >
+      <Animated.View
+        style={[
+          styles.categorySwipeActionSlot,
+          { opacity: leftActionOpacity, width: leftActionWidth },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel={`Delete ${category.name} category`}
+          accessibilityRole="button"
+          disabled={isDisabled || isDeleteDisabled}
+          onPress={handleDeletePress}
+          style={[
+            styles.categorySwipeActionCircle,
+            styles.categoryDeleteAction,
+            isDeleteDisabled ? styles.disabled : null,
+          ]}
+        >
+          <SafeSymbol
+            fallbackLabel="Del"
+            name="trash.fill"
+            size={18}
+            tintColor="#ffffff"
+          />
+        </Pressable>
+      </Animated.View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        onTouchStart={handleTouchStart}
+        style={[
+          styles.categoryPill,
+          {
+            backgroundColor: contentBackgroundColor,
+            borderBottomLeftRadius: contentLeftRadius,
+            borderBottomRightRadius: contentRightRadius,
+            borderTopLeftRadius: contentLeftRadius,
+            borderTopRightRadius: contentRightRadius,
+            width: contentWidth,
+          },
+        ]}
+        testID={`settings-category-row-${category.id}`}
+      >
+        <CategoryIcon category={category} />
+        <Text numberOfLines={1} style={styles.categoryName}>
+          {category.name}
+        </Text>
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.categorySwipeActionSlot,
+          styles.categorySwipeActionSlotTrailing,
+          { opacity: rightActionOpacity, width: rightActionWidth },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel={`Edit ${category.name} category`}
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleEditPress}
+          style={[styles.categorySwipeActionCircle, styles.categoryEditAction]}
+        >
+          <SafeSymbol
+            fallbackLabel="Edit"
+            name="pencil"
+            size={18}
+            tintColor="#ffffff"
+          />
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+function OptionSheet({
+  draftCurrency,
+  draftLanguage,
+  onApply,
+  onClose,
+  onSelectCurrency,
+  onSelectLanguage,
+  sheet,
+}: {
+  draftCurrency: SettingsCurrency;
+  draftLanguage: SettingsLanguage;
+  onApply: () => void;
+  onClose: () => void;
+  onSelectCurrency: (currency: SettingsCurrency) => void;
+  onSelectLanguage: (language: SettingsLanguage) => void;
+  sheet: SettingsOptionSheet | null;
+}) {
+  if (!sheet) return null;
+
+  const options =
+    sheet.kind === 'currency'
+      ? SETTINGS_CURRENCY_OPTIONS.map((option) => ({
+          key: option,
+          label: getCurrencyOptionLabel(option),
+          selected: draftCurrency === option,
+          onPress: () => onSelectCurrency(option),
+        }))
+      : SETTINGS_LANGUAGE_OPTIONS.map((option) => ({
+          key: option,
+          label: option,
+          selected: draftLanguage === option,
+          onPress: () => onSelectLanguage(option),
+        }));
+
+  return (
+    <Modal animationType="slide" transparent visible onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <View style={styles.sheet}>
+          <View style={styles.grabber} />
+
+          <View style={styles.sheetHeader}>
+            <Pressable
+              accessibilityLabel="Close sheet"
+              accessibilityRole="button"
+              onPress={onClose}
+              style={[styles.sheetCircleButton, styles.sheetCloseButton]}
+            >
+              <SafeSymbol fallbackLabel="x" name="xmark" tintColor="#727272" />
+            </Pressable>
+
+            <Text style={styles.sheetTitle}>{sheet.title}</Text>
+
+            <Pressable
+              accessibilityLabel="Apply selection"
+              accessibilityRole="button"
+              onPress={onApply}
+              style={[styles.sheetCircleButton, styles.sheetApplyButton]}
+            >
+              <SafeSymbol
+                fallbackLabel="OK"
+                name="checkmark"
+                tintColor="#ffffff"
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.sheetList}>
+            {options.map((option, index) => (
+              <Pressable
+                accessibilityRole="button"
+                key={option.key}
+                onPress={option.onPress}
+                style={styles.sheetOptionRow}
+                testID={`settings-${sheet.kind}-option-${option.key}`}
+              >
+                <View style={styles.sheetCheckSlot}>
+                  {option.selected ? (
+                    <View style={styles.sheetSelectedCircle}>
+                      <SafeSymbol
+                        fallbackLabel="OK"
+                        name="checkmark"
+                        size={14}
+                        tintColor="#ffffff"
+                      />
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.sheetOptionContent}>
+                  {index > 0 ? <View style={styles.sheetSeparator} /> : null}
+                  <Text style={styles.sheetOptionText}>{option.label}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 export function SettingsScreen() {
@@ -349,47 +966,81 @@ export function SettingsScreen() {
   const clearAuthError = useAuthStore((state) => state.clearAuthError);
 
   const transactions = useTransactionsStore((state) => state.transactions);
-
   const isTransactionsLoading = useTransactionsStore(
     (state) => state.isLoading,
   );
-
   const transactionsError = useTransactionsStore((state) => state.error);
-
   const isTransactionsInitialized = useTransactionsStore(
     (state) => state.isInitialized,
   );
-
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
-
-  const loadCategories = useCategoriesStore((state) => state.loadCategories);
-  const loadBalance = useBalanceStore((state) => state.loadBalance);
-
   const importTransactions = useTransactionsStore(
     (state) => state.importTransactions,
   );
-
   const clearTransactionsError = useTransactionsStore(
     (state) => state.clearError,
   );
 
+  const isBalanceInitialized = useBalanceStore((state) => state.isInitialized);
+  const loadBalance = useBalanceStore((state) => state.loadBalance);
+
+  const categories = useCategoriesStore((state) => state.categories);
+  const activeCategories = useCategoriesStore(
+    (state) => state.activeCategories,
+  );
+  const isCategoriesLoading = useCategoriesStore((state) => state.isLoading);
+  const isCategoriesInitialized = useCategoriesStore(
+    (state) => state.isInitialized,
+  );
+  const categoriesError = useCategoriesStore((state) => state.error);
+  const loadCategories = useCategoriesStore((state) => state.loadCategories);
+  const addCategory = useCategoriesStore((state) => state.addCategory);
+  const updateCategory = useCategoriesStore((state) => state.updateCategory);
+  const archiveCategory = useCategoriesStore((state) => state.archiveCategory);
+  const clearCategoriesError = useCategoriesStore((state) => state.clearError);
+
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
   const [isReminderLoading, setIsReminderLoading] = useState(true);
   const [isReminderBusy, setIsReminderBusy] = useState(false);
+  const [reminderPermissionStatus, setReminderPermissionStatus] =
+    useState<ReminderPermissionStatus>('undetermined');
+  const [reminderError, setReminderError] = useState<string | null>(null);
+
+  const [currency, setCurrency] = useState<SettingsCurrency>(
+    DEFAULT_SETTINGS_CURRENCY,
+  );
+  const [language, setLanguage] = useState<SettingsLanguage>(
+    DEFAULT_SETTINGS_LANGUAGE,
+  );
+  const [draftCurrency, setDraftCurrency] = useState<SettingsCurrency>(
+    DEFAULT_SETTINGS_CURRENCY,
+  );
+  const [draftLanguage, setDraftLanguage] = useState<SettingsLanguage>(
+    DEFAULT_SETTINGS_LANGUAGE,
+  );
+  const [sheet, setSheet] = useState<SettingsOptionSheet | null>(null);
+  const [isForegroundSyncEnabled, setIsForegroundSyncEnabledState] =
+    useState<boolean>(featureFlags.incrementalSyncEnabled);
+  const [isSyncPreferenceBusy, setIsSyncPreferenceBusy] = useState(true);
+  const [syncPreferenceError, setSyncPreferenceError] = useState<string | null>(
+    null,
+  );
+
   const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+    null,
+  );
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
-    null,
-  );
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
@@ -409,7 +1060,6 @@ export function SettingsScreen() {
   >(null);
   const [lastSuccessfulSyncSource, setLastSuccessfulSyncSourceState] =
     useState<SyncAttemptSource | null>(null);
-  const [reminderError, setReminderError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -417,8 +1067,30 @@ export function SettingsScreen() {
     null,
   );
 
-  const [reminderPermissionStatus, setReminderPermissionStatus] =
-    useState<ReminderPermissionStatus>('undetermined');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIconName, setNewCategoryIconName] =
+    useState<CategoryIconName | null>(null);
+  const [isAddIconPickerExpanded, setIsAddIconPickerExpanded] = useState(false);
+  const [addCategoryError, setAddCategoryError] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null,
+  );
+  const [editingName, setEditingName] = useState('');
+  const [editingIconName, setEditingIconName] =
+    useState<CategoryIconName | null>(null);
+  const [isEditIconPickerExpanded, setIsEditIconPickerExpanded] =
+    useState(false);
+  const [editCategoryError, setEditCategoryError] = useState<string | null>(
+    null,
+  );
+  const [archiveCategoryError, setArchiveCategoryError] = useState<
+    string | null
+  >(null);
+  const [openSwipeCategoryId, setOpenSwipeCategoryId] = useState<string | null>(
+    null,
+  );
+
   const isSyncInFlightRef = useRef(false);
 
   const isReminderUnsupported = reminderPermissionStatus === 'unsupported';
@@ -435,46 +1107,31 @@ export function SettingsScreen() {
   const shouldShowBackup = featureFlags.backupEnabled && isAuthenticated;
   const shouldShowRestore = featureFlags.restoreEnabled && isAuthenticated;
   const shouldShowSync = featureFlags.incrementalSyncEnabled && isAuthenticated;
-
   const isReminderDisabled =
     isReminderLoading || isReminderBusy || isReminderUnsupported;
-
-  const isDataActionBusy = isExporting || isImporting;
-  const isBackupDisabled = isBackingUp || !shouldShowBackup;
-  const isRestoreDisabled = isRestoring || !shouldShowRestore;
-  const isSyncDisabled = isSyncing || !shouldShowSync;
   const isGoogleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isAppleAuthDisabled = isAuthBusy || authStatus === 'loading';
   const isSignOutDisabled =
     isAuthBusy || isDeletingAccount || authStatus === 'loading';
   const isDeleteAccountDisabled =
     isDeletingAccount || isAuthBusy || authStatus === 'loading';
-
+  const isSyncToggleDisabled =
+    isSyncPreferenceBusy || !featureFlags.incrementalSyncEnabled;
+  const isDataActionBusy = isExporting || isImporting;
   const isDataPreparing =
     !isTransactionsInitialized || isTransactionsLoading || isDataActionBusy;
-
   const isExportDisabled = isDataPreparing || transactionsError !== null;
-
   const isImportDisabled = isDataPreparing || isImportUnsupported;
-
+  const isBackupDisabled = isBackingUp || !shouldShowBackup;
+  const isRestoreDisabled = isRestoring || !shouldShowRestore;
+  const isSyncDisabled = isSyncing || !shouldShowSync;
   const shouldShowTransactionsError =
     transactionsError !== null && transactionsError !== importError;
-
-  const dataStatusMessage = !isTransactionsInitialized
-    ? 'Preparing your local transaction history for import and export…'
-    : isTransactionsLoading
-      ? 'Refreshing your local transaction history for import and export…'
-      : transactionsError
-        ? isImportUnsupported
-          ? 'Your local transaction history could not be fully prepared on this platform.'
-          : 'Your local transaction history could not be fully prepared. Import can still restore a Money Leak CSV backup.'
-        : 'Import restores a Money Leak CSV backup and skips duplicates or invalid rows.';
-
+  const visibleSyncResult = syncResult ?? persistedSyncResult;
   const lastBackupText =
     lastSuccessfulBackupAt === null
       ? null
       : formatLastBackup(lastSuccessfulBackupAt);
-
   const lastSyncText =
     lastSuccessfulSyncAt === null
       ? null
@@ -482,12 +1139,54 @@ export function SettingsScreen() {
           source: lastSuccessfulSyncSource,
           timestamp: lastSuccessfulSyncAt,
         });
-  const visibleSyncResult = syncResult ?? persistedSyncResult;
 
   useTransactionsRefresh({
     isInitialized: isTransactionsInitialized,
     loadTransactions,
   });
+  useCategoriesRefresh({
+    isInitialized: isCategoriesInitialized,
+    loadCategories,
+    loadOnMount: 'always',
+  });
+  useBalanceRefresh({
+    isInitialized: isBalanceInitialized,
+    loadBalance,
+  });
+
+  useEffect(() => {
+    if (!openSwipeCategoryId) return;
+
+    const isOpenCategoryVisible = activeCategories.some(
+      (category) => category.id === openSwipeCategoryId,
+    );
+
+    if (isOpenCategoryVisible) return;
+
+    setOpenSwipeCategoryId(null);
+  }, [activeCategories, openSwipeCategoryId]);
+
+  useEffect(() => {
+    if (!isCategoriesLoading && !isAddingCategory && !editingCategoryId) return;
+
+    setOpenSwipeCategoryId(null);
+  }, [editingCategoryId, isAddingCategory, isCategoriesLoading]);
+
+  const handleCategorySwipeInteractionStart = useCallback((id: string) => {
+    setOpenSwipeCategoryId((currentId) =>
+      currentId === id ? currentId : null,
+    );
+  }, []);
+
+  const handleCategorySwipeOpen = useCallback((id: string) => {
+    setOpenSwipeCategoryId(id);
+  }, []);
+
+  const handleCategorySwipeClose = useCallback((id: string) => {
+    setOpenSwipeCategoryId((currentId) =>
+      currentId === id ? null : currentId,
+    );
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -513,9 +1212,44 @@ export function SettingsScreen() {
         setIsReminderEnabled(false);
         setReminderError("Couldn't load reminder settings. Try again.");
       } finally {
-        if (isMounted) {
-          setIsReminderLoading(false);
-        }
+        if (isMounted) setIsReminderLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const [storedCurrency, storedLanguage, storedForegroundSyncEnabled] =
+          await Promise.all([
+            getSettingsCurrency(),
+            getSettingsLanguage(),
+            getForegroundSyncEnabled(),
+          ]);
+
+        if (!isMounted) return;
+
+        setCurrency(storedCurrency);
+        setDraftCurrency(storedCurrency);
+        setLanguage(storedLanguage);
+        setDraftLanguage(storedLanguage);
+        setIsForegroundSyncEnabledState(
+          featureFlags.incrementalSyncEnabled && storedForegroundSyncEnabled,
+        );
+      } catch {
+        if (!isMounted) return;
+
+        setCurrency(DEFAULT_SETTINGS_CURRENCY);
+        setLanguage(DEFAULT_SETTINGS_LANGUAGE);
+        setIsForegroundSyncEnabledState(featureFlags.incrementalSyncEnabled);
+      } finally {
+        if (isMounted) setIsSyncPreferenceBusy(false);
       }
     })();
 
@@ -533,13 +1267,9 @@ export function SettingsScreen() {
       try {
         const timestamp = await getLastSuccessfulBackupAt();
 
-        if (!isMounted) return;
-
-        setLastSuccessfulBackupAtState(timestamp);
+        if (isMounted) setLastSuccessfulBackupAtState(timestamp);
       } catch {
-        if (!isMounted) return;
-
-        setLastSuccessfulBackupAtState(null);
+        if (isMounted) setLastSuccessfulBackupAtState(null);
       }
     })();
 
@@ -598,17 +1328,14 @@ export function SettingsScreen() {
 
     let isMounted = true;
 
-    void (async () => {
-      const isAvailable = await appleAuthAdapter.isAvailable();
-
-      if (!isMounted) return;
-
-      setIsAppleAuthAvailable(isAvailable);
-    })().catch(() => {
-      if (!isMounted) return;
-
-      setIsAppleAuthAvailable(false);
-    });
+    void appleAuthAdapter
+      .isAvailable()
+      .then((isAvailable) => {
+        if (isMounted) setIsAppleAuthAvailable(isAvailable);
+      })
+      .catch(() => {
+        if (isMounted) setIsAppleAuthAvailable(false);
+      });
 
     return () => {
       isMounted = false;
@@ -662,20 +1389,47 @@ export function SettingsScreen() {
     }
   }
 
-  async function handleExportPress() {
-    if (isExportDisabled) return;
+  async function handleForegroundSyncToggle(nextEnabled: boolean) {
+    if (isSyncToggleDisabled) return;
 
-    setIsExporting(true);
-    setExportError(null);
+    const previousEnabled = isForegroundSyncEnabled;
+
+    setIsForegroundSyncEnabledState(nextEnabled);
+    setSyncPreferenceError(null);
+    setIsSyncPreferenceBusy(true);
 
     try {
-      await exportTransactionsCsv(transactions);
+      await setForegroundSyncEnabled(nextEnabled);
     } catch {
-      console.error('Failed to export transactions CSV');
-      setExportError("Couldn't export transactions. Try again.");
+      setIsForegroundSyncEnabledState(previousEnabled);
+      setSyncPreferenceError("Couldn't update synchronization. Try again.");
     } finally {
-      setIsExporting(false);
+      setIsSyncPreferenceBusy(false);
     }
+  }
+
+  async function handleApplySheet() {
+    if (!sheet) return;
+
+    try {
+      if (sheet.kind === 'currency') {
+        await setSettingsCurrency(draftCurrency);
+        setCurrency(draftCurrency);
+      } else {
+        await setSettingsLanguage(draftLanguage);
+        setLanguage(draftLanguage);
+      }
+
+      setSheet(null);
+    } catch {
+      setSheet(null);
+    }
+  }
+
+  function handleCloseSheet() {
+    setDraftCurrency(currency);
+    setDraftLanguage(language);
+    setSheet(null);
   }
 
   async function handleGoogleSignInPress() {
@@ -688,9 +1442,7 @@ export function SettingsScreen() {
     try {
       const session = await googleAuthAdapter.signIn();
 
-      if (!session) return;
-
-      await setAuthSession(session);
+      if (session) await setAuthSession(session);
     } catch (error) {
       console.error('Failed to sign in with Google');
       setAccountError(getGoogleAuthSafeErrorMessage(error));
@@ -709,13 +1461,139 @@ export function SettingsScreen() {
     try {
       const session = await appleAuthAdapter.signIn();
 
-      if (!session) return;
-
-      await setAuthSession(session);
+      if (session) await setAuthSession(session);
     } catch (error) {
       setAccountError(getAppleAuthSafeErrorMessage(error));
     } finally {
       setIsAuthBusy(false);
+    }
+  }
+
+  async function handleSignOutPress() {
+    if (isSignOutDisabled) return;
+
+    setIsAuthBusy(true);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      await signOut();
+    } catch {
+      console.error('Failed to sign out');
+      setAccountError('Could not sign out. Try again.');
+    } finally {
+      setIsAuthBusy(false);
+    }
+  }
+
+  function handleDeleteAccountPress() {
+    if (isDeleteAccountDisabled || !isAuthenticated) return;
+
+    Alert.alert(
+      'Delete account data?',
+      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions, categories, and balance data on this device will stay here.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => {
+            void handleConfirmedDeleteAccount();
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleConfirmedDeleteAccount() {
+    if (isDeleteAccountDisabled || !isAuthenticated) return;
+
+    setIsDeletingAccount(true);
+    setDeleteAccountError(null);
+    setAccountError(null);
+    clearAuthError();
+
+    try {
+      const result = await deleteAccountService.runDeleteAccount({
+        auth: {
+          status: authStatus,
+          hasAuthenticatedUser: authUser !== null,
+        },
+      });
+
+      if (result.status !== 'succeeded') {
+        setDeleteAccountError("Couldn't delete account. Try again.");
+
+        return;
+      }
+
+      await signOut();
+    } catch {
+      console.error('Failed to delete account data');
+      setDeleteAccountError("Couldn't delete account. Try again.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
+  async function handleImportPress() {
+    if (isImportDisabled) return;
+
+    setIsImporting(true);
+    setImportResult(null);
+    setImportError(null);
+
+    try {
+      const selection = await pickTransactionsCsvImport();
+
+      if (selection.status === 'cancelled') return;
+
+      const { transactions: importedTransactions, skippedCount } = selection;
+      let importedCount = 0;
+
+      clearTransactionsError();
+
+      if (importedTransactions.length > 0) {
+        importedCount = await importTransactions(importedTransactions);
+
+        const storeError = useTransactionsStore.getState().error;
+
+        if (storeError) {
+          setImportResult(null);
+          setImportError(storeError);
+
+          return;
+        }
+      }
+
+      setImportResult({
+        importedCount,
+        skippedCount:
+          skippedCount + (importedTransactions.length - importedCount),
+      });
+      setImportError(null);
+    } catch {
+      console.error('Failed to import transactions CSV');
+      setImportResult(null);
+      setImportError("Couldn't import CSV. Try again.");
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  async function handleExportPress() {
+    if (isExportDisabled) return;
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      await exportTransactionsCsv(transactions);
+    } catch {
+      console.error('Failed to export transactions CSV');
+      setExportError("Couldn't export transactions. Try again.");
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -775,15 +1653,11 @@ export function SettingsScreen() {
           {
             text: 'Cancel',
             style: 'cancel',
-            onPress: () => {
-              resolve(false);
-            },
+            onPress: () => resolve(false),
           },
           {
             text: 'Restore',
-            onPress: () => {
-              resolve(true);
-            },
+            onPress: () => resolve(true),
           },
         ],
       );
@@ -847,8 +1721,7 @@ export function SettingsScreen() {
   }
 
   async function handleSyncPress() {
-    if (isSyncInFlightRef.current) return;
-    if (isSyncDisabled) return;
+    if (isSyncInFlightRef.current || isSyncDisabled) return;
 
     isSyncInFlightRef.current = true;
     setIsSyncing(true);
@@ -902,123 +1775,6 @@ export function SettingsScreen() {
     }
   }
 
-  async function handleSignOutPress() {
-    if (isSignOutDisabled) return;
-
-    setIsAuthBusy(true);
-    setAccountError(null);
-    clearAuthError();
-
-    try {
-      await signOut();
-    } catch {
-      console.error('Failed to sign out');
-      setAccountError('Could not sign out. Try again.');
-    } finally {
-      setIsAuthBusy(false);
-    }
-  }
-
-  function handleDeleteAccountPress() {
-    if (isDeleteAccountDisabled || !isAuthenticated) return;
-
-    Alert.alert(
-      'Delete account data?',
-      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions, categories, and balance data on this device will stay here.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete Account',
-          style: 'destructive',
-          onPress: () => {
-            void handleConfirmedDeleteAccount();
-          },
-        },
-      ],
-    );
-  }
-
-  async function handleConfirmedDeleteAccount() {
-    if (isDeleteAccountDisabled || !isAuthenticated) return;
-
-    setIsDeletingAccount(true);
-    setDeleteAccountError(null);
-    setAccountError(null);
-    clearAuthError();
-
-    try {
-      const result = await deleteAccountService.runDeleteAccount({
-        auth: {
-          status: authStatus,
-          hasAuthenticatedUser: authUser !== null,
-        },
-      });
-
-      if (result.status !== 'succeeded') {
-        setDeleteAccountError("Couldn't delete account. Try again.");
-
-        return;
-      }
-
-      await signOut();
-    } catch {
-      console.error('Failed to delete account data');
-      setDeleteAccountError("Couldn't delete account. Try again.");
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  }
-
-  async function handleImportPress() {
-    if (isImportDisabled) return;
-
-    setIsImporting(true);
-    setImportResult(null);
-    setImportError(null);
-
-    try {
-      const selection = await pickTransactionsCsvImport();
-
-      if (selection.status === 'cancelled') return;
-
-      const { transactions: importedTransactions, skippedCount } = selection;
-
-      let importedCount = 0;
-
-      clearTransactionsError();
-
-      if (importedTransactions.length > 0) {
-        importedCount = await importTransactions(importedTransactions);
-
-        const storeError = useTransactionsStore.getState().error;
-
-        if (storeError) {
-          setImportResult(null);
-          setImportError(storeError);
-
-          return;
-        }
-      }
-
-      setImportResult({
-        importedCount,
-        skippedCount:
-          skippedCount + (importedTransactions.length - importedCount),
-      });
-
-      setImportError(null);
-    } catch {
-      console.error('Failed to import transactions CSV');
-      setImportResult(null);
-      setImportError("Couldn't import CSV. Try again.");
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
   async function handleOpenExternalLink({
     emptyMessage,
     url,
@@ -1044,459 +1800,653 @@ export function SettingsScreen() {
     }
   }
 
+  function resetCategoryDrafts() {
+    setNewCategoryName('');
+    setNewCategoryIconName(null);
+    setIsAddIconPickerExpanded(false);
+    setAddCategoryError(null);
+    setEditingCategoryId(null);
+    setEditingName('');
+    setEditingIconName(null);
+    setIsEditIconPickerExpanded(false);
+    setEditCategoryError(null);
+  }
+
+  function handleStartAddCategory() {
+    clearCategoriesError();
+    setOpenSwipeCategoryId(null);
+    setArchiveCategoryError(null);
+    setEditingCategoryId(null);
+    setEditCategoryError(null);
+    setIsAddingCategory(true);
+  }
+
+  async function handleAddCategory() {
+    if (isCategoriesLoading) return;
+
+    clearCategoriesError();
+    setArchiveCategoryError(null);
+    setEditCategoryError(null);
+
+    const validationError = validateCategoryName({
+      name: newCategoryName,
+      categories,
+    });
+
+    setAddCategoryError(validationError);
+
+    if (validationError) return;
+
+    await addCategory({
+      name: newCategoryName,
+      iconName: newCategoryIconName ?? CATEGORY_ICON_FALLBACK_NAME,
+    });
+
+    if (!useCategoriesStore.getState().error) {
+      resetCategoryDrafts();
+      setIsAddingCategory(false);
+    }
+  }
+
+  function handleStartEditCategory(category: Category) {
+    clearCategoriesError();
+    setOpenSwipeCategoryId(null);
+    setIsAddingCategory(false);
+    setAddCategoryError(null);
+    setArchiveCategoryError(null);
+    setEditingCategoryId(category.id);
+    setEditingName(category.name);
+    setEditingIconName(category.iconName);
+    setIsEditIconPickerExpanded(false);
+    setEditCategoryError(null);
+  }
+
+  async function handleSaveEditCategory() {
+    if (!editingCategoryId || isCategoriesLoading) return;
+
+    clearCategoriesError();
+    setAddCategoryError(null);
+    setArchiveCategoryError(null);
+
+    const validationError = validateCategoryName({
+      name: editingName,
+      categories,
+      currentCategoryId: editingCategoryId,
+    });
+
+    setEditCategoryError(validationError);
+
+    if (validationError) return;
+
+    await updateCategory(editingCategoryId, {
+      name: editingName,
+      iconName: editingIconName ?? CATEGORY_ICON_FALLBACK_NAME,
+    });
+
+    if (!useCategoriesStore.getState().error) resetCategoryDrafts();
+  }
+
+  function handleArchiveCategory(category: Category) {
+    if (isCategoriesLoading) return;
+
+    clearCategoriesError();
+    setOpenSwipeCategoryId(null);
+    setAddCategoryError(null);
+    setEditCategoryError(null);
+
+    const validationError = getArchiveCategoryError({
+      category,
+      categories,
+    });
+
+    setArchiveCategoryError(validationError);
+
+    if (validationError) return;
+
+    Alert.alert(
+      'Delete category?',
+      'This hides the category from new transactions. Old transactions will still show it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void archiveCategory(category.id);
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.contentColumn}>
           <Text style={styles.title}>Settings</Text>
 
-          <Text style={styles.subtitle}>
-            Manage the daily reminder that nudges you to log the day before it
-            blurs.
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.sectionCard,
-            isReminderUnsupported ? styles.sectionCardDisabled : null,
-          ]}
-        >
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Daily check-in reminder</Text>
-
-              <Text style={styles.sectionBody}>
-                This reminder fires every day at 21:00 local device time.
-              </Text>
-            </View>
-
-            <Switch
-              accessibilityLabel="Enable the daily check-in reminder"
-              disabled={isReminderDisabled}
-              onValueChange={(nextEnabled) => {
-                void handleReminderToggle(nextEnabled);
-              }}
-              value={isReminderUnsupported ? false : isReminderEnabled}
-            />
-          </View>
-
-          {isReminderLoading ? (
-            <Text style={styles.metaText}>Checking reminder support…</Text>
-          ) : isReminderUnsupported ? (
-            <Text style={styles.infoText}>
-              Daily reminders are not available on this platform.
-            </Text>
-          ) : (
-            <Text style={styles.metaText}>21:00 daily, on this device.</Text>
-          )}
-
-          {reminderError ? (
-            <Text style={styles.errorText}>{reminderError}</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionCopy}>
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Account</Text>
 
-            <Text style={styles.sectionBody}>
-              {isAuthenticated
-                ? `Signed in as ${getAccountDisplayName(authUser)}. Local expense data stays on this device.`
-                : 'Using local guest mode on this device.'}
-            </Text>
-          </View>
+            <View style={styles.rowGroup}>
+              <SettingsRow
+                subtitle="This reminder fires every day at 21:00 local device time"
+                title="Daily check-in reminder"
+                trailing={
+                  <Switch
+                    accessibilityLabel="Enable the daily check-in reminder"
+                    disabled={isReminderDisabled}
+                    onValueChange={(nextEnabled) => {
+                      void handleReminderToggle(nextEnabled);
+                    }}
+                    value={isReminderUnsupported ? false : isReminderEnabled}
+                  />
+                }
+              />
 
-          {isAuthenticated ? (
-            <Pressable
-              accessibilityRole="button"
-              disabled={isSignOutDisabled}
-              onPress={() => {
-                void handleSignOutPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.supportButton,
-                isSignOutDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
-                {isAuthBusy ? 'Signing Out...' : 'Sign Out'}
+              <SettingsRow
+                subtitle="Runs when you return to the app"
+                title="Synchronization"
+                trailing={
+                  <Switch
+                    accessibilityLabel="Enable synchronization when returning to the app"
+                    disabled={isSyncToggleDisabled}
+                    onValueChange={(nextEnabled) => {
+                      void handleForegroundSyncToggle(nextEnabled);
+                    }}
+                    value={
+                      featureFlags.incrementalSyncEnabled &&
+                      isForegroundSyncEnabled
+                    }
+                  />
+                }
+              />
+
+              <SettingsRow
+                onPress={() => {
+                  setDraftCurrency(currency);
+                  setSheet({ kind: 'currency', title: 'Choose Currency' });
+                }}
+                title="Currency"
+                trailing={
+                  <ActionText icon="chevron.up.chevron.down">
+                    {currency}
+                  </ActionText>
+                }
+              />
+
+              <SettingsRow
+                onPress={() => {
+                  setDraftLanguage(language);
+                  setSheet({ kind: 'language', title: 'Choose language' });
+                }}
+                title="Language"
+                trailing={
+                  <ActionText icon="chevron.up.chevron.down">
+                    {language}
+                  </ActionText>
+                }
+              />
+            </View>
+
+            {isReminderLoading ? (
+              <Text style={styles.metaText}>Checking reminder support...</Text>
+            ) : null}
+            {isReminderUnsupported ? (
+              <Text style={styles.metaText}>
+                Daily reminders are not available on this platform.
               </Text>
-            </Pressable>
-          ) : isGoogleAuthAvailable || shouldShowAppleAuth ? (
-            <View style={styles.authActions}>
-              {isGoogleAuthAvailable ? (
+            ) : null}
+            {reminderError ? (
+              <Text style={styles.errorText}>{reminderError}</Text>
+            ) : null}
+            {syncPreferenceError ? (
+              <Text style={styles.errorText}>{syncPreferenceError}</Text>
+            ) : null}
+            {shouldShowSync ? (
+              <View style={styles.inlineStatusRow}>
                 <Pressable
                   accessibilityRole="button"
-                  disabled={isGoogleAuthDisabled}
+                  disabled={isSyncDisabled}
                   onPress={() => {
-                    void handleGoogleSignInPress();
+                    void handleSyncPress();
                   }}
-                  style={[
-                    styles.dataButton,
-                    styles.googleButton,
-                    isGoogleAuthDisabled ? styles.dataButtonDisabled : null,
-                  ]}
+                  style={isSyncDisabled ? styles.disabled : null}
                 >
-                  <Text
-                    style={[styles.dataButtonText, styles.googleButtonText]}
-                  >
-                    {isAuthBusy ? 'Opening Google...' : 'Continue with Google'}
+                  <Text style={styles.inlineActionText}>
+                    {isSyncing ? 'Syncing...' : 'Sync now'}
                   </Text>
                 </Pressable>
-              ) : null}
-
-              {shouldShowAppleAuth ? (
-                <AppleAuthentication.AppleAuthenticationButton
-                  accessibilityLabel="Continue with Apple"
-                  buttonStyle={
-                    AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-                  }
-                  buttonType={
-                    AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
-                  }
-                  cornerRadius={12}
-                  onPress={() => {
-                    void handleAppleSignInPress();
-                  }}
-                  pointerEvents={isAppleAuthDisabled ? 'none' : 'auto'}
-                  style={[
-                    styles.appleButton,
-                    isAppleAuthDisabled ? styles.dataButtonDisabled : null,
-                  ]}
-                />
-              ) : null}
-            </View>
-          ) : null}
-
-          {accountError ? (
-            <Text style={styles.errorText}>{accountError}</Text>
-          ) : null}
-
-          {authError ? (
-            <Text style={styles.errorText}>{authError.message}</Text>
-          ) : null}
-        </View>
-
-        {isAuthenticated ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Privacy</Text>
-
-              <Text style={styles.sectionBody}>
-                Delete cloud account data and backups for this account. Local
-                transactions, categories, and balance data on this device will
-                stay here.
-              </Text>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isDeleteAccountDisabled}
-              onPress={handleDeleteAccountPress}
-              style={[
-                styles.dataButton,
-                styles.destructiveButton,
-                isDeleteAccountDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text
-                style={[styles.dataButtonText, styles.destructiveButtonText]}
-              >
-                {isDeletingAccount ? 'Deleting account...' : 'Delete Account'}
-              </Text>
-            </Pressable>
-
-            {deleteAccountError ? (
-              <Text style={styles.errorText}>{deleteAccountError}</Text>
+              </View>
             ) : null}
-          </View>
-        ) : null}
-
-        {shouldShowSync ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Sync</Text>
-
-              <Text style={styles.sectionBody}>Auto sync: On</Text>
-
-              <Text style={styles.metaText}>
-                Runs when you return to the app. Local tracking still works
-                offline.
-              </Text>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isSyncDisabled}
-              onPress={() => {
-                void handleSyncPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.exportButton,
-                isSyncDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
-                {isSyncing ? 'Syncing...' : 'Sync now'}
-              </Text>
-            </Pressable>
-
             {lastSyncText ? (
               <Text style={styles.metaText}>{lastSyncText}</Text>
             ) : null}
-
             {visibleSyncResult ? (
               <Text style={styles.infoText}>
                 {formatSyncResult(visibleSyncResult)}
               </Text>
             ) : null}
-
             {syncError ? (
               <Text style={styles.errorText}>{syncError}</Text>
             ) : null}
-          </View>
-        ) : null}
 
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Categories</Text>
+            <View style={styles.categoryHeader}>
+              <Text style={styles.categoryHeaderTitle}>Category</Text>
 
-            <Text style={styles.sectionBody}>
-              Add or rename the spending buckets shown in transaction forms.
-            </Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/categories' as Href)}
-            style={[styles.dataButton, styles.supportButton]}
-          >
-            <Text style={[styles.dataButtonText, styles.supportButtonText]}>
-              Manage Categories
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Data</Text>
-
-            <Text style={styles.sectionBody}>
-              Import a Money Leak CSV backup or export every transaction saved
-              on this device.
-            </Text>
-          </View>
-
-          <View style={styles.dataActions}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isImportDisabled}
-              onPress={() => {
-                void handleImportPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.dataActionButton,
-                styles.importButton,
-                isImportDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.importButtonText]}>
-                {isImporting ? 'Importing...' : 'Import CSV'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isExportDisabled}
-              onPress={() => {
-                void handleExportPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.dataActionButton,
-                styles.exportButton,
-                isExportDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
-                {isExporting ? 'Exporting...' : 'Export CSV'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <Text style={styles.metaText}>{dataStatusMessage}</Text>
-
-          {isImportUnsupported ? (
-            <Text style={styles.metaText}>
-              {IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE}
-            </Text>
-          ) : (
-            <Text style={styles.metaText}>
-              This stays on-device and opens the native share sheet with a CSV
-              copy.
-            </Text>
-          )}
-
-          {importResult ? (
-            <Text style={styles.infoText}>
-              {formatImportResult(importResult)}
-            </Text>
-          ) : null}
-
-          {shouldShowTransactionsError ? (
-            <Text style={styles.errorText}>{transactionsError}</Text>
-          ) : null}
-
-          {importError ? (
-            <Text style={styles.errorText}>{importError}</Text>
-          ) : null}
-
-          {exportError ? (
-            <Text style={styles.errorText}>{exportError}</Text>
-          ) : null}
-        </View>
-
-        {shouldShowBackup ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Backup</Text>
-
-              <Text style={styles.sectionBody}>
-                Save a remote copy of the transactions and categories currently
-                on this device, including balance additions.
-              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleStartAddCategory}
+                style={styles.addCategoryButton}
+              >
+                <SafeSymbol
+                  fallbackLabel="+"
+                  name="plus"
+                  size={14}
+                  tintColor="#0088ff"
+                />
+                <Text style={styles.addCategoryText}>Add</Text>
+              </Pressable>
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              disabled={isBackupDisabled}
-              onPress={() => {
-                void handleBackupPress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.exportButton,
-                isBackupDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
-                {isBackingUp ? 'Creating backup...' : 'Create backup now'}
-              </Text>
-            </Pressable>
+            <View style={styles.categoryList}>
+              {isAddingCategory ? (
+                <View style={styles.categoryEditor}>
+                  <TextInput
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    onChangeText={(value) => {
+                      setNewCategoryName(value);
+                      setAddCategoryError(null);
+                    }}
+                    placeholder="Coffee"
+                    style={[
+                      styles.categoryInput,
+                      addCategoryError ? styles.inputError : null,
+                    ]}
+                    value={newCategoryName}
+                  />
 
+                  {addCategoryError ? (
+                    <Text style={styles.errorText}>{addCategoryError}</Text>
+                  ) : null}
+
+                  <CategoryIconPicker
+                    isExpanded={isAddIconPickerExpanded}
+                    onExpand={() => setIsAddIconPickerExpanded(true)}
+                    onIconPress={setNewCategoryIconName}
+                    selectedIconName={newCategoryIconName}
+                    testIDPrefix="settings-add-category-icon"
+                  />
+
+                  <View style={styles.categoryEditorActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isCategoriesLoading}
+                      onPress={() => {
+                        void handleAddCategory();
+                      }}
+                      style={styles.editorPrimaryButton}
+                    >
+                      <Text style={styles.editorPrimaryText}>Save</Text>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        resetCategoryDrafts();
+                        setIsAddingCategory(false);
+                      }}
+                      style={styles.editorSecondaryButton}
+                    >
+                      <Text style={styles.editorSecondaryText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+
+              {!isCategoriesInitialized ? (
+                <Text style={styles.metaText}>Loading categories...</Text>
+              ) : null}
+
+              {activeCategories.map((category) => {
+                const isEditing = editingCategoryId === category.id;
+                const isOtherCategory = category.id === OTHER_CATEGORY_ID;
+
+                if (isEditing) {
+                  return (
+                    <View key={category.id} style={styles.categoryEditor}>
+                      <TextInput
+                        autoCapitalize="words"
+                        autoCorrect={false}
+                        onChangeText={(value) => {
+                          setEditingName(value);
+                          setEditCategoryError(null);
+                        }}
+                        style={[
+                          styles.categoryInput,
+                          editCategoryError ? styles.inputError : null,
+                        ]}
+                        value={editingName}
+                      />
+
+                      {editCategoryError ? (
+                        <Text style={styles.errorText}>
+                          {editCategoryError}
+                        </Text>
+                      ) : null}
+
+                      <CategoryIconPicker
+                        isExpanded={isEditIconPickerExpanded}
+                        onExpand={() => setIsEditIconPickerExpanded(true)}
+                        onIconPress={setEditingIconName}
+                        selectedIconName={editingIconName}
+                        testIDPrefix="settings-edit-category-icon"
+                      />
+
+                      <View style={styles.categoryEditorActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={isCategoriesLoading}
+                          onPress={() => {
+                            void handleSaveEditCategory();
+                          }}
+                          style={styles.editorPrimaryButton}
+                        >
+                          <Text style={styles.editorPrimaryText}>Save</Text>
+                        </Pressable>
+
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={resetCategoryDrafts}
+                          style={styles.editorSecondaryButton}
+                        >
+                          <Text style={styles.editorSecondaryText}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }
+
+                return (
+                  <SwipeCategoryRow
+                    key={category.id}
+                    category={category}
+                    isDeleteDisabled={isOtherCategory}
+                    isDisabled={isCategoriesLoading}
+                    isOpen={openSwipeCategoryId === category.id}
+                    onDelete={handleArchiveCategory}
+                    onEdit={handleStartEditCategory}
+                    onSwipeClose={handleCategorySwipeClose}
+                    onSwipeInteractionStart={
+                      handleCategorySwipeInteractionStart
+                    }
+                    onSwipeOpen={handleCategorySwipeOpen}
+                  />
+                );
+              })}
+
+              {archiveCategoryError ? (
+                <Text style={styles.errorText}>{archiveCategoryError}</Text>
+              ) : null}
+              {categoriesError ? (
+                <Text style={styles.errorText}>{categoriesError}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>General</Text>
+
+            <View style={styles.rowGroup}>
+              <SettingsRow
+                subtitle={
+                  isAuthenticated
+                    ? 'You signed in with this email when authenticated.'
+                    : 'Using local guest mode on this device.'
+                }
+                title={
+                  isAuthenticated
+                    ? getAccountDisplayName(authUser)
+                    : 'Guest account'
+                }
+                trailing={
+                  isAuthenticated ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isSignOutDisabled}
+                      onPress={() => {
+                        void handleSignOutPress();
+                      }}
+                    >
+                      <ActionText destructive disabled={isSignOutDisabled}>
+                        {isAuthBusy ? 'Signing out...' : 'Sign out'}
+                      </ActionText>
+                    </Pressable>
+                  ) : null
+                }
+              />
+
+              <SettingsRow
+                disabled={!isAuthenticated}
+                subtitle="If you delete your account you will lose all current data."
+                title="Manage your account"
+                trailing={
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isDeleteAccountDisabled || !isAuthenticated}
+                    onPress={handleDeleteAccountPress}
+                  >
+                    <ActionText
+                      destructive
+                      disabled={isDeleteAccountDisabled || !isAuthenticated}
+                    >
+                      {isDeletingAccount
+                        ? 'Deleting account...'
+                        : 'Delete account'}
+                    </ActionText>
+                  </Pressable>
+                }
+              />
+
+              <SettingsRow
+                disabled={isImportDisabled}
+                onPress={() => {
+                  void handleImportPress();
+                }}
+                title="Import Data"
+                trailing={
+                  <ActionText disabled={isImportDisabled}>
+                    {isImporting ? 'Importing...' : 'Import CSV'}
+                  </ActionText>
+                }
+              />
+
+              <SettingsRow
+                disabled={isExportDisabled}
+                onPress={() => {
+                  void handleExportPress();
+                }}
+                title="Export Data"
+                trailing={
+                  <ActionText disabled={isExportDisabled}>
+                    {isExporting ? 'Exporting...' : 'Export CSV'}
+                  </ActionText>
+                }
+              />
+
+              <SettingsRow
+                disabled={isBackupDisabled}
+                onPress={() => {
+                  void handleBackupPress();
+                }}
+                title="Backup"
+                trailing={
+                  <ActionText disabled={isBackupDisabled}>
+                    {isBackingUp ? 'Creating backup...' : 'Create backup'}
+                  </ActionText>
+                }
+              />
+
+              <SettingsRow
+                disabled={isRestoreDisabled}
+                onPress={() => {
+                  void handleRestorePress();
+                }}
+                title="Restore"
+                trailing={
+                  <ActionText disabled={isRestoreDisabled}>
+                    {isRestoring
+                      ? 'Restoring backup...'
+                      : 'Restore from backup'}
+                  </ActionText>
+                }
+              />
+
+              <SettingsRow
+                onPress={() => {
+                  void handleOpenExternalLink({
+                    emptyMessage: 'Privacy policy is not available right now.',
+                    url: APP_LINKS.privacyPolicyUrl,
+                  });
+                }}
+                title="Privacy policy"
+                trailing={<ActionText icon="arrow.up.right">Read</ActionText>}
+              />
+
+              <SettingsRow
+                onPress={() => {
+                  void handleOpenExternalLink({
+                    emptyMessage: 'Support contact is not available right now.',
+                    url: APP_LINKS.supportUrl,
+                  });
+                }}
+                title="Support"
+                trailing={<ActionText icon="arrow.up.right">Read</ActionText>}
+              />
+            </View>
+
+            {!isAuthenticated &&
+            (isGoogleAuthAvailable || shouldShowAppleAuth) ? (
+              <View style={styles.authActions}>
+                {isGoogleAuthAvailable ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isGoogleAuthDisabled}
+                    onPress={() => {
+                      void handleGoogleSignInPress();
+                    }}
+                    style={[
+                      styles.authButton,
+                      isGoogleAuthDisabled ? styles.disabled : null,
+                    ]}
+                  >
+                    <Text style={styles.authButtonText}>
+                      {isAuthBusy
+                        ? 'Opening Google...'
+                        : 'Continue with Google'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+
+                {shouldShowAppleAuth ? (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    accessibilityLabel="Continue with Apple"
+                    buttonStyle={
+                      AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    }
+                    buttonType={
+                      AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+                    }
+                    cornerRadius={12}
+                    onPress={() => {
+                      void handleAppleSignInPress();
+                    }}
+                    pointerEvents={isAppleAuthDisabled ? 'none' : 'auto'}
+                    style={[
+                      styles.appleButton,
+                      isAppleAuthDisabled ? styles.disabled : null,
+                    ]}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            {accountError ? (
+              <Text style={styles.errorText}>{accountError}</Text>
+            ) : null}
+            {authError ? (
+              <Text style={styles.errorText}>
+                Could not update account. Try again.
+              </Text>
+            ) : null}
+            {deleteAccountError ? (
+              <Text style={styles.errorText}>{deleteAccountError}</Text>
+            ) : null}
             {lastBackupText ? (
               <Text style={styles.metaText}>{lastBackupText}</Text>
             ) : null}
-
             {backupResult ? (
               <Text style={styles.infoText}>
                 {formatBackupResult(backupResult)}
               </Text>
             ) : null}
-
             {backupError ? (
               <Text style={styles.errorText}>{backupError}</Text>
             ) : null}
-          </View>
-        ) : null}
-
-        {shouldShowRestore ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionCopy}>
-              <Text style={styles.sectionTitle}>Restore</Text>
-
-              <Text style={styles.sectionBody}>
-                Merge the cloud backup for this account into this device.
-                Existing local data will not be deleted.
-              </Text>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isRestoreDisabled}
-              onPress={() => {
-                void handleRestorePress();
-              }}
-              style={[
-                styles.dataButton,
-                styles.exportButton,
-                isRestoreDisabled ? styles.dataButtonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.dataButtonText, styles.exportButtonText]}>
-                {isRestoring ? 'Restoring backup...' : 'Restore from backup'}
-              </Text>
-            </Pressable>
-
             {restoreResult ? (
               <Text style={styles.infoText}>
                 {formatRestoreResult(restoreResult)}
               </Text>
             ) : null}
-
             {isRestoreEmpty ? (
               <Text style={styles.infoText}>
                 No backup found for this account.
               </Text>
             ) : null}
-
             {restoreError ? (
               <Text style={styles.errorText}>{restoreError}</Text>
             ) : null}
-          </View>
-        ) : null}
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionCopy}>
-            <Text style={styles.sectionTitle}>Privacy & Support</Text>
-
-            <Text style={styles.sectionBody}>
-              Review the privacy policy or get in touch if the app behaves
-              unexpectedly.
-            </Text>
-          </View>
-
-          <View style={styles.supportActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void handleOpenExternalLink({
-                  emptyMessage: 'Privacy policy is not available right now.',
-                  url: APP_LINKS.privacyPolicyUrl,
-                });
-              }}
-              style={[styles.dataButton, styles.supportButton]}
-            >
-              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
-                Privacy Policy
+            {importResult ? (
+              <Text style={styles.infoText}>
+                {formatImportResult(importResult)}
               </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void handleOpenExternalLink({
-                  emptyMessage: 'Support contact is not available right now.',
-                  url: APP_LINKS.supportUrl,
-                });
-              }}
-              style={[styles.dataButton, styles.supportButton]}
-            >
-              <Text style={[styles.dataButtonText, styles.supportButtonText]}>
-                Support
+            ) : null}
+            {isImportUnsupported ? (
+              <Text style={styles.metaText}>
+                {IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE}
               </Text>
-            </Pressable>
+            ) : null}
+            {shouldShowTransactionsError ? (
+              <Text style={styles.errorText}>{transactionsError}</Text>
+            ) : null}
+            {importError ? (
+              <Text style={styles.errorText}>{importError}</Text>
+            ) : null}
+            {exportError ? (
+              <Text style={styles.errorText}>{exportError}</Text>
+            ) : null}
+            {externalLinkError ? (
+              <Text style={styles.errorText}>{externalLinkError}</Text>
+            ) : null}
           </View>
-
-          {externalLinkError ? (
-            <Text style={styles.errorText}>{externalLinkError}</Text>
-          ) : null}
         </View>
       </ScrollView>
+
+      <OptionSheet
+        draftCurrency={draftCurrency}
+        draftLanguage={draftLanguage}
+        onApply={() => {
+          void handleApplySheet();
+        }}
+        onClose={handleCloseSheet}
+        onSelectCurrency={setDraftCurrency}
+        onSelectLanguage={setDraftLanguage}
+        sheet={sheet}
+      />
     </SafeAreaView>
   );
 }
@@ -1508,133 +2458,336 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    alignItems: 'center',
+    paddingHorizontal: 21,
     paddingTop: 24,
-    paddingBottom: 136,
-    gap: 24,
+    paddingBottom: 132,
   },
-  header: {
-    gap: 8,
+  contentColumn: {
+    width: '100%',
+    maxWidth: 360,
+    gap: 32,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
+    color: '#100f10',
+    fontFamily: TITLE_FONT_FAMILY,
+    fontSize: 36,
+    fontWeight: TITLE_FONT_WEIGHT,
+    lineHeight: 42,
   },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#4b5563',
-  },
-  sectionCard: {
-    gap: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    padding: 20,
-  },
-  sectionCardDisabled: {
-    backgroundColor: '#f9fafb',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  sectionCopy: {
-    flex: 1,
-    gap: 6,
+  section: {
+    gap: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    color: '#100f10',
+    fontFamily: TITLE_FONT_FAMILY,
+    fontSize: 24,
+    fontWeight: TITLE_FONT_WEIGHT,
+    lineHeight: 30,
   },
-  sectionBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#4b5563',
+  rowGroup: {
+    gap: 16,
   },
-  metaText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#6b7280',
-  },
-  infoText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#4b5563',
-  },
-  dataActions: {
+  settingsRow: {
+    minHeight: 52,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+  },
+  settingsRowTall: {
+    minHeight: 68,
+  },
+  rowCopy: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  rowTitle: {
+    color: '#100f10',
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  rowSubtitle: {
+    color: 'rgba(60, 60, 67, 0.6)',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  rowTrailing: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  actionTextWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  actionText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  inlineStatusRow: {
+    alignItems: 'flex-end',
+    marginTop: -14,
+  },
+  inlineActionText: {
+    color: '#0088ff',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  categoryHeaderTitle: {
+    color: '#100f10',
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
+  },
+  addCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  addCategoryText: {
+    color: '#0088ff',
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  categoryList: {
+    gap: 8,
+  },
+  categorySwipeContainer: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  categorySwipeActionSlot: {
+    height: 52,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  categorySwipeActionSlotTrailing: {
+    alignItems: 'flex-end',
+  },
+  categorySwipeActionCircle: {
+    width: CATEGORY_SWIPE_ACTION_SIZE,
+    height: CATEGORY_SWIPE_ACTION_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: CATEGORY_SWIPE_ACTION_SIZE / 2,
+  },
+  categoryPill: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+  },
+  categoryName: {
+    flex: 1,
+    color: '#100f10',
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
+  },
+  categoryDeleteAction: {
+    backgroundColor: '#ff383c',
+  },
+  categoryEditAction: {
+    backgroundColor: '#34c759',
+  },
+  categoryEditor: {
+    gap: 12,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    padding: 14,
+  },
+  categoryInput: {
+    borderWidth: 1,
+    borderColor: '#d8d8d8',
+    borderRadius: 14,
+    color: '#100f10',
+    fontSize: 17,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  inputError: {
+    borderColor: '#ff383c',
+  },
+  categoryEditorActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editorPrimaryButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: '#100f10',
+    paddingVertical: 12,
+  },
+  editorPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  editorSecondaryButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d8d8d8',
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  editorSecondaryText: {
+    color: '#100f10',
+    fontSize: 15,
+    fontWeight: '700',
   },
   authActions: {
     gap: 12,
   },
-  supportActions: {
-    gap: 12,
-  },
-  dataButton: {
+  authButton: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
+    backgroundColor: '#100f10',
     paddingVertical: 14,
   },
-  dataActionButton: {
-    flex: 1,
-  },
-  dataButtonDisabled: {
-    opacity: 0.6,
-  },
-  importButton: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-  },
-  exportButton: {
-    backgroundColor: '#111827',
-  },
-  destructiveButton: {
-    backgroundColor: '#b91c1c',
-  },
-  dataButtonText: {
+  authButtonText: {
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
-  },
-  importButtonText: {
-    color: '#111827',
-  },
-  supportButton: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-  },
-  googleButton: {
-    borderWidth: 1,
-    borderColor: '#111827',
-    backgroundColor: '#111827',
   },
   appleButton: {
     width: '100%',
     height: 48,
   },
-  supportButtonText: {
-    color: '#111827',
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
-  googleButtonText: {
-    color: '#ffffff',
+  sheet: {
+    minHeight: '92%',
+    overflow: 'hidden',
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 37.5,
+    shadowOffset: { width: 0, height: 15 },
   },
-  exportButtonText: {
-    color: '#ffffff',
+  grabber: {
+    width: 36,
+    height: 5,
+    alignSelf: 'center',
+    borderRadius: 100,
+    backgroundColor: '#cccccc',
+    marginTop: 5,
+    marginBottom: 6,
   },
-  destructiveButtonText: {
-    color: '#ffffff',
+  sheetHeader: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
-  errorText: {
+  sheetCircleButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+  },
+  sheetCloseButton: {
+    backgroundColor: '#f0f0f0',
+  },
+  sheetApplyButton: {
+    backgroundColor: '#0088ff',
+  },
+  sheetTitle: {
+    color: '#1a1a1a',
+    fontSize: 17,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  sheetList: {
+    overflow: 'hidden',
+    borderRadius: 26,
+    backgroundColor: '#ffffff',
+    marginTop: 20,
+  },
+  sheetOptionRow: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  sheetCheckSlot: {
+    width: 37,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  sheetSelectedCircle: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: '#34c759',
+  },
+  sheetOptionContent: {
+    flex: 1,
+    height: 52,
+    justifyContent: 'center',
+  },
+  sheetSeparator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e6e6e6',
+  },
+  sheetOptionText: {
+    color: '#000000',
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  metaText: {
+    color: 'rgba(60, 60, 67, 0.6)',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  infoText: {
+    color: '#4b5563',
     fontSize: 14,
     lineHeight: 20,
+  },
+  errorText: {
     color: '#b91c1c',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  disabled: {
+    opacity: 0.55,
+  },
+  symbolFallback: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  categoryIconFallback: {
+    color: '#100f10',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
