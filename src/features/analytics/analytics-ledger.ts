@@ -1,4 +1,6 @@
 import { getReferenceDate, getValidDate } from '@/lib/date-utils';
+import { formatMoneyAmount } from '@/lib/display-formatters';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type { BalanceEntry } from '@/types/balance';
 import type { LeakReason, Transaction } from '@/types/transaction';
 
@@ -452,17 +454,19 @@ function sanitizeAnalyticsAmount(value: number) {
 
 export function formatAnalyticsAmount({
   amount,
+  currency,
   sign,
 }: {
   amount: number;
+  currency?: SettingsCurrency;
   sign: '+' | '-';
 }) {
-  const [integerPart, decimalPart] = sanitizeAnalyticsAmount(amount)
-    .toFixed(2)
-    .split('.');
-  const spacedIntegerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-
-  return `${sign}${spacedIntegerPart}.${decimalPart} €`;
+  return formatMoneyAmount({
+    amount: sanitizeAnalyticsAmount(amount),
+    currency,
+    sign,
+    useGrouping: true,
+  });
 }
 
 export function formatAnalyticsTime(createdAt: number) {

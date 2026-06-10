@@ -116,8 +116,8 @@ function createTransaction({
 export function createDemoTransactions(): TransactionInput[] {
   const today = getStartOfDay(getReferenceDate());
 
-  // Keep the default Today views populated while the full-history cards
-  // still have enough history to render a streak and a meaningful leak risk.
+  // Keep the default Today views populated while period screens still have
+  // enough history to exercise mixed normal/leak data.
   const configs: DemoTransactionConfig[] = [
     {
       slot: 'today-breakfast',

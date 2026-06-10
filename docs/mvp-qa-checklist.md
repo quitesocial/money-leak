@@ -46,7 +46,6 @@
 - No demo-data button, toggle, or other active runtime control was added.
 - Regression check: `Home` still shows Today summary, History segmented controls, and transaction list behavior.
 - Regression check: `Analytics` still shows the expected empty, no-leaks, and non-empty states.
-- Regression check: `Shame Card` still shows the expected empty, no-leaks, populated preview, tone, and share states.
 - Regression check: `Settings` still shows the reminder, `Data`, and `Privacy & Support` sections without regressions.
 - Regression check: Import and export flows still work with the existing CSV fixtures and native-only platform boundaries.
 - Regression check: Reminder enable, disable, denied, and unsupported flows still work.
@@ -64,13 +63,13 @@
 ## Epic 41: Add Transaction Navigation Cleanup v1
 
 - Add Transaction is no longer visible in the bottom tab bar.
-- Home, Analytics, Shame Card, and Settings remain visible and selectable as the persistent bottom tabs.
+- Home, Analytics, and Settings remain visible and selectable as the persistent bottom tabs.
 - The Home Add Transaction CTA opens the Add Transaction screen as a pushed screen.
 - The Add Transaction screen shows the normal header/back affordance, and back returns to the previous screen.
 - Saving a transaction returns to Home or the previous screen.
 - Today summary values and the History list refresh after a successful save.
 - The Home Add Transaction CTA still opens Add Transaction.
-- Analytics, Shame Card, and Settings tabs still open and behave as before.
+- Analytics and Settings tabs still open and behave as before.
 
 ## Epic 42: Period Selector v2
 
@@ -79,7 +78,6 @@
 - The selector no longer shows `This month` or `All time`.
 - `Home` History updates correctly for `Today`, `Yesterday`, and `This week`.
 - `Analytics` updates when switching between each period option.
-- `Shame Card` updates when switching between each period option.
 - Canceling `Choose date` closes the picker without changing the previous period or custom date.
 - Empty states and no-leaks states render without crashing for every period option.
 - Add Transaction is still not visible in the bottom tab bar.
@@ -97,13 +95,13 @@
 ## ML-44 / Epic 44: Editable Categories v1
 
 - Settings shows a `Categories` section with `Manage Categories`.
-- `Manage Categories` opens `/categories` as a pushed screen.
+- `Manage Categories` is managed from Settings without a separate pushed route.
 - Adding a category with a valid unique name succeeds.
 - Adding a duplicate active category name shows validation and does not create a duplicate.
 - Editing a category name succeeds and keeps existing transactions attached to the same category ID.
 - The new category appears in Add Transaction and Edit Transaction category selectors.
 - A transaction saved with a custom category appears on Home with the custom category name.
-- Analytics and Shame Card do not crash with custom categories.
+- Analytics does not crash with custom categories.
 - Deleting a category archives it after confirmation.
 - Archived categories disappear from Add Transaction and normal Edit Transaction selectors.
 - Existing transactions with archived categories still display a safe category name.
@@ -123,9 +121,6 @@
 - Settings tab icon and label render correctly.
 - Switching tabs updates active state correctly.
 - No gray spacer/band appears between screen content and footer.
-- Shame Card is no longer a bottom tab.
-- Shame Card opens from the Analytics CTA.
-- Shame Card share still works.
 - Add Transaction remains a pushed root screen and is not visible as a tab.
 - Home, Analytics, Settings, Add/Edit Transaction, Manage Categories, CSV Import/Export, reminders, and editable categories still work.
 
@@ -133,7 +128,7 @@
 
 - Home shows only the page title plus `Today summary` and `History` as the main content sections.
 - Home and section titles use the bundled New York font on iOS.
-- Old separate `Today check-in`, `Logging Streak`, and `Leak Risk` Home cards are not visible.
+- Old separate retired Home cards are not visible.
 - Today summary empty state shows safe zero values and does not show `NaN`.
 - Today summary updates after adding a normal transaction today.
 - Today summary updates after adding a leak transaction today.
@@ -152,7 +147,6 @@
 - Add Transaction remains a pushed screen from the Home CTA and is not visible as a tab.
 - ML-47 footer still works and does not cover the last History item or create a gray/white spacer band.
 - `Analytics & Leaks` and `Settings` tabs still work.
-- Shame Card still opens from Analytics and remains a pushed root screen.
 
 ## ML-49: History Swipe Gesture Hardening
 
@@ -177,7 +171,7 @@
 - Category selection, leak toggle, leak reason selection, note entry, and submit behavior still work.
 - Back navigation from Add Transaction or Edit Transaction does not leave the app in a broken keyboard or focus state.
 - Footer tabs remain `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- Add Transaction remains a pushed root screen and is not visible as a bottom tab.
 
 ## ML-51: Auth & Sync Readiness Audit
 
@@ -192,7 +186,7 @@
 - CSV import/export format remains `id,amount,category,isLeak,leakReason,note,createdAt`.
 - No auth, backend, account, cloud sync, or provider dependency was added.
 - Footer tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- Add Transaction remains a pushed root screen and is not visible as a bottom tab.
 - `npm run release:preflight` passes.
 - `npm test -- --runInBand` passes.
 - `npm run typecheck` passes.
@@ -213,7 +207,7 @@
 - No secrets or Supabase service role key values were committed.
 - CSV v1 remains `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Shame Card, and Manage Categories remain pushed root Stack screens.
+- Add Transaction remains a pushed root Stack screen, and Manage Categories remains inside Settings.
 - `package.json.version` is bumped intentionally to `1.10.4`.
 - `package-lock.json` top-level and root package version fields are bumped intentionally to `1.10.4`.
 - `app.config.js`, `app.json`, and `eas.json` are unchanged.
@@ -261,7 +255,7 @@
 - Existing category `updatedAt` values are preserved when valid, otherwise repaired from `createdAt` or the migration time.
 - New transaction rows receive local sync metadata at insert time.
 - Edited transactions refresh `updatedAt`.
-- Deleting a transaction hides it from Home, Analytics, and Shame Card while retaining a local soft-delete tombstone.
+- Deleting a transaction hides it from Home and Analytics while retaining a local soft-delete tombstone.
 - Category delete/archive behavior remains unchanged: archived categories are hidden from selectors, and `deletedAt` stays reserved for future sync tombstones.
 - CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - CSV import still accepts CSV v1 files and imported rows receive local sync metadata in SQLite.
@@ -273,7 +267,7 @@
 - No Supabase SDK, auth UI, backend tables, RLS, backup, or sync service was added.
 - No Google Auth or Apple Auth implementation was added.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- Add Transaction remains a pushed root screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or Liquid Glass imitation was added.
 - `npm run release:preflight` passes.
 - `npm test -- --runInBand` passes.
@@ -299,7 +293,7 @@
 - CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - CSV import still accepts CSV v1 and does not require auth.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root screens and are not visible bottom tabs.
+- Add Transaction remains a pushed root screen and is not visible as a bottom tab.
 - No transaction/category SQLite schema changes were made.
 - No Supabase SDK, backend tables, RLS, backup, restore, or sync service was added.
 - No Google Auth or Apple Auth implementation was added.
@@ -333,7 +327,7 @@
 - CSV export still uses exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - CSV import still accepts CSV v1 and does not require auth.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No transaction/category SQLite schema changes or migrations were added.
 - No backup, restore, incremental sync, Supabase database tables, RLS policies, Apple Sign-In, backend user profile logic, or account linking was added.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or broad visual redesign was added.
@@ -427,8 +421,7 @@ Manual owner QA:
 - CSV export still uses exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
   broad visual redesign was added.
 - `npm run release:preflight` passes.
@@ -515,8 +508,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
   Liquid Glass imitation was added.
 - `npm run release:preflight` passes.
@@ -566,8 +558,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
   Liquid Glass imitation was added.
 - `package.json.version` is bumped intentionally to `1.12.7`.
@@ -642,8 +633,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
   Liquid Glass imitation was added.
 - `package.json.version` is bumped intentionally to `1.12.8`.
@@ -699,8 +689,7 @@ Google` is visible, Google login works, authenticated state/email/user info
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No `@expo/ui`, SwiftUI wrappers, BlurView, `expo-blur`, glass styling, or
   Liquid Glass imitation was added.
 - `package.json.version` is bumped intentionally to `1.12.9`.
@@ -758,8 +747,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No Account diagnostics UI was restored.
 - No raw config values, secrets, tokens, service role keys, account identifiers,
   local owner ids, or device identifiers are rendered in UI/logs/docs.
@@ -820,8 +808,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No restore, restore prompt, remote merge, automatic backup, session-restore
   upload, background sync, incremental sync, delete account, Apple Sign-In,
   account diagnostics UI, CSV change, visual redesign, or glass styling was
@@ -886,8 +873,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - `package.json.version` is bumped intentionally to `1.14.0`.
 - `package-lock.json` top-level and root package version fields are bumped
   intentionally to `1.14.0`.
@@ -945,8 +931,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - `package.json.version` is bumped intentionally to `1.14.1`.
 - `package-lock.json` top-level and root package version fields are bumped
   intentionally to `1.14.1`.
@@ -1016,8 +1001,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - `package.json.version` is bumped intentionally to `1.15.0`.
 - `package-lock.json` top-level and root package version fields are bumped
   intentionally to `1.15.0`.
@@ -1087,8 +1071,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
   styling was added.
 - `package.json.version` is bumped intentionally to `1.16.0`.
@@ -1154,8 +1137,7 @@ Manual owner QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
   styling was added.
 - `package.json.version` is bumped intentionally to `1.16.1`.
@@ -1238,8 +1220,7 @@ Manual owner deployment and QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
   styling was added.
 - `package.json.version` is bumped intentionally to `1.16.2`.
@@ -1307,8 +1288,7 @@ Manual/dev QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No @expo/ui, SwiftUI wrappers, BlurView, expo-blur, Liquid Glass, or glass
   styling was added.
 - `package.json.version` is bumped intentionally to `1.17.0`.
@@ -1366,8 +1346,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - Settings sync UI does not render raw backend errors, env values, Supabase
   URLs, anon keys, service-role keys, OAuth/provider secrets, access tokens,
   refresh tokens, provider tokens, Apple identity tokens, localOwnerId,
@@ -1436,8 +1415,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - Backup, restore, Sign Out, Delete Account, import/export, auth lifecycle,
   navigation, and visual design remain unchanged.
 - No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
@@ -1501,8 +1479,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - Backup, restore, Sign Out, Delete Account, import/export, navigation, and
   visual design remain unchanged.
 - No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
@@ -1534,8 +1511,8 @@ Manual QA:
 - Add, edit, and delete local transactions/categories and confirm those local
   mutations do not trigger sync until manual sync or a later eligible
   foreground return.
-- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
-  Restore, and Delete Account flows.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Backup, Restore, and
+  Delete Account flows.
 
 ## ML-76: Sync Status & Cross-device QA Hardening v1
 
@@ -1571,8 +1548,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - Backup, restore, Sign Out, Delete Account, import/export, auth providers,
   navigation, and visual design remain unchanged.
 - No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
@@ -1606,8 +1582,8 @@ Manual QA:
 - Add, edit, and delete local transactions/categories and confirm those local
   mutations do not trigger sync until manual sync or a later eligible
   foreground return.
-- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
-  Restore, Delete Account, Sign Out, and local guest mode.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Backup, Restore,
+  Delete Account, Sign Out, and local guest mode.
 
 ## ML-77: Sync Attempt Source Metadata v1
 
@@ -1642,8 +1618,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
   styling was added.
 - `npm run release:preflight` passes.
@@ -1668,8 +1643,8 @@ Manual QA:
 - Add, edit, and delete local transactions/categories and confirm those local
   mutations do not trigger sync until manual sync or a later eligible
   foreground return.
-- Recheck CSV import/export, bottom tabs, Add Transaction, Shame Card, Backup,
-  Restore, Delete Account, Sign Out, and local guest mode.
+- Recheck CSV import/export, bottom tabs, Add Transaction, Backup, Restore,
+  Delete Account, Sign Out, and local guest mode.
 
 ## ML-78: Privacy / App Store Review Readiness v1
 
@@ -1695,8 +1670,7 @@ Manual QA:
   provider tokens, Apple identity tokens, localOwnerId, deviceId, ownerId, raw
   user IDs, row payloads, or raw backend errors.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass
@@ -1727,8 +1701,8 @@ Policy`, and `Support` are visible without forcing sign-in.
 - Tap Sign Out and confirm local data remains on device.
 - Run Delete Account through the existing confirmation flow and confirm cloud
   account deletion/sign-out behavior while local data remains on device.
-- Recheck Backup, Restore, Sync, CSV import/export, bottom tabs, Add
-  Transaction, Shame Card, and local guest mode.
+- Recheck Backup, Restore, Sync, CSV import/export, bottom tabs, Add Transaction,
+  and local guest mode.
 
 ## ML-79: Loading Screen / Native Splash Screen v1
 
@@ -1755,8 +1729,7 @@ Policy`, and `Support` are visible without forcing sign-in.
 - Settings Auth, Backup, Restore, Sync, and Delete Account smoke checks still
   pass.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - No auth, sync, backup, restore, delete-account, or navigation runtime
@@ -1786,8 +1759,6 @@ Manual QA:
 - Confirm the app reaches the expected guest or authenticated startup state.
 - Open Home, Analytics & Leaks, and Settings.
 - Open Add Transaction from Home and confirm it is pushed outside the bottom
-  tab bar.
-- Open Shame Card from Analytics and confirm it is pushed outside the bottom
   tab bar.
 - Smoke-test Settings Auth, Backup, Restore, Sync, Delete Account, and guest
   mode.
@@ -1823,8 +1794,7 @@ Manual QA:
 - CSV v1 remains exactly
   `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Bottom tabs remain Home, Analytics & Leaks, and Settings.
-- Add Transaction and Shame Card remain pushed root Stack screens and are not
-  visible bottom tabs.
+- Add Transaction remains a pushed root Stack screen and is not visible as a bottom tab.
 - No auth, sync, backup, restore, delete-account, or navigation runtime
   behavior changed.
 - No service-role/admin Supabase usage was added to mobile app code/config.
@@ -1864,7 +1834,6 @@ Manual QA:
 - Add Transaction remains `/add-transaction` as a pushed root Stack screen, not
   a bottom tab.
 - Bottom tabs remain exactly Home, Analytics & Leaks, and Settings.
-- Shame Card remains a pushed root Stack screen, not a bottom tab.
 - Add Transaction opens with amount focused and accepts decimal dot or a single
   decimal comma value.
 - Normal add flow saves amount, selected date, Normal type, and selected active
@@ -1937,8 +1906,8 @@ Manual QA:
   back exits safely.
 - Smoke-test Edit Transaction amount autofocus, category selection, archived
   current category display, and save behavior.
-- Smoke-test bottom tabs, Shame Card, Manage Categories, CSV import/export,
-  Settings Auth, Backup, Restore, Sync, Delete Account, app icon, and splash.
+- Smoke-test bottom tabs, Manage Categories, CSV import/export, Settings Auth,
+  Backup, Restore, Sync, Delete Account, app icon, and splash.
 
 ## ML-81.5: Add Transaction Category Icons Picker
 
@@ -2012,8 +1981,8 @@ Manual QA:
 - Confirm old/legacy categories without icon data render with a fallback icon
   and do not crash.
 - Confirm CSV import/export still uses the v1 header and category ID value.
-- Smoke-test Edit Transaction, Manage Categories, bottom tabs, Shame Card,
-  Settings Auth, Backup, Restore, Sync, Delete Account, app icon, and splash.
+- Smoke-test Edit Transaction, Manage Categories, bottom tabs, Settings Auth,
+  Backup, Restore, Sync, Delete Account, app icon, and splash.
 
 ## App Boot And Empty State
 
@@ -2029,7 +1998,6 @@ Manual QA:
 2. Wait for the initial loading state to finish.
 3. Open `Home`.
 4. Open `Analytics`.
-5. Open `Shame Card`.
 
 **Expected result**
 
@@ -2037,7 +2005,6 @@ Manual QA:
 - Home shows the empty state with no transactions.
 - Today summary shows `0.00€` total spent, `0.00€` total leaks, and `0%` leak percentage.
 - Analytics shows the empty state for no transactions.
-- Shame Card shows the empty state for no transactions.
 
 ## Add Transaction
 
@@ -2381,14 +2348,12 @@ Manual QA:
 1. Open `Home`.
 2. Delete the final remaining transaction and confirm.
 3. Open `Analytics`.
-4. Open `Shame Card`.
 
 **Expected result**
 
 - Home returns to the empty state.
 - Today summary returns to zero values.
 - Analytics returns to the empty state.
-- Shame Card returns to the empty state.
 
 ## Analytics
 
@@ -2455,136 +2420,6 @@ Manual QA:
 - `Brutal insight` stays above `Next move`.
 - Metric cards show top leak category, top leak reason, peak leak weekday, and peak leak hour when data exists.
 - Analytics renders without crashing while showing the insight cards.
-
-## Shame Card
-
-### 22. Shame Card empty state
-
-**Preconditions**
-
-- Local transaction data is empty.
-
-**Steps**
-
-1. Open `Shame Card`.
-
-**Expected result**
-
-- Empty-state copy is shown.
-- No preview card is shown.
-- Share button is not shown.
-
-### 23. Shame Card no-leaks state
-
-**Preconditions**
-
-- At least one normal transaction exists.
-- No leak transactions exist.
-
-**Steps**
-
-1. Open `Shame Card`.
-
-**Expected result**
-
-- `No leaks yet` state is shown.
-- Preview card is not shown.
-- Share button is not shown.
-
-### 24. Shame Card with leaks
-
-**Preconditions**
-
-- At least one leak transaction exists.
-
-**Steps**
-
-1. Open `Shame Card`.
-2. Review the preview content.
-
-**Expected result**
-
-- Preview card is shown.
-- Card includes a title, total leaks line, verdict, and any available top-category or peak-time lines.
-- Screen does not crash when preview is rendered.
-
-### 25. Shame Card tone switching
-
-**Preconditions**
-
-- At least one leak transaction exists.
-- Shame Card preview is visible.
-
-**Steps**
-
-1. Open `Shame Card`.
-2. Tap `Soft`.
-3. Tap `Harsh`.
-4. Tap `Unfiltered`.
-
-**Expected result**
-
-- Selected tone chip updates visually each time.
-- Preview title and verdict change with the selected tone.
-- No other leak data is lost while switching tone.
-
-### 26. Share button visibility rules
-
-**Preconditions**
-
-- Ability to create both normal and leak test data.
-
-**Steps**
-
-1. Verify `Shame Card` with no transactions.
-2. Verify `Shame Card` with only normal transactions.
-3. Verify `Shame Card` with at least one leak transaction and no blocking error state.
-
-**Expected result**
-
-- Share button is hidden when there are no transactions.
-- Share button is hidden when there are transactions but no leaks.
-- Share button is visible only when the shame card preview is available for leak data.
-
-### 27. Share action success path
-
-**Preconditions**
-
-- Test on a native device or simulator where sharing is available.
-- At least one leak transaction exists.
-- Shame Card preview and Share button are visible.
-
-**Steps**
-
-1. Open `Shame Card`.
-2. Tap `Share`.
-3. Wait for the platform share sheet.
-
-**Expected result**
-
-- Button changes to `Sharing...` while the share action is in flight.
-- Native share sheet opens with the shame card image.
-- App stays responsive after dismissing or completing the share sheet.
-- No error message is shown on success.
-
-### 28. Share unavailable/error path
-
-**Preconditions**
-
-- Use a runtime where sharing is unavailable, or simulate a capture/share failure if the environment allows it.
-- At least one leak transaction exists.
-
-**Steps**
-
-1. Open `Shame Card`.
-2. Tap `Share`.
-
-**Expected result**
-
-- If sharing is unavailable, the screen shows `Sharing is not available on this device.`
-- If capture or share fails for another reason, the screen shows `Could not share the shame card. Try again.`
-- App does not crash.
-- Share button returns from `Sharing...` to its normal state after the failure.
 
 ## Settings / Data Export
 
@@ -2696,7 +2531,7 @@ Manual QA:
 **Verification note**
 
 - The shared CSV fixtures live in `docs/qa-fixtures/`.
-- The shared period selector defaults to `Today` in Analytics and Shame Card. Home History only exposes `Today`, `Yesterday`, and `This week`, so fixed historical fixture rows are verified through Analytics and Shame Card `Choose date`.
+- The shared period selector defaults to `Today` in Analytics. Home History only exposes `Today`, `Yesterday`, and `This week`, so fixed historical fixture rows are verified through Analytics `Choose date`.
 - The fixture dates are fixed historical ISO timestamps. Clear app data before re-importing the same fixture if you need deterministic imported/skipped counts.
 
 ### 34. Import a valid Money Leak CSV backup
@@ -2715,7 +2550,6 @@ Manual QA:
 4. Wait for the import to finish.
 5. Open `Home` and confirm the History selector still only offers `Today`, `Yesterday`, and `This week`.
 6. Open `Analytics`, use `Choose date` for `Jan 1, 2025`, then `Jan 2, 2025`, and review the summary and any visible metric cards.
-7. Open `Shame Card` with `Choose date` set to `Jan 2, 2025` and review the preview state.
 
 **Expected result**
 
@@ -2723,7 +2557,7 @@ Manual QA:
 - `Import CSV` changes to `Importing...` while the import is in flight.
 - Settings shows `Imported 2 transactions. Skipped 0 rows.`
 - Imported leak transactions show their saved leak reason and optional note.
-- `Analytics` and `Shame Card` reflect the imported data immediately.
+- `Analytics` reflects the imported data immediately.
 - Home remains stable after import and keeps its three-period History selector.
 - App stays responsive after the import completes.
 
@@ -3060,40 +2894,6 @@ Manual QA:
 - Home does not render the old `Today check-in` card.
 - Home renders the ML-48 `Today summary` section instead.
 
-### 50. Logging Streak helper coverage after ML-48
-
-**Preconditions**
-
-- Local data includes scenarios with empty history, today-only history, yesterday-only history, consecutive local days, and a gap.
-
-**Steps**
-
-1. Run the automated Logging Streak helper tests.
-2. Open `Home`.
-
-**Expected result**
-
-- Logging Streak helper tests still pass.
-- Home does not render the old Logging Streak card or its CTA.
-- Add Transaction remains available from the ML-48 Today summary CTA.
-
-### 51. Leak Risk helper coverage after ML-48
-
-**Preconditions**
-
-- Local data includes no-leak, low-risk, medium-risk, high-risk, and near-midnight risk-window scenarios.
-
-**Steps**
-
-1. Run the automated Leak Risk helper tests.
-2. Open `Home`.
-
-**Expected result**
-
-- Leak Risk helper tests still pass.
-- Home does not render the old `Leak risk today` card.
-- Analytics and Shame Card continue to handle leak data without Home-specific changes.
-
 ## ML-82 Add Balance
 
 ### 52. Home balance and Add Balance local flow
@@ -3132,7 +2932,7 @@ Manual QA:
 - Balance entries persist after app restart.
 - History preserves category icons and swipe actions for transaction rows.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Add Balance, and Shame Card are not bottom tabs.
+- Add Transaction and Add Balance are not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance remains separate from expense Transactions and Transaction CSV v1.
 
@@ -3197,7 +2997,7 @@ Manual QA:
 - Today summary remains transaction-only.
 - `Add` routes to `/add-balance`; `Spend` routes to `/add-transaction`.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Add Balance, and Shame Card are root Stack screens, not bottom tabs.
+- Add Transaction and Add Balance are root Stack screens, not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 
 ## ML-83 Update Home Screen
@@ -3237,7 +3037,7 @@ Manual QA:
 - Balance rows preserve swipe edit/delete behavior and delete confirmation.
 - The floating bottom tab bar does not cover the last History item.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Add Balance, and Shame Card remain root Stack screens, not bottom tabs.
+- Add Transaction and Add Balance remain root Stack screens, not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - No new auth, sync triggers, Supabase schema, service-role/admin mobile usage, raw backend errors, secrets, tokens, owner IDs, localOwnerIds, device IDs, or row payloads are exposed.
@@ -3275,7 +3075,7 @@ Manual QA:
 
 - Add Transaction remains `/add-transaction` as a pushed root Stack screen with the native Stack header hidden.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Balance and Shame Card remain root Stack screens, not bottom tabs.
+- Add Balance remains a root Stack screen, not a bottom tab.
 - The `Save` CTA saves the transaction directly and does not navigate to another wizard step.
 - Category is hidden until `Normal` is selected or until a Leak reason is selected.
 - Selecting `Normal` scrolls to Category; selecting `Leak` scrolls to Reason; selecting a Leak reason scrolls to Category.
@@ -3317,7 +3117,7 @@ Manual QA:
 - Home History shows balance additions with the correct type name or safe fallback.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
-- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`; Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack screens.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`; Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack screens.
 - No package version, Expo config, sync/backup/remote schema, forbidden UI dependency, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
 
 ## ML-86 Analytics & Leaks Ledger
@@ -3350,7 +3150,7 @@ Manual QA:
 
 **Expected result**
 
-- Analytics uses the ML-86 read-only ledger layout and does not show the old totals dashboard, insight cards, Alternative Reality section, or Shame Card CTA.
+- Analytics uses the ML-86 read-only ledger layout and does not show the old totals dashboard or insight cards.
 - The screen does not recreate the native status bar or floating tab bar inside content.
 - The floating bottom tab bar does not cover the last ledger row.
 - Feed rows are grouped by date like `23 April 2026` and sorted newest-first inside each date.
@@ -3368,7 +3168,7 @@ Manual QA:
 - Analytics rows remain read-only; no edit/delete behavior is added to Analytics.
 - Home swipe edit/delete behavior does not regress.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack screens, not tabs.
+- Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack screens, not tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - Balance additions remain outside Transaction CSV v1 and are not encoded as Transactions.
 - No package version, Expo config, DB schema, Supabase schema, sync/backup/restore contract, auth/session, delete-account behavior, forbidden UI dependency, backend/API/AI/bank integration, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
@@ -3396,13 +3196,13 @@ Manual QA:
 9. In guest mode, try disabled account, backup, and restore rows and confirm no remote action runs.
 10. In authenticated mode, test sign out, delete account confirmation/cancel/confirm, Import CSV, Export CSV, Create backup, Restore from backup, and `Sync now`.
 11. Open Privacy policy and Support; also test blank or failing links if possible.
-12. Review Home, Analytics & Leaks, Add Transaction, Add Balance, Shame Card, Edit Transaction, Edit Balance, CSV import/export, backup/restore/sync, and bottom navigation regressions.
+12. Review Home, Analytics & Leaks, Add Transaction, Add Balance, Edit Transaction, Edit Balance, CSV import/export, backup/restore/sync, and bottom navigation regressions.
 
 **Expected result**
 
 - Settings uses the ML-87 row-based layout with `#f7f7f5` background, a centered narrow column, New York-style headings, and enough bottom padding for the floating tab bar.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
-- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
+- Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
 - Reminder behavior and notification permission handling are unchanged.
 - Foreground synchronization preference is local-only, does not trigger sync immediately, and guest mode never invokes remote sync writes.
 - Manual sync remains authenticated, explicit, routed through the sync service boundary, and reports aggregate safe counts only.
@@ -3414,3 +3214,39 @@ Manual QA:
 - Import/export/backup/restore/sign out/delete-account behavior remains safe and does not delete local data unless an existing flow explicitly does so.
 - Privacy and Support links use centralized app links and show generic safe failure copy.
 - No package version, Expo config, DB schema, Supabase schema, sync/backup/restore contract, auth/session contract, forbidden UI dependency, service-role/admin mobile usage, raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.
+
+## ML-88 Currency Preference Applies To Money Labels
+
+### 60. Currency display, persistence, and data contract regressions
+
+**Preconditions**
+
+- Use local data with at least one balance addition and one expense transaction today.
+- Include enough Analytics & Leaks data to show Added and Spent ledger rows.
+- Test on a native device or simulator; restart the app at least once during the run.
+
+**Steps**
+
+1. Open `Settings` > `Currency` and apply each available currency option once.
+2. For each currency, return to `Home` and confirm the current balance uses the selected currency symbol.
+3. Confirm `Home` History uses the selected currency symbol for both balance additions and expense rows.
+4. Confirm `Today summary` Total and Leak values use the selected currency symbol.
+5. Open `Analytics & Leaks` and confirm Added and Spent ledger rows use the selected currency symbol.
+6. Switch Analytics between `Today`, `Week`, `Month`, and each Custom period mode and confirm money labels keep the selected currency symbol.
+7. Apply Analytics filters for `Added`, `Spent`, balance type, normal/leak, leak reason, and category; confirm filtered rows keep the selected currency symbol.
+8. Open Add Transaction, Add Balance, Edit Transaction, and Edit Balance and confirm the flows still render and save normally; Add Transaction/Add Balance/Edit Balance amount suffixes use the selected currency symbol.
+9. Force-close and restart the app, then confirm the selected currency is still visible in Settings and still applied to Home and Analytics.
+10. Export and import Transaction CSV v1 and confirm the header remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+11. Run backup, restore, manual sync, and foreground sync regression checks where available.
+
+**Expected result**
+
+- Euro remains the default and looks like the previous app behavior.
+- Selected currency changes display symbols only; numeric amount values do not change.
+- No FX conversion, exchange rates, per-transaction currency, or per-balance currency behavior exists.
+- Settings Currency sheet still stages draft selections, cancels without applying, and applies only with the checkmark.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`; no currency column is added.
+- Backup/restore/sync DTOs and Supabase schemas remain unchanged.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
+- No forbidden UI dependency, backend/API/bank integration, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.

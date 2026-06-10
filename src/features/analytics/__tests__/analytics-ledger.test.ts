@@ -71,7 +71,7 @@ function buildItems(
 }
 
 describe('analytics ledger helpers', () => {
-  it('formats signed euro values with spaced thousands', () => {
+  it('formats signed Euro values with spaced thousands by default', () => {
     expect(formatAnalyticsAmount({ amount: 1000, sign: '+' })).toBe(
       '+1 000.00 €',
     );
@@ -79,6 +79,23 @@ describe('analytics ledger helpers', () => {
     expect(formatAnalyticsAmount({ amount: Number.NaN, sign: '-' })).toBe(
       '-0.00 €',
     );
+  });
+
+  it('formats signed values with the selected currency', () => {
+    expect(
+      formatAnalyticsAmount({
+        amount: 1000,
+        currency: 'United States dollar',
+        sign: '+',
+      }),
+    ).toBe('+1 000.00 $');
+    expect(
+      formatAnalyticsAmount({
+        amount: 10,
+        currency: 'Japanese yen',
+        sign: '-',
+      }),
+    ).toBe('-10.00 ¥');
   });
 
   it('builds a newest-first union feed grouped by local date', () => {

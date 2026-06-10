@@ -11,6 +11,7 @@ import {
 import { AddTransactionScreen } from '@/features/add-transaction/add-transaction-screen';
 import type { CategoryIconName } from '@/lib/category-icons';
 import { normalizeCategoryName } from '@/lib/category-utils';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type { Category } from '@/types/category';
 import type { TransactionInput } from '@/types/transaction';
 
@@ -48,6 +49,7 @@ const mockClearTransactionError = jest.fn();
 const mockUseCategoriesRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
+let mockSettingsCurrency: SettingsCurrency = 'Euro';
 let mockLatestDatePickerProps: LocalDatePickerMockProps | null = null;
 
 type MockCategoriesStoreState = {
@@ -135,6 +137,10 @@ jest.mock('@/lib/use-categories-refresh', () => ({
   useCategoriesRefresh: (...args: unknown[]) => {
     return mockUseCategoriesRefresh(...args);
   },
+}));
+
+jest.mock('@/lib/use-settings-currency', () => ({
+  useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
 jest.mock('@/store/categories-store', () => ({
@@ -352,6 +358,7 @@ async function selectDate(renderer: ReactTestRenderer, date: Date) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockLatestDatePickerProps = null;
+  mockSettingsCurrency = 'Euro';
 
   resetCategories();
 
@@ -399,6 +406,15 @@ describe('AddTransactionScreen', () => {
     expectNoText(renderer, 'Category');
     expectNoText(renderer, 'Food');
     expectNoText(renderer, 'Transport');
+  });
+
+  it('renders the selected currency suffix in the amount field', async () => {
+    mockSettingsCurrency = 'Indian rupee';
+
+    const renderer = await renderAddTransactionScreen();
+
+    expectText(renderer, '₹');
+    expectNoText(renderer, '€');
   });
 
   it('shows categories after Normal is selected', async () => {

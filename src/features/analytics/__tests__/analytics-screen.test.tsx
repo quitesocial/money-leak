@@ -16,6 +16,7 @@ import {
 } from 'react-test-renderer';
 
 import { AnalyticsScreen } from '@/features/analytics/analytics-screen';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
@@ -32,6 +33,7 @@ const mockUseCategoriesRefresh = jest.fn();
 const mockUseTransactionsRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
+let mockSettingsCurrency: SettingsCurrency = 'Euro';
 const mockSymbolView = jest.fn(
   ({
     fallback,
@@ -166,6 +168,10 @@ jest.mock('@/lib/use-transactions-refresh', () => ({
   useTransactionsRefresh: (...args: unknown[]) => {
     return mockUseTransactionsRefresh(...args);
   },
+}));
+
+jest.mock('@/lib/use-settings-currency', () => ({
+  useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
 jest.mock('@/store/balance-store', () => ({
@@ -454,6 +460,7 @@ beforeEach(() => {
     mockCategoriesStoreState.categories;
   mockCategoriesStoreState.error = null;
   mockCategoriesStoreState.isInitialized = true;
+  mockSettingsCurrency = 'Euro';
 });
 
 afterEach(() => {
@@ -533,6 +540,43 @@ describe('AnalyticsScreen', () => {
     ).toMatchObject({
       color: '#100f10',
     });
+  });
+
+  it('uses the selected currency for ledger rows and filtered rows', async () => {
+    mockSettingsCurrency = 'Pound sterling';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-salary',
+        amount: 100,
+        typeId: 'salary',
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-food',
+        amount: 10,
+        category: 'food',
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+
+    expect(getNodeText(renderer.root)).toContain('+100.00 £');
+    expect(getNodeText(renderer.root)).toContain('-10.00 £');
+
+    await pressByTestID(renderer, 'analytics-filter-button');
+    await pressByTestID(renderer, 'analytics-filter-added-chip');
+    await pressByTestID(renderer, 'analytics-filter-apply-button');
+
+    expect(getNodeText(renderer.root)).toContain('+100.00 £');
+    expect(getNodeText(renderer.root)).not.toContain('-10.00 £');
+
+    await act(async () => {
+      findButton(renderer, 'Week').props.onPress();
+      await flushPromises();
+    });
+
+    expect(getNodeText(renderer.root)).toContain('+100.00 £');
   });
 
   it('filters the feed by Today, Week, and Month', async () => {

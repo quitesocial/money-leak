@@ -26,7 +26,11 @@ import {
   type CategoryIconDefinition,
 } from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
-import { formatLabel, formatPercentage } from '@/lib/display-formatters';
+import {
+  formatLabel,
+  formatMoneyAmount,
+  formatPercentage,
+} from '@/lib/display-formatters';
 import {
   filterItemsByPeriod,
   filterTransactionsByPeriod,
@@ -35,6 +39,7 @@ import {
 } from '@/lib/period-scope';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { useSettingsCurrency } from '@/lib/use-settings-currency';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -95,24 +100,6 @@ function formatTransactionTimestamp(value: number) {
   if (isSameLocalDay(date, new Date())) return timeFormatter.format(date);
 
   return shortDateTimeFormatter.format(date);
-}
-
-function sanitizeHomeNumber(value: number) {
-  return Number.isFinite(value) ? value : 0;
-}
-
-function formatHomeEuro(value: number) {
-  return `${sanitizeHomeNumber(value).toFixed(2)} €`;
-}
-
-function formatSignedEuro({
-  amount,
-  sign,
-}: {
-  amount: number;
-  sign: '+' | '-';
-}) {
-  return `${sign}${formatHomeEuro(amount)}`;
 }
 
 function getBalanceTypeDisplayName({
@@ -793,6 +780,7 @@ type HistoryFeedItem =
 
 export function HomeScreen() {
   const router = useRouter();
+  const currency = useSettingsCurrency();
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
@@ -1159,7 +1147,7 @@ export function HomeScreen() {
 
         <View style={styles.balanceHero}>
           <Text style={styles.balanceAmount}>
-            {formatHomeEuro(currentBalance)}
+            {formatMoneyAmount({ amount: currentBalance, currency })}
           </Text>
 
           <View style={styles.balanceActions}>
@@ -1187,12 +1175,18 @@ export function HomeScreen() {
           <View style={styles.summaryRows}>
             <SummaryRow
               label="Total"
-              value={formatHomeEuro(todaySummary.totalSpent)}
+              value={formatMoneyAmount({
+                amount: todaySummary.totalSpent,
+                currency,
+              })}
             />
 
             <SummaryRow
               label="Leak"
-              value={formatHomeEuro(todaySummary.totalLeaks)}
+              value={formatMoneyAmount({
+                amount: todaySummary.totalLeaks,
+                currency,
+              })}
             />
 
             <SummaryRow
@@ -1257,8 +1251,9 @@ export function HomeScreen() {
 
                   return (
                     <HistoryBalanceItem
-                      amountLabel={formatSignedEuro({
+                      amountLabel={formatMoneyAmount({
                         amount: item.entry.amount,
+                        currency,
                         sign: '+',
                       })}
                       entry={item.entry}
@@ -1294,8 +1289,9 @@ export function HomeScreen() {
                 return (
                   <HistoryTransactionItem
                     categories={categories}
-                    amountLabel={formatSignedEuro({
+                    amountLabel={formatMoneyAmount({
                       amount: transaction.amount,
+                      currency,
                       sign: '-',
                     })}
                     isDeleting={isDeletingThisTransaction}
