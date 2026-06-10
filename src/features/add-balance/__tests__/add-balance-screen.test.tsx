@@ -10,6 +10,7 @@ import {
 
 import { AddBalanceScreen } from '@/features/add-balance/add-balance-screen';
 import { normalizeBalanceTypeName } from '@/lib/balance-utils';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type {
   BalanceEntry,
   BalanceEntryInput,
@@ -36,6 +37,7 @@ const mockReact = React;
 const mockSelectedTestDate = new Date(2026, 10, 12, 0, 0, 0, 0);
 const mockText = Text;
 const mockView = View;
+let mockSettingsCurrency: SettingsCurrency = 'Euro';
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
@@ -111,6 +113,10 @@ jest.mock('@/lib/use-balance-refresh', () => ({
   useBalanceRefresh: (...args: unknown[]) => {
     return mockUseBalanceRefresh(...args);
   },
+}));
+
+jest.mock('@/lib/use-settings-currency', () => ({
+  useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
 jest.mock('@/store/balance-store', () => ({
@@ -344,6 +350,7 @@ async function pressAccessibleButton(
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSettingsCurrency = 'Euro';
 
   resetBalanceTypes();
 
@@ -376,6 +383,15 @@ beforeEach(() => {
 });
 
 describe('AddBalanceScreen', () => {
+  it('renders the selected currency suffix in the amount field', async () => {
+    mockSettingsCurrency = 'Australian dollar';
+
+    const renderer = await renderAddBalanceScreen();
+
+    expectText(renderer, 'A$');
+    expect(getNodeText(renderer.root)).not.toContain('€');
+  });
+
   it('requires an amount before saving', async () => {
     const renderer = await renderAddBalanceScreen();
 

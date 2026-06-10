@@ -54,9 +54,10 @@ describe('project contracts', () => {
 
     expect(rootLayout).toContain('name="add-transaction"');
     expect(rootLayout).toContain('name="add-balance"');
-    expect(rootLayout).toContain('name="shame-card"');
     expect(rootLayout).toContain('name="transaction/[id]/edit"');
     expect(rootLayout).toContain('name="balance/[id]/edit"');
+    expect(rootLayout).not.toContain('name="categories"');
+    expect(rootLayout).not.toContain('name="shame-card"');
   });
 
   it('does not add forbidden UI dependencies', () => {
@@ -83,7 +84,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-87 version bump and Expo metadata aligned', () => {
+  it('keeps ML-88 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -97,9 +98,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.24.0');
-    expect(packageLock.version).toBe('1.24.0');
-    expect(packageLock.packages[''].version).toBe('1.24.0');
+    expect(packageJson.version).toBe('1.24.1');
+    expect(packageLock.version).toBe('1.24.1');
+    expect(packageLock.packages[''].version).toBe('1.24.1');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

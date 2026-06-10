@@ -9,6 +9,7 @@ import {
 } from 'react-test-renderer';
 
 import { HomeScreen } from '@/features/home/home-screen';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
@@ -30,6 +31,7 @@ const mockUseTransactionsRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+let mockSettingsCurrency: SettingsCurrency = 'Euro';
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
@@ -147,6 +149,10 @@ jest.mock('@/lib/use-transactions-refresh', () => ({
   useTransactionsRefresh: (...args: unknown[]) => {
     return mockUseTransactionsRefresh(...args);
   },
+}));
+
+jest.mock('@/lib/use-settings-currency', () => ({
+  useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
 jest.mock('@/store/balance-store', () => ({
@@ -392,6 +398,7 @@ beforeEach(() => {
   mockCategoriesStoreState.isInitialized = true;
   mockPeriodScopeStoreState.selectedPeriod = 'today';
   mockPeriodScopeStoreState.selectedCustomDateStart = null;
+  mockSettingsCurrency = 'Euro';
 });
 
 describe('HomeScreen', () => {
@@ -543,6 +550,35 @@ describe('HomeScreen', () => {
     ).toMatchObject({
       color: '#050505',
     });
+  });
+
+  it('renders the selected currency for balance and history labels', async () => {
+    const now = new Date().getTime();
+    mockSettingsCurrency = 'Canadian dollar';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-1',
+        amount: 100,
+        typeId: 'salary',
+        createdAt: now,
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-1',
+        amount: 20,
+        category: 'food',
+        createdAt: now + 1,
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('80.00 C$');
+    expect(screenText).toContain('+100.00 C$');
+    expect(screenText).toContain('-20.00 C$');
+    expect(screenText).not.toContain('80.00 €');
   });
 
   it('applies the Today History period filter to additions and expenses', async () => {

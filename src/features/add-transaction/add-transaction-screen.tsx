@@ -25,8 +25,9 @@ import {
   normalizeCategoryName,
   validateCategoryName,
 } from '@/lib/category-utils';
-import { formatLabel } from '@/lib/display-formatters';
+import { formatLabel, getCurrencySymbol } from '@/lib/display-formatters';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { useSettingsCurrency } from '@/lib/use-settings-currency';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import type { Category } from '@/types/category';
@@ -331,6 +332,7 @@ function getCategoryByNormalizedName({
 
 export function AddTransactionScreen() {
   const router = useRouter();
+  const currency = useSettingsCurrency();
   const amountInputRef = useRef<TextInput>(null);
   const categoryNameInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -686,7 +688,9 @@ export function AddTransactionScreen() {
                         value={amountText}
                       />
 
-                      <Text style={styles.currencySuffix}>€</Text>
+                      <Text style={styles.currencySuffix}>
+                        {getCurrencySymbol(currency)}
+                      </Text>
                     </View>
 
                     {amountError ? <ErrorText>{amountError}</ErrorText> : null}

@@ -42,8 +42,10 @@ import {
 } from '@/lib/category-display';
 import { getCategoryIcon } from '@/lib/category-icons';
 import { formatLabel } from '@/lib/display-formatters';
+import type { SettingsCurrency } from '@/lib/settings-preferences';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { useSettingsCurrency } from '@/lib/use-settings-currency';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -1036,6 +1038,7 @@ type LedgerRowProps = {
   balanceTypeOptions: BalanceTypeOption[];
   balanceTypes: BalanceType[];
   categories: Category[];
+  currency: SettingsCurrency;
   item: AnalyticsLedgerItem;
 };
 
@@ -1043,6 +1046,7 @@ function LedgerRow({
   balanceTypeOptions,
   balanceTypes,
   categories,
+  currency,
   item,
 }: LedgerRowProps) {
   if (item.kind === 'balance') {
@@ -1072,6 +1076,7 @@ function LedgerRow({
         <Text style={[styles.ledgerAmount, styles.ledgerAmountPositive]}>
           {formatAnalyticsAmount({
             amount: item.entry.amount,
+            currency,
             sign: '+',
           })}
         </Text>
@@ -1111,6 +1116,7 @@ function LedgerRow({
       <Text style={[styles.ledgerAmount, styles.ledgerAmountNegative]}>
         {formatAnalyticsAmount({
           amount: transaction.amount,
+          currency,
           sign: '-',
         })}
       </Text>
@@ -1385,6 +1391,7 @@ function FilterModal({
 
 export function AnalyticsScreen() {
   const router = useRouter();
+  const currency = useSettingsCurrency();
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
@@ -1972,6 +1979,7 @@ export function AnalyticsScreen() {
                         balanceTypeOptions={balanceTypeOptions}
                         balanceTypes={balanceTypes}
                         categories={categories}
+                        currency={currency}
                         item={item}
                         key={item.id}
                       />

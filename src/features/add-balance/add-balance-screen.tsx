@@ -18,7 +18,9 @@ import {
   normalizeBalanceTypeName,
   validateBalanceTypeName,
 } from '@/lib/balance-utils';
+import { getCurrencySymbol } from '@/lib/display-formatters';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
+import { useSettingsCurrency } from '@/lib/use-settings-currency';
 import { useBalanceStore } from '@/store/balance-store';
 import type {
   BalanceEntry,
@@ -255,6 +257,7 @@ export function AddBalanceScreen({
   title = 'Add Balance',
 }: AddBalanceScreenProps) {
   const router = useRouter();
+  const currency = useSettingsCurrency();
   const amountInputRef = useRef<TextInput>(null);
   const typeNameInputRef = useRef<TextInput>(null);
 
@@ -520,7 +523,9 @@ export function AddBalanceScreen({
                       value={amountText}
                     />
 
-                    <Text style={styles.currencySuffix}>€</Text>
+                    <Text style={styles.currencySuffix}>
+                      {getCurrencySymbol(currency)}
+                    </Text>
                   </View>
 
                   {amountError ? <ErrorText>{amountError}</ErrorText> : null}
