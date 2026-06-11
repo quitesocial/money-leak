@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -26,20 +25,28 @@ import {
   type CategoryIconDefinition,
 } from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
+import { formatMoneyAmount, formatPercentage } from '@/lib/display-formatters';
 import {
-  formatLabel,
-  formatMoneyAmount,
-  formatPercentage,
-} from '@/lib/display-formatters';
+  formatLanguageDate,
+  getDefaultBalanceTypeName,
+  getLeakReasonLabel,
+  t,
+} from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import {
   filterItemsByPeriod,
   filterTransactionsByPeriod,
   getPeriodLabel,
   type PeriodScope,
 } from '@/lib/period-scope';
+import {
+  clampSwipeTranslation,
+  createHorizontalSwipePanResponder,
+} from '@/lib/swipe-actions';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useSettingsCurrency } from '@/lib/use-settings-currency';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -61,29 +68,6 @@ const TITLE_FONT_WEIGHT = Platform.select({
 
 const HOME_PERIOD_OPTIONS: PeriodScope[] = ['today', 'yesterday', 'this_week'];
 const SWIPE_ACTION_WIDTH = 88;
-const HORIZONTAL_ACTIVATION_DISTANCE = 10;
-const VERTICAL_SCROLL_DISTANCE = 8;
-const HORIZONTAL_INTENT_RATIO = 0.75;
-const SWIPE_OPEN_THRESHOLD = 44;
-const SWIPE_VELOCITY_THRESHOLD = 0.35;
-const HOME_LOAD_ERROR_TITLE = "Couldn't load Home";
-const HOME_LOAD_ERROR_MESSAGE =
-  'Something went wrong while loading Home. Try again.';
-const HOME_REFRESH_ERROR_MESSAGE =
-  "Home couldn't refresh right now. Try again.";
-
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-const shortDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
 function isSameLocalDay(firstDate: Date, secondDate: Date) {
   return (
     firstDate.getFullYear() === secondDate.getFullYear() &&
@@ -92,51 +76,50 @@ function isSameLocalDay(firstDate: Date, secondDate: Date) {
   );
 }
 
-function formatTransactionTimestamp(value: number) {
+function formatTransactionTimestamp(
+  value: number,
+  language: SupportedLanguage,
+) {
   const date = getValidDate(value);
 
-  if (!date) return 'Unknown date';
+  if (!date) return t(language, 'home.unknownDate');
 
-  if (isSameLocalDay(date, new Date())) return timeFormatter.format(date);
+  if (isSameLocalDay(date, new Date())) {
+    return formatLanguageDate(language, date, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
 
-  return shortDateTimeFormatter.format(date);
+  return formatLanguageDate(language, date, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function getBalanceTypeDisplayName({
   balanceTypes,
+  language,
   typeId,
 }: {
   balanceTypes: BalanceType[];
+  language: SupportedLanguage;
   typeId: string;
 }) {
-  return (
-    balanceTypes.find((balanceType) => balanceType.id === typeId)?.name ??
-    'Balance addition'
-  );
-}
+  const balanceType = balanceTypes.find((candidate) => candidate.id === typeId);
 
-function clampSwipeTranslation(value: number) {
-  return Math.max(-SWIPE_ACTION_WIDTH, Math.min(SWIPE_ACTION_WIDTH, value));
-}
-
-function hasHorizontalSwipeIntent({ dx, dy }: { dx: number; dy: number }) {
-  const absoluteDx = Math.abs(dx);
-  const absoluteDy = Math.abs(dy);
-
-  if (
-    absoluteDx < HORIZONTAL_ACTIVATION_DISTANCE &&
-    absoluteDy < VERTICAL_SCROLL_DISTANCE
-  ) {
-    return false;
-  }
-
-  if (absoluteDy >= VERTICAL_SCROLL_DISTANCE && absoluteDy > absoluteDx) {
-    return false;
+  if (balanceType) {
+    return balanceType.isDefault
+      ? (getDefaultBalanceTypeName(language, balanceType.id) ??
+          balanceType.name)
+      : balanceType.name;
   }
 
   return (
-    absoluteDx >= HORIZONTAL_ACTIVATION_DISTANCE &&
-    absoluteDy <= absoluteDx * HORIZONTAL_INTENT_RATIO
+    getDefaultBalanceTypeName(language, typeId) ??
+    t(language, 'balanceType.fallback')
   );
 }
 
@@ -265,6 +248,7 @@ type HistoryTransactionItemProps = {
   onSwipeInteractionStart: (id: string) => void;
   onSwipeOpen: (id: string) => void;
   transaction: Transaction;
+  language: SupportedLanguage;
 };
 
 function HistoryTransactionItem({
@@ -279,6 +263,7 @@ function HistoryTransactionItem({
   onSwipeInteractionStart,
   onSwipeOpen,
   transaction,
+  language,
 }: HistoryTransactionItemProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isHorizontallyLockedRef = useRef(false);
@@ -333,68 +318,19 @@ function HistoryTransactionItem({
 
   const panResponder = useMemo(
     () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gestureState) => {
-          if (isDisabled) return false;
-
-          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
-          isHorizontallyLockedRef.current = shouldLockSwipe;
-
-          return shouldLockSwipe;
-        },
-        onMoveShouldSetPanResponderCapture: (_event, gestureState) => {
-          if (isDisabled) return false;
-
-          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
-          isHorizontallyLockedRef.current = shouldLockSwipe;
-
-          return shouldLockSwipe;
-        },
-        onPanResponderGrant: () => {
+      createHorizontalSwipePanResponder({
+        close: closeActions,
+        isDisabled,
+        lockRef: isHorizontallyLockedRef,
+        onGrant: () => {
           onSwipeInteractionStart(transaction.id);
           translateX.stopAnimation();
         },
-        onPanResponderMove: (_event, gestureState) => {
-          if (isDisabled || !isHorizontallyLockedRef.current) return;
-
-          translateX.setValue(clampSwipeTranslation(gestureState.dx));
+        onMove: (dx) => {
+          translateX.setValue(clampSwipeTranslation(dx, SWIPE_ACTION_WIDTH));
         },
-        onPanResponderRelease: (_event, gestureState) => {
-          const wasHorizontallyLocked = isHorizontallyLockedRef.current;
-          isHorizontallyLockedRef.current = false;
-
-          if (!wasHorizontallyLocked) {
-            closeActions();
-
-            return;
-          }
-
-          if (
-            gestureState.dx > SWIPE_OPEN_THRESHOLD ||
-            gestureState.vx > SWIPE_VELOCITY_THRESHOLD
-          ) {
-            revealDelete();
-
-            return;
-          }
-
-          if (
-            gestureState.dx < -SWIPE_OPEN_THRESHOLD ||
-            gestureState.vx < -SWIPE_VELOCITY_THRESHOLD
-          ) {
-            revealEdit();
-
-            return;
-          }
-
-          closeActions();
-        },
-        onPanResponderTerminationRequest: () =>
-          !isHorizontallyLockedRef.current,
-        onPanResponderTerminate: () => {
-          isHorizontallyLockedRef.current = false;
-          closeActions();
-        },
+        revealLeading: revealDelete,
+        revealTrailing: revealEdit,
       }),
     [
       closeActions,
@@ -423,7 +359,7 @@ function HistoryTransactionItem({
   );
   const detailLabel =
     isLeak && transaction.leakReason
-      ? formatLabel(transaction.leakReason)
+      ? getLeakReasonLabel(language, transaction.leakReason)
       : transaction.note;
 
   const cardBackgroundColor = translateX.interpolate({
@@ -435,7 +371,7 @@ function HistoryTransactionItem({
     <View style={styles.swipeContainer}>
       <View style={styles.swipeActionLayer}>
         <Pressable
-          accessibilityLabel="Delete transaction"
+          accessibilityLabel={t(language, 'home.deleteTransactionA11y')}
           accessibilityRole="button"
           disabled={isDisabled}
           onPress={handleDeletePress}
@@ -449,7 +385,7 @@ function HistoryTransactionItem({
         </Pressable>
 
         <Pressable
-          accessibilityLabel="Edit transaction"
+          accessibilityLabel={t(language, 'home.editTransactionA11y')}
           accessibilityRole="button"
           disabled={isDisabled}
           onPress={handleEditPress}
@@ -485,11 +421,15 @@ function HistoryTransactionItem({
 
             <View style={styles.transactionCopy}>
               <Text numberOfLines={1} style={styles.categoryText}>
-                {getCategoryDisplayName(transaction.category, categories)}
+                {getCategoryDisplayName(
+                  transaction.category,
+                  categories,
+                  language,
+                )}
               </Text>
 
               <Text style={styles.timestampText}>
-                {formatTransactionTimestamp(transaction.createdAt)}
+                {formatTransactionTimestamp(transaction.createdAt, language)}
               </Text>
 
               {detailLabel ? (
@@ -506,7 +446,9 @@ function HistoryTransactionItem({
         </View>
 
         {isDeleting ? (
-          <Text style={styles.deletingText}>Deleting...</Text>
+          <Text style={styles.deletingText}>
+            {t(language, 'home.deleting')}
+          </Text>
         ) : null}
       </Animated.View>
     </View>
@@ -525,6 +467,7 @@ function HistoryBalanceItem({
   onSwipeInteractionStart,
   onSwipeOpen,
   typeName,
+  language,
 }: {
   amountLabel: string;
   entry: BalanceEntry;
@@ -537,6 +480,7 @@ function HistoryBalanceItem({
   onSwipeInteractionStart: (id: string) => void;
   onSwipeOpen: (id: string) => void;
   typeName: string;
+  language: SupportedLanguage;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isHorizontallyLockedRef = useRef(false);
@@ -591,68 +535,19 @@ function HistoryBalanceItem({
 
   const panResponder = useMemo(
     () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gestureState) => {
-          if (isDisabled) return false;
-
-          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
-          isHorizontallyLockedRef.current = shouldLockSwipe;
-
-          return shouldLockSwipe;
-        },
-        onMoveShouldSetPanResponderCapture: (_event, gestureState) => {
-          if (isDisabled) return false;
-
-          const shouldLockSwipe = hasHorizontalSwipeIntent(gestureState);
-          isHorizontallyLockedRef.current = shouldLockSwipe;
-
-          return shouldLockSwipe;
-        },
-        onPanResponderGrant: () => {
+      createHorizontalSwipePanResponder({
+        close: closeActions,
+        isDisabled,
+        lockRef: isHorizontallyLockedRef,
+        onGrant: () => {
           onSwipeInteractionStart(entry.id);
           translateX.stopAnimation();
         },
-        onPanResponderMove: (_event, gestureState) => {
-          if (isDisabled || !isHorizontallyLockedRef.current) return;
-
-          translateX.setValue(clampSwipeTranslation(gestureState.dx));
+        onMove: (dx) => {
+          translateX.setValue(clampSwipeTranslation(dx, SWIPE_ACTION_WIDTH));
         },
-        onPanResponderRelease: (_event, gestureState) => {
-          const wasHorizontallyLocked = isHorizontallyLockedRef.current;
-          isHorizontallyLockedRef.current = false;
-
-          if (!wasHorizontallyLocked) {
-            closeActions();
-
-            return;
-          }
-
-          if (
-            gestureState.dx > SWIPE_OPEN_THRESHOLD ||
-            gestureState.vx > SWIPE_VELOCITY_THRESHOLD
-          ) {
-            revealDelete();
-
-            return;
-          }
-
-          if (
-            gestureState.dx < -SWIPE_OPEN_THRESHOLD ||
-            gestureState.vx < -SWIPE_VELOCITY_THRESHOLD
-          ) {
-            revealEdit();
-
-            return;
-          }
-
-          closeActions();
-        },
-        onPanResponderTerminationRequest: () =>
-          !isHorizontallyLockedRef.current,
-        onPanResponderTerminate: () => {
-          isHorizontallyLockedRef.current = false;
-          closeActions();
-        },
+        revealLeading: revealDelete,
+        revealTrailing: revealEdit,
       }),
     [
       closeActions,
@@ -684,7 +579,7 @@ function HistoryBalanceItem({
     <View style={styles.swipeContainer}>
       <View style={styles.swipeActionLayer}>
         <Pressable
-          accessibilityLabel="Delete balance addition"
+          accessibilityLabel={t(language, 'home.deleteBalanceA11y')}
           accessibilityRole="button"
           disabled={isDisabled}
           onPress={handleDeletePress}
@@ -698,7 +593,7 @@ function HistoryBalanceItem({
         </Pressable>
 
         <Pressable
-          accessibilityLabel="Edit balance addition"
+          accessibilityLabel={t(language, 'home.editBalanceA11y')}
           accessibilityRole="button"
           disabled={isDisabled}
           onPress={handleEditPress}
@@ -746,7 +641,7 @@ function HistoryBalanceItem({
               </Text>
 
               <Text style={styles.timestampText}>
-                {formatTransactionTimestamp(entry.createdAt)}
+                {formatTransactionTimestamp(entry.createdAt, language)}
               </Text>
             </View>
           </View>
@@ -757,7 +652,9 @@ function HistoryBalanceItem({
         </View>
 
         {isDeleting ? (
-          <Text style={styles.deletingText}>Deleting...</Text>
+          <Text style={styles.deletingText}>
+            {t(language, 'home.deleting')}
+          </Text>
         ) : null}
       </Animated.View>
     </View>
@@ -781,6 +678,7 @@ type HistoryFeedItem =
 export function HomeScreen() {
   const router = useRouter();
   const currency = useSettingsCurrency();
+  const language = useSettingsLanguage();
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
@@ -868,6 +766,7 @@ export function HomeScreen() {
   const selectedPeriodLabel = getPeriodLabel(
     homeSelectedPeriod,
     selectedCustomDateStart,
+    language,
   );
 
   const [deletingTransactionId, setDeletingTransactionId] = useState<
@@ -1006,15 +905,15 @@ export function HomeScreen() {
       }
 
       Alert.alert(
-        'Delete transaction?',
-        'This will permanently remove this expense from your leak history.',
+        t(language, 'home.deleteTransactionTitle'),
+        t(language, 'home.deleteTransactionMessage'),
         [
           {
-            text: 'Cancel',
+            text: t(language, 'common.cancel'),
             style: 'cancel',
           },
           {
-            text: 'Delete',
+            text: t(language, 'common.delete'),
             style: 'destructive',
             onPress: () => {
               setDeletingTransactionId(id);
@@ -1032,6 +931,7 @@ export function HomeScreen() {
       deletingTransactionId,
       isBalanceLoading,
       isLoading,
+      language,
       removeTransaction,
     ],
   );
@@ -1059,15 +959,15 @@ export function HomeScreen() {
       }
 
       Alert.alert(
-        'Delete balance addition?',
-        'This will remove this income entry from your balance history.',
+        t(language, 'home.deleteBalanceTitle'),
+        t(language, 'home.deleteBalanceMessage'),
         [
           {
-            text: 'Cancel',
+            text: t(language, 'common.cancel'),
             style: 'cancel',
           },
           {
-            text: 'Delete',
+            text: t(language, 'common.delete'),
             style: 'destructive',
             onPress: () => {
               setDeletingBalanceEntryId(id);
@@ -1085,6 +985,7 @@ export function HomeScreen() {
       deletingTransactionId,
       isBalanceLoading,
       isLoading,
+      language,
       removeBalanceEntry,
     ],
   );
@@ -1116,10 +1017,12 @@ export function HomeScreen() {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading transactions</Text>
+          <Text style={styles.stateTitle}>
+            {t(language, 'home.loadingTitle')}
+          </Text>
 
           <Text style={styles.stateMessage}>
-            Getting your latest expenses ready.
+            {t(language, 'home.loadingMessage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -1131,9 +1034,13 @@ export function HomeScreen() {
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.stateContent}>
           <View style={styles.centeredState}>
-            <Text style={styles.stateTitle}>{HOME_LOAD_ERROR_TITLE}</Text>
+            <Text style={styles.stateTitle}>
+              {t(language, 'home.loadErrorTitle')}
+            </Text>
 
-            <Text style={styles.stateMessage}>{HOME_LOAD_ERROR_MESSAGE}</Text>
+            <Text style={styles.stateMessage}>
+              {t(language, 'home.loadErrorMessage')}
+            </Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -1143,7 +1050,7 @@ export function HomeScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.pageTitle}>Home</Text>
+        <Text style={styles.pageTitle}>{t(language, 'home.pageTitle')}</Text>
 
         <View style={styles.balanceHero}>
           <Text style={styles.balanceAmount}>
@@ -1152,7 +1059,7 @@ export function HomeScreen() {
 
           <View style={styles.balanceActions}>
             <BalanceActionButton
-              label="Add"
+              label={t(language, 'common.add')}
               onPress={handleAddBalancePress}
               symbolFallback="↙"
               symbolName="arrow.down.left"
@@ -1160,7 +1067,7 @@ export function HomeScreen() {
             />
 
             <BalanceActionButton
-              label="Spend"
+              label={t(language, 'home.spend')}
               onPress={handleSpendPress}
               symbolFallback="↗"
               symbolName="arrow.up.right"
@@ -1170,11 +1077,13 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today summary</Text>
+          <Text style={styles.sectionTitle}>
+            {t(language, 'home.todaySummary')}
+          </Text>
 
           <View style={styles.summaryRows}>
             <SummaryRow
-              label="Total"
+              label={t(language, 'home.total')}
               value={formatMoneyAmount({
                 amount: todaySummary.totalSpent,
                 currency,
@@ -1182,7 +1091,7 @@ export function HomeScreen() {
             />
 
             <SummaryRow
-              label="Leak"
+              label={t(language, 'home.leak')}
               value={formatMoneyAmount({
                 amount: todaySummary.totalLeaks,
                 currency,
@@ -1190,7 +1099,7 @@ export function HomeScreen() {
             />
 
             <SummaryRow
-              label="Leak %"
+              label={t(language, 'home.leakPercent')}
               value={formatPercentage(todaySummary.leakPercentage)}
             />
           </View>
@@ -1198,14 +1107,18 @@ export function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.historyHeader}>
-            <Text style={styles.sectionTitle}>History</Text>
+            <Text style={styles.sectionTitle}>
+              {t(language, 'home.history')}
+            </Text>
 
             <Pressable
               accessibilityRole="button"
               onPress={handleMorePress}
               style={styles.moreButton}
             >
-              <Text style={styles.moreButtonText}>More</Text>
+              <Text style={styles.moreButtonText}>
+                {t(language, 'home.more')}
+              </Text>
 
               <SymbolView
                 fallback={<Text style={styles.moreButtonText}>{'>'}</Text>}
@@ -1225,15 +1138,20 @@ export function HomeScreen() {
             selectedCustomDateStart={selectedCustomDateStart}
             onSelectPeriod={setSelectedPeriod}
             onSelectCustomDate={setSelectedCustomDate}
+            language={language}
           />
 
           {isHistoryRefreshing ? (
-            <Text style={styles.refreshingText}>Refreshing history...</Text>
+            <Text style={styles.refreshingText}>
+              {t(language, 'home.refreshingHistory')}
+            </Text>
           ) : null}
 
           {error ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{HOME_REFRESH_ERROR_MESSAGE}</Text>
+              <Text style={styles.errorText}>
+                {t(language, 'home.refreshError')}
+              </Text>
             </View>
           ) : null}
 
@@ -1270,8 +1188,10 @@ export function HomeScreen() {
                       onSwipeOpen={handleBalanceSwipeOpen}
                       typeName={getBalanceTypeDisplayName({
                         balanceTypes,
+                        language,
                         typeId: item.entry.typeId,
                       })}
+                      language={language}
                     />
                   );
                 }
@@ -1304,6 +1224,7 @@ export function HomeScreen() {
                     onSwipeInteractionStart={handleSwipeInteractionStart}
                     onSwipeOpen={handleSwipeOpen}
                     transaction={transaction}
+                    language={language}
                   />
                 );
               })}
@@ -1312,14 +1233,18 @@ export function HomeScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>
                 {hasAnyHistoryItems
-                  ? `No history for ${selectedPeriodLabel}`
-                  : 'No history yet'}
+                  ? t(language, 'home.noHistoryFor', {
+                      period: selectedPeriodLabel,
+                    })
+                  : t(language, 'home.noHistoryYet')}
               </Text>
 
               <Text style={styles.emptyMessage}>
                 {hasAnyHistoryItems
-                  ? `You have saved activity, but none falls in ${selectedPeriodLabel.toLowerCase()}.`
-                  : 'Add balance or log an expense to start your history.'}
+                  ? t(language, 'home.noHistoryForMessage', {
+                      period: selectedPeriodLabel.toLocaleLowerCase(),
+                    })
+                  : t(language, 'home.noHistoryYetMessage')}
               </Text>
             </View>
           )}

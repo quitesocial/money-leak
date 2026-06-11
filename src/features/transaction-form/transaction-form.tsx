@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { formatLabel } from '@/lib/display-formatters';
+import { getDefaultCategoryName, getLeakReasonLabel, t } from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useCategoriesStore } from '@/store/categories-store';
 import { OTHER_CATEGORY_ID } from '@/types/category';
@@ -52,6 +54,7 @@ interface ValidateTransactionFormArgs {
   areCategoriesReady: boolean;
   isLeak: boolean;
   selectedLeakReason: LeakReason | null;
+  language: SupportedLanguage;
 }
 
 function validateTransactionForm({
@@ -61,6 +64,7 @@ function validateTransactionForm({
   areCategoriesReady,
   isLeak,
   selectedLeakReason,
+  language,
 }: ValidateTransactionFormArgs) {
   const errors: ValidationErrors = {
     amount: null,
@@ -73,30 +77,30 @@ function validateTransactionForm({
   let parsedAmount: number | null = null;
 
   if (!trimmedAmount) {
-    errors.amount = 'Enter an amount.';
+    errors.amount = t(language, 'form.amountRequired');
   } else {
     const amount = Number(trimmedAmount);
 
     if (!Number.isFinite(amount)) {
-      errors.amount = 'Use a number like 12.50.';
+      errors.amount = t(language, 'form.amountNumber');
     } else if (amount <= 0) {
-      errors.amount = 'Amount must be greater than 0.';
+      errors.amount = t(language, 'form.amountPositive');
     } else {
       parsedAmount = amount;
     }
   }
 
   if (!areCategoriesReady) {
-    errors.category = 'Categories are still loading.';
+    errors.category = t(language, 'form.categoriesLoading');
   } else if (!selectedCategory || !validCategoryIds.has(selectedCategory)) {
-    errors.category = 'Choose a category.';
+    errors.category = t(language, 'form.chooseCategory');
   }
 
   if (
     isLeak &&
     (!selectedLeakReason || !leakReasonSet.has(selectedLeakReason))
   ) {
-    errors.leakReason = 'Choose why this felt like a leak.';
+    errors.leakReason = t(language, 'form.chooseLeakReason');
   }
 
   return { errors, parsedAmount };
@@ -116,6 +120,7 @@ export function TransactionForm({
   clearError,
   onSubmit,
 }: TransactionFormProps) {
+  const language = useSettingsLanguage();
   const amountInputRef = useRef<TextInput>(null);
   const categories = useCategoriesStore((state) => state.categories);
 
@@ -276,6 +281,7 @@ export function TransactionForm({
       areCategoriesReady: isCategoriesInitialized,
       isLeak,
       selectedLeakReason,
+      language,
     });
 
     setAmountError(errors.amount);
@@ -309,7 +315,7 @@ export function TransactionForm({
   return (
     <View style={styles.form}>
       <View style={styles.field}>
-        <Text style={styles.label}>Amount</Text>
+        <Text style={styles.label}>{t(language, 'form.amount')}</Text>
 
         <TextInput
           ref={amountInputRef}
@@ -328,7 +334,7 @@ export function TransactionForm({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Category</Text>
+        <Text style={styles.label}>{t(language, 'common.category')}</Text>
 
         <View style={styles.chipList}>
           {categoryOptions.map((category) => {
@@ -346,8 +352,13 @@ export function TransactionForm({
                     isSelected ? styles.chipTextSelected : null,
                   ]}
                 >
-                  {category.name}
-                  {category.isArchived ? ' (archived)' : ''}
+                  {category.isDefault
+                    ? (getDefaultCategoryName(language, category.id) ??
+                      category.name)
+                    : category.name}
+                  {category.isArchived
+                    ? ` (${t(language, 'form.archived')})`
+                    : ''}
                 </Text>
               </Pressable>
             );
@@ -355,7 +366,9 @@ export function TransactionForm({
         </View>
 
         {!isCategoriesInitialized ? (
-          <Text style={styles.metaText}>Loading categories...</Text>
+          <Text style={styles.metaText}>
+            {t(language, 'form.loadingCategories')}
+          </Text>
         ) : null}
 
         {categoryError ? (
@@ -368,7 +381,7 @@ export function TransactionForm({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Type</Text>
+        <Text style={styles.label}>{t(language, 'common.type')}</Text>
 
         <View style={styles.chipList}>
           <Pressable
@@ -381,7 +394,7 @@ export function TransactionForm({
                 !isLeak ? styles.chipTextSelected : null,
               ]}
             >
-              Normal
+              {t(language, 'common.normal')}
             </Text>
           </Pressable>
 
@@ -392,7 +405,7 @@ export function TransactionForm({
             <Text
               style={[styles.chipText, isLeak ? styles.chipTextSelected : null]}
             >
-              Leak
+              {t(language, 'home.leak')}
             </Text>
           </Pressable>
         </View>
@@ -401,7 +414,7 @@ export function TransactionForm({
       {isLeak ? (
         <>
           <View style={styles.field}>
-            <Text style={styles.label}>Leak reason</Text>
+            <Text style={styles.label}>{t(language, 'common.reason')}</Text>
 
             <View style={styles.chipList}>
               {LEAK_REASONS.map((reason) => {
@@ -422,7 +435,7 @@ export function TransactionForm({
                         isSelected ? styles.chipTextSelected : null,
                       ]}
                     >
-                      {formatLabel(reason)}
+                      {getLeakReasonLabel(language, reason)}
                     </Text>
                   </Pressable>
                 );
@@ -435,12 +448,12 @@ export function TransactionForm({
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Note (optional)</Text>
+            <Text style={styles.label}>{t(language, 'form.noteOptional')}</Text>
 
             <TextInput
               value={noteText}
               onChangeText={setNoteText}
-              placeholder="What triggered it?"
+              placeholder={t(language, 'form.notePlaceholder')}
               multiline
               textAlignVertical="top"
               style={[styles.input, styles.noteInput]}
@@ -464,7 +477,7 @@ export function TransactionForm({
         ]}
       >
         <Text style={styles.submitButtonText}>
-          {isLoading ? 'Saving...' : submitLabel}
+          {isLoading ? t(language, 'common.saving') : submitLabel}
         </Text>
       </Pressable>
     </View>

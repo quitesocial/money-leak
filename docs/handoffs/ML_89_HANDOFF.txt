@@ -1,0 +1,77 @@
+Money Leak ML-89 Handoff
+Date: 2026-06-11
+
+Implemented Scope
+-----------------
+- Added a dependency-free runtime i18n layer in src/lib/i18n.
+- Added useSettingsLanguage with safe English fallback and an in-memory runtime
+  notification path for immediate updates after Settings Apply.
+- Kept all current Settings language options selectable.
+- Kept the persisted Indian option string and mapped it to Hindi UI locale/copy.
+- Wired selected language into Onboarding, bottom tabs, Home, Analytics & Leaks,
+  Settings, Add Transaction, Edit Transaction, Add Balance, and Edit Balance.
+- Made period/date/month/weekday display language-aware without changing local
+  calendar date filtering.
+- Localized system-defined default category and balance type display names.
+- Preserved custom category names, custom balance type names, notes, account
+  values, IDs, CSV fields, backup/restore DTOs, and sync DTOs.
+
+Supported Languages
+-------------------
+- English: en-GB, default/fallback.
+- German: de.
+- French: fr.
+- Spanish: es.
+- Portuguese: pt.
+- Italian: it.
+- Chinese: zh.
+- Russian: ru.
+- Indian: hi runtime UI, persisted option remains Indian.
+
+Important Files
+---------------
+- src/lib/i18n/languages.ts
+- src/lib/i18n/translations.ts
+- src/lib/i18n/i18n.ts
+- src/lib/use-settings-language.ts
+- src/lib/period-scope.ts
+- src/lib/category-display.ts
+- app/(tabs)/_layout.tsx
+- src/features/home/home-screen.tsx
+- src/features/analytics/analytics-screen.tsx
+- src/features/settings/settings-screen.tsx
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/add-balance/add-balance-screen.tsx
+- src/features/transaction-form/transaction-form.tsx
+
+Tests And Validation
+--------------------
+- Targeted Jest run passed for i18n, project contracts, Home, Analytics,
+  Settings, Add Transaction, and Add Balance.
+- TypeScript check passed with Node 20.19.4.
+- Full release validation still should be rerun before release if more changes
+  land after this handoff.
+
+Manual QA Checklist
+-------------------
+- Settings Language open, staged select, cancel, apply, and restart
+  persistence.
+- Home, Analytics & Leaks, Settings, Add Transaction, Edit Transaction, Add
+  Balance, and Edit Balance in each supported language.
+- Bottom tab labels update after language apply.
+- Default categories and default balance types are translated.
+- Custom category/type names and transaction notes are not translated.
+- Transaction save still stores stable category ID only.
+- Balance save still stores stable typeId only.
+- Transaction CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Backup/restore/sync schemas remain unchanged.
+- ML-88 route cleanup remains preserved.
+
+Non-Goals
+---------
+- No new i18n dependency.
+- No backend, auth, cloud, bank, API, or AI work.
+- No language fields in local models, CSV, sync, backup, restore, or remote DTOs.
+- No Supabase migration or remote schema change.
+- No currency behavior or FX conversion change.
+- No route structure change.

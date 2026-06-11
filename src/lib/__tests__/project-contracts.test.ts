@@ -24,6 +24,26 @@ describe('project contracts', () => {
     expect(csvFormat).toContain("'createdAt'");
     expect(csvFormat).not.toContain("'balance");
     expect(csvFormat).not.toContain("'icon");
+    expect(csvFormat).not.toContain("'language");
+  });
+
+  it('does not add language fields to local sync data contracts', () => {
+    const contractFiles = [
+      'src/types/transaction.ts',
+      'src/types/balance.ts',
+      'src/types/category.ts',
+      'src/lib/sync/sync-types.ts',
+      'src/lib/sync/sync-mappers.ts',
+      'src/lib/sync/supabase-remote-row-mappers.ts',
+      'src/lib/sync/local-backup-data-source.ts',
+      'src/lib/sync/local-restore-data-target.ts',
+    ];
+
+    for (const filePath of contractFiles) {
+      const source = readFileSync(join(process.cwd(), filePath), 'utf8');
+
+      expect(source).not.toMatch(/\blanguage\b|\blocale\b/);
+    }
   });
 
   it('keeps bottom tabs limited to Home, Analytics & Leaks, and Settings', () => {
@@ -37,10 +57,10 @@ describe('project contracts', () => {
     expect(tabsLayout).toContain('name="index"');
     expect(tabsLayout).toContain('name="analytics"');
     expect(tabsLayout).toContain('name="settings"');
-    expect(tabsLayout).toContain("label: 'Home'");
-    expect(tabsLayout).toContain("label: 'Analytics\\n& Leaks'");
-    expect(tabsLayout).toContain("title: 'Analytics & Leaks'");
-    expect(tabsLayout).toContain("label: 'Settings'");
+    expect(tabsLayout).toContain("t(language, 'tabs.home')");
+    expect(tabsLayout).toContain("t(language, 'tabs.analytics')");
+    expect(tabsLayout).toContain("t(language, 'tabs.analyticsTitle')");
+    expect(tabsLayout).toContain("t(language, 'tabs.settings')");
     expect(tabsLayout).not.toContain('name="add-transaction"');
     expect(tabsLayout).not.toContain('name="add-balance"');
     expect(tabsLayout).not.toContain('name="shame-card"');
@@ -84,7 +104,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-88 version bump and Expo metadata aligned', () => {
+  it('keeps ML-89 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -98,9 +118,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.24.1');
-    expect(packageLock.version).toBe('1.24.1');
-    expect(packageLock.packages[''].version).toBe('1.24.1');
+    expect(packageJson.version).toBe('1.25.0');
+    expect(packageLock.version).toBe('1.25.0');
+    expect(packageLock.packages[''].version).toBe('1.25.0');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

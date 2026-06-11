@@ -32,6 +32,7 @@ const mockReact = React;
 const mockView = View;
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 let mockSettingsCurrency: SettingsCurrency = 'Euro';
+let mockSettingsLanguage = 'English';
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
@@ -153,6 +154,10 @@ jest.mock('@/lib/use-transactions-refresh', () => ({
 
 jest.mock('@/lib/use-settings-currency', () => ({
   useSettingsCurrency: () => mockSettingsCurrency,
+}));
+
+jest.mock('@/lib/use-settings-language', () => ({
+  useSettingsLanguage: () => mockSettingsLanguage,
 }));
 
 jest.mock('@/store/balance-store', () => ({
@@ -343,6 +348,25 @@ function getPastDate(daysAgo: number) {
   return date;
 }
 
+async function expectHistoryAmounts({
+  hidden,
+  visible,
+}: {
+  hidden: string[];
+  visible: string[];
+}) {
+  const renderer = await renderHomeScreen();
+  const screenText = getNodeText(renderer.root);
+
+  for (const amount of visible) {
+    expect(screenText).toContain(amount);
+  }
+
+  for (const amount of hidden) {
+    expect(screenText).not.toContain(amount);
+  }
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -399,6 +423,7 @@ beforeEach(() => {
   mockPeriodScopeStoreState.selectedPeriod = 'today';
   mockPeriodScopeStoreState.selectedCustomDateStart = null;
   mockSettingsCurrency = 'Euro';
+  mockSettingsLanguage = 'English';
 });
 
 describe('HomeScreen', () => {
@@ -611,13 +636,10 @@ describe('HomeScreen', () => {
       }),
     ];
 
-    const renderer = await renderHomeScreen();
-    const screenText = getNodeText(renderer.root);
-
-    expect(screenText).toContain('+125.00 €');
-    expect(screenText).toContain('-35.00 €');
-    expect(screenText).not.toContain('+75.00 €');
-    expect(screenText).not.toContain('-25.00 €');
+    await expectHistoryAmounts({
+      visible: ['+125.00 €', '-35.00 €'],
+      hidden: ['+75.00 €', '-25.00 €'],
+    });
   });
 
   it('applies the Yesterday History period filter to additions and expenses', async () => {
@@ -650,13 +672,10 @@ describe('HomeScreen', () => {
       }),
     ];
 
-    const renderer = await renderHomeScreen();
-    const screenText = getNodeText(renderer.root);
-
-    expect(screenText).toContain('+75.00 €');
-    expect(screenText).toContain('-25.00 €');
-    expect(screenText).not.toContain('+125.00 €');
-    expect(screenText).not.toContain('-35.00 €');
+    await expectHistoryAmounts({
+      visible: ['+75.00 €', '-25.00 €'],
+      hidden: ['+125.00 €', '-35.00 €'],
+    });
   });
 
   it('applies the This week History period filter to additions and expenses', async () => {
@@ -689,13 +708,10 @@ describe('HomeScreen', () => {
       }),
     ];
 
-    const renderer = await renderHomeScreen();
-    const screenText = getNodeText(renderer.root);
-
-    expect(screenText).toContain('+125.00 €');
-    expect(screenText).toContain('-35.00 €');
-    expect(screenText).not.toContain('+75.00 €');
-    expect(screenText).not.toContain('-25.00 €');
+    await expectHistoryAmounts({
+      visible: ['+125.00 €', '-35.00 €'],
+      hidden: ['+75.00 €', '-25.00 €'],
+    });
   });
 
   it('keeps transaction edit and delete affordances testable', async () => {

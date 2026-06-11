@@ -8,15 +8,18 @@ import {
 } from '@jest/globals';
 import * as React from 'react';
 import { StyleSheet, View } from 'react-native';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { AnalyticsScreen } from '@/features/analytics/analytics-screen';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
+import {
+  findButton,
+  findByTestID,
+  findNodeByProp,
+  findTextNode,
+  flushPromises,
+  getNodeText,
+} from '@/test-utils/react-test-renderer';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
@@ -34,6 +37,7 @@ const mockUseTransactionsRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
 let mockSettingsCurrency: SettingsCurrency = 'Euro';
+let mockSettingsLanguage = 'English';
 const mockSymbolView = jest.fn(
   ({
     fallback,
@@ -55,6 +59,24 @@ const mockLocalDatePicker = jest.fn(
       : null;
   },
 );
+
+function mockHookModule(
+  exportName: string,
+  hook: (...args: unknown[]) => unknown,
+) {
+  return {
+    [exportName]: (...args: unknown[]) => hook(...args),
+  };
+}
+
+function mockStoreModule<TState>(
+  exportName: string,
+  useStore: (selector: (state: TState) => unknown) => unknown,
+) {
+  return {
+    [exportName]: (selector: (state: TState) => unknown) => useStore(selector),
+  };
+}
 
 type MockBalanceStoreState = {
   activeBalanceTypes: BalanceType[];
@@ -152,49 +174,50 @@ jest.mock('@/components/local-date-picker', () => ({
   }) => mockLocalDatePicker(props),
 }));
 
-jest.mock('@/lib/use-balance-refresh', () => ({
-  useBalanceRefresh: (...args: unknown[]) => {
-    return mockUseBalanceRefresh(...args);
-  },
-}));
+jest.mock('@/lib/use-balance-refresh', () =>
+  mockHookModule('useBalanceRefresh', (...args) =>
+    mockUseBalanceRefresh(...args),
+  ),
+);
 
-jest.mock('@/lib/use-categories-refresh', () => ({
-  useCategoriesRefresh: (...args: unknown[]) => {
-    return mockUseCategoriesRefresh(...args);
-  },
-}));
+jest.mock('@/lib/use-categories-refresh', () =>
+  mockHookModule('useCategoriesRefresh', (...args) =>
+    mockUseCategoriesRefresh(...args),
+  ),
+);
 
-jest.mock('@/lib/use-transactions-refresh', () => ({
-  useTransactionsRefresh: (...args: unknown[]) => {
-    return mockUseTransactionsRefresh(...args);
-  },
-}));
+jest.mock('@/lib/use-transactions-refresh', () =>
+  mockHookModule('useTransactionsRefresh', (...args) =>
+    mockUseTransactionsRefresh(...args),
+  ),
+);
 
 jest.mock('@/lib/use-settings-currency', () => ({
   useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
-jest.mock('@/store/balance-store', () => ({
-  useBalanceStore: (selector: (state: MockBalanceStoreState) => unknown) => {
-    return mockUseBalanceStore(selector);
-  },
+jest.mock('@/lib/use-settings-language', () => ({
+  useSettingsLanguage: () => mockSettingsLanguage,
 }));
 
-jest.mock('@/store/transactions-store', () => ({
-  useTransactionsStore: (
-    selector: (state: MockTransactionsStoreState) => unknown,
-  ) => {
-    return mockUseTransactionsStore(selector);
-  },
-}));
+jest.mock('@/store/balance-store', () =>
+  mockStoreModule<MockBalanceStoreState>('useBalanceStore', (selector) =>
+    mockUseBalanceStore(selector),
+  ),
+);
 
-jest.mock('@/store/categories-store', () => ({
-  useCategoriesStore: (
-    selector: (state: MockCategoriesStoreState) => unknown,
-  ) => {
-    return mockUseCategoriesStore(selector);
-  },
-}));
+jest.mock('@/store/transactions-store', () =>
+  mockStoreModule<MockTransactionsStoreState>(
+    'useTransactionsStore',
+    (selector) => mockUseTransactionsStore(selector),
+  ),
+);
+
+jest.mock('@/store/categories-store', () =>
+  mockStoreModule<MockCategoriesStoreState>('useCategoriesStore', (selector) =>
+    mockUseCategoriesStore(selector),
+  ),
+);
 
 function createBalanceType(
   overrides: Partial<BalanceType> & Pick<BalanceType, 'id'>,
@@ -272,82 +295,6 @@ function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
   };
 }
 
-function getNodeText(node: any): string {
-  if (typeof node === 'string') return node;
-
-  return node.children
-    .map((child: any) => {
-      return typeof child === 'string' ? child : getNodeText(child);
-    })
-    .join('');
-}
-
-function findAllNodes(
-  node: ReactTestInstance,
-  predicate: (node: ReactTestInstance) => boolean,
-): ReactTestInstance[] {
-  const matches = predicate(node) ? [node] : [];
-
-  for (const child of node.children) {
-    if (typeof child === 'string') continue;
-
-    matches.push(...findAllNodes(child, predicate));
-  }
-
-  return matches;
-}
-
-function findNodeByProp(
-  renderer: ReactTestRenderer,
-  propName: string,
-  value: unknown,
-) {
-  const node = findAllNodes(renderer.root, (candidate) => {
-    return candidate.props[propName] === value;
-  })[0];
-
-  if (!node) {
-    throw new Error(`Could not find node with ${propName}.`);
-  }
-
-  return node;
-}
-
-function findTextNode(renderer: ReactTestRenderer, text: string) {
-  const node = findAllNodes(renderer.root, (candidate) => {
-    return getNodeText(candidate) === text;
-  })[0];
-
-  if (!node) {
-    throw new Error(`Could not find text node ${text}.`);
-  }
-
-  return node;
-}
-
-function findButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onPress === 'function' &&
-      getNodeText(node).includes(label)
-    );
-  }) as ReactTestInstance & {
-    props: {
-      onPress: () => void;
-    };
-  };
-}
-
-function getPressHandler(node: ReactTestInstance) {
-  const { onPress } = node.props;
-
-  if (typeof onPress !== 'function') {
-    throw new Error('Expected node to have an onPress handler.');
-  }
-
-  return onPress as () => void;
-}
-
 function getLatestSymbolName(testID: string) {
   const matchingCall = [...mockSymbolView.mock.calls]
     .reverse()
@@ -372,11 +319,6 @@ function getSymbolNames() {
   return mockSymbolView.mock.calls.map(([props]) => props.name);
 }
 
-async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 async function renderAnalyticsScreen() {
   const renderResult: { renderer: ReactTestRenderer | null } = {
     renderer: null,
@@ -395,10 +337,15 @@ async function renderAnalyticsScreen() {
 }
 
 async function pressByTestID(renderer: ReactTestRenderer, testID: string) {
-  const node = findNodeByProp(renderer, 'testID', testID);
+  const node = findByTestID<{ onPress?: () => void }>(renderer, testID);
+  const { onPress } = node.props;
+
+  if (typeof onPress !== 'function') {
+    throw new Error('Expected node to have an onPress handler.');
+  }
 
   await act(async () => {
-    getPressHandler(node)();
+    onPress();
     await flushPromises();
   });
 }
@@ -461,6 +408,7 @@ beforeEach(() => {
   mockCategoriesStoreState.error = null;
   mockCategoriesStoreState.isInitialized = true;
   mockSettingsCurrency = 'Euro';
+  mockSettingsLanguage = 'English';
 });
 
 afterEach(() => {

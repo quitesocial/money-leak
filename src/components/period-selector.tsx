@@ -7,6 +7,7 @@ import {
   getPeriodLabel,
   type PeriodScope,
 } from '@/lib/period-scope';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 
 const SEGMENTED_CONTROL_PADDING = 2;
 
@@ -17,6 +18,7 @@ type PeriodSelectorProps = {
   onSelectCustomDate: (dateStart: number) => void;
   periods?: PeriodScope[];
   label?: string;
+  language?: SupportedLanguage;
 };
 
 function getDatePickerValue(selectedCustomDateStart: number | null) {
@@ -36,6 +38,7 @@ export function PeriodSelector({
   onSelectCustomDate,
   periods = PERIOD_SCOPE_OPTIONS,
   label,
+  language,
 }: PeriodSelectorProps) {
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [controlWidth, setControlWidth] = useState(0);
@@ -128,7 +131,7 @@ export function PeriodSelector({
                   isSelected ? styles.segmentTextSelected : null,
                 ]}
               >
-                {getPeriodLabel(period, selectedCustomDateStart)}
+                {getPeriodLabel(period, selectedCustomDateStart, language)}
               </Text>
             </Pressable>
           );

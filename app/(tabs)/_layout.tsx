@@ -4,6 +4,10 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { t } from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
+
 type AnimatedTabBarProps = Parameters<
   NonNullable<ComponentProps<typeof Tabs>['tabBar']>
 >[0];
@@ -18,7 +22,6 @@ type TabIconProps = {
 
 type TabConfig = {
   fallbackSymbol: string;
-  label: string;
   symbolName: SFSymbol;
   symbolSize: number;
 };
@@ -32,23 +35,28 @@ const TAB_BAR_INSET = 4;
 const tabConfigByRouteName: Record<string, TabConfig> = {
   index: {
     fallbackSymbol: '⌂',
-    label: 'Home',
     symbolName: 'house',
     symbolSize: 27,
   },
   analytics: {
     fallbackSymbol: '♢',
-    label: 'Analytics\n& Leaks',
     symbolName: 'drop.halffull',
     symbolSize: 28,
   },
   settings: {
     fallbackSymbol: '⚙',
-    label: 'Settings',
     symbolName: 'gearshape',
     symbolSize: 27,
   },
 };
+
+function getTabLabel(routeName: string, language: SupportedLanguage) {
+  if (routeName === 'index') return t(language, 'tabs.home');
+  if (routeName === 'analytics') return t(language, 'tabs.analytics');
+  if (routeName === 'settings') return t(language, 'tabs.settings');
+
+  return routeName;
+}
 
 function TabIcon({
   color,
@@ -82,9 +90,10 @@ function TabIcon({
 
 function AnimatedTabBar({
   descriptors,
+  language,
   navigation,
   state,
-}: AnimatedTabBarProps) {
+}: AnimatedTabBarProps & { language: SupportedLanguage }) {
   const insets = useSafeAreaInsets();
   const tabBarBottom = Math.max(insets.bottom, 16);
   const animatedIndex = useRef(new Animated.Value(state.index)).current;
@@ -174,7 +183,7 @@ function AnimatedTabBar({
               <TabIcon
                 color={color}
                 fallbackSymbol={config.fallbackSymbol}
-                label={config.label}
+                label={getTabLabel(route.name, language)}
                 symbolName={config.symbolName}
                 symbolSize={config.symbolSize}
               />
@@ -187,9 +196,11 @@ function AnimatedTabBar({
 }
 
 export default function TabLayout() {
+  const language = useSettingsLanguage();
+
   return (
     <Tabs
-      tabBar={(props) => <AnimatedTabBar {...props} />}
+      tabBar={(props) => <AnimatedTabBar {...props} language={language} />}
       screenOptions={{
         headerShown: false,
         sceneStyle: {
@@ -200,21 +211,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t(language, 'tabs.home'),
         }}
       />
 
       <Tabs.Screen
         name="analytics"
         options={{
-          title: 'Analytics & Leaks',
+          title: t(language, 'tabs.analyticsTitle'),
         }}
       />
 
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: t(language, 'tabs.settings'),
         }}
       />
     </Tabs>

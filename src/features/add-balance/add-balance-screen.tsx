@@ -14,29 +14,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LocalDatePicker } from '@/components/local-date-picker';
+import { parseAmountText } from '@/lib/amount-input';
 import {
   normalizeBalanceTypeName,
   validateBalanceTypeName,
 } from '@/lib/balance-utils';
 import { getCurrencySymbol } from '@/lib/display-formatters';
+import {
+  formatLanguageDate,
+  getDefaultBalanceTypeName,
+  t,
+} from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useSettingsCurrency } from '@/lib/use-settings-currency';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useBalanceStore } from '@/store/balance-store';
 import type {
   BalanceEntry,
   BalanceEntryInput,
   BalanceType,
 } from '@/types/balance';
-
-type AmountParseResult =
-  | {
-      amount: number;
-      error: null;
-    }
-  | {
-      amount: null;
-      error: string;
-    };
 
 type HeaderProps = {
   onBackPress: () => void;
@@ -52,6 +50,7 @@ type SymbolIconProps = {
 
 type TypeChipProps = {
   isSelected: boolean;
+  language: SupportedLanguage;
   onPress: () => void;
   type: BalanceType;
 };
@@ -80,12 +79,6 @@ const TITLE_FONT_WEIGHT = Platform.select({
   default: '800' as const,
 });
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
-
 function generateBalanceEntryId() {
   const uuid = globalThis.crypto?.randomUUID?.();
 
@@ -96,47 +89,12 @@ function generateBalanceEntryId() {
     .slice(2, 10)}`;
 }
 
-function parseAmountText(amountText: string): AmountParseResult {
-  const trimmedAmount = amountText.trim();
-
-  if (!trimmedAmount) {
-    return {
-      amount: null,
-      error: 'Enter an amount.',
-    };
-  }
-
-  if (!/^\d+([.,]\d+)?$/.test(trimmedAmount)) {
-    return {
-      amount: null,
-      error: 'Use a number like 100.00.',
-    };
-  }
-
-  const amount = Number(trimmedAmount.replace(',', '.'));
-
-  if (!Number.isFinite(amount)) {
-    return {
-      amount: null,
-      error: 'Use a number like 100.00.',
-    };
-  }
-
-  if (amount <= 0) {
-    return {
-      amount: null,
-      error: 'Amount must be greater than 0.',
-    };
-  }
-
-  return {
-    amount,
-    error: null,
-  };
-}
-
-function formatDateLabel(date: Date) {
-  return dateFormatter.format(date);
+function formatDateLabel(date: Date, language: SupportedLanguage) {
+  return formatLanguageDate(language, date, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function formatInitialAmount(entry: BalanceEntry | null | undefined) {
@@ -198,7 +156,7 @@ function ErrorText({ children }: { children: string }) {
   return <Text style={styles.errorText}>{children}</Text>;
 }
 
-function TypeChip({ isSelected, onPress, type }: TypeChipProps) {
+function TypeChip({ isSelected, language, onPress, type }: TypeChipProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -210,7 +168,9 @@ function TypeChip({ isSelected, onPress, type }: TypeChipProps) {
       <Text
         style={[styles.chipText, isSelected ? styles.chipTextSelected : null]}
       >
-        {type.name}
+        {type.isDefault
+          ? (getDefaultBalanceTypeName(language, type.id) ?? type.name)
+          : type.name}
       </Text>
     </Pressable>
   );
@@ -253,11 +213,12 @@ function getBalanceTypeByNormalizedName({
 export function AddBalanceScreen({
   initialEntry = null,
   onSubmit,
-  submitLabel = 'Save Balance',
-  title = 'Add Balance',
+  submitLabel,
+  title,
 }: AddBalanceScreenProps) {
   const router = useRouter();
   const currency = useSettingsCurrency();
+  const language = useSettingsLanguage();
   const amountInputRef = useRef<TextInput>(null);
   const typeNameInputRef = useRef<TextInput>(null);
 
@@ -411,7 +372,7 @@ export function AddBalanceScreen({
 
     clearBalanceError();
 
-    const amountResult = parseAmountText(amountText);
+    const amountResult = parseAmountText(amountText, language);
     setAmountError(amountResult.error);
 
     const validTypeIds = new Set(
@@ -421,7 +382,9 @@ export function AddBalanceScreen({
       selectedTypeId && validTypeIds.has(selectedTypeId)
         ? selectedTypeId
         : null;
-    const nextTypeError = validSelectedTypeId ? null : 'Choose a type.';
+    const nextTypeError = validSelectedTypeId
+      ? null
+      : t(language, 'balance.chooseType');
 
     setTypeError(nextTypeError);
 
@@ -448,6 +411,8 @@ export function AddBalanceScreen({
   }
 
   const isSaveDisabled = isBalanceLoading || !isBalanceInitialized;
+  const screenTitle = title ?? t(language, 'balance.addTitle');
+  const screenSubmitLabel = submitLabel ?? t(language, 'balance.saveBalance');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -463,13 +428,15 @@ export function AddBalanceScreen({
           >
             <Header
               onBackPress={handleHeaderBackPress}
-              title={isAddingType ? 'Add Type' : title}
+              title={
+                isAddingType ? t(language, 'balance.addTypeTitle') : screenTitle
+              }
             />
 
             {isAddingType ? (
               <View style={styles.formGroup}>
                 <View style={styles.field}>
-                  <FieldLabel>Name</FieldLabel>
+                  <FieldLabel>{t(language, 'common.name')}</FieldLabel>
 
                   <TextInput
                     ref={typeNameInputRef}
@@ -482,7 +449,7 @@ export function AddBalanceScreen({
                     onSubmitEditing={() => {
                       void handleSaveType();
                     }}
-                    placeholder="Bonus"
+                    placeholder={t(language, 'balance.typePlaceholder')}
                     returnKeyType="done"
                     style={[
                       styles.nameInput,
@@ -500,7 +467,7 @@ export function AddBalanceScreen({
             ) : (
               <View style={styles.formGroup}>
                 <View style={styles.field}>
-                  <FieldLabel>Amount</FieldLabel>
+                  <FieldLabel>{t(language, 'form.amount')}</FieldLabel>
 
                   <View
                     style={[
@@ -532,10 +499,10 @@ export function AddBalanceScreen({
                 </View>
 
                 <View style={styles.field}>
-                  <FieldLabel>Date</FieldLabel>
+                  <FieldLabel>{t(language, 'common.date')}</FieldLabel>
 
                   <Pressable
-                    accessibilityLabel="Choose balance date"
+                    accessibilityLabel={t(language, 'balance.dateA11y')}
                     accessibilityRole="button"
                     onPress={() => setIsDatePickerVisible(true)}
                     style={styles.dateButton}
@@ -547,14 +514,14 @@ export function AddBalanceScreen({
                       size={17}
                     />
                     <Text style={styles.dateButtonText}>
-                      {formatDateLabel(selectedDate)}
+                      {formatDateLabel(selectedDate, language)}
                     </Text>
                   </Pressable>
                 </View>
 
                 <View style={styles.field}>
                   <View style={styles.sectionHeader}>
-                    <FieldLabel>Type</FieldLabel>
+                    <FieldLabel>{t(language, 'common.type')}</FieldLabel>
 
                     <Pressable
                       accessibilityRole="button"
@@ -567,7 +534,9 @@ export function AddBalanceScreen({
                         name="plus"
                         size={16}
                       />
-                      <Text style={styles.addTypeLinkText}>Add</Text>
+                      <Text style={styles.addTypeLinkText}>
+                        {t(language, 'common.add')}
+                      </Text>
                     </Pressable>
                   </View>
 
@@ -576,6 +545,7 @@ export function AddBalanceScreen({
                       <TypeChip
                         key={balanceType.id}
                         isSelected={selectedTypeId === balanceType.id}
+                        language={language}
                         onPress={() => handleTypePress(balanceType.id)}
                         type={balanceType}
                       />
@@ -584,13 +554,13 @@ export function AddBalanceScreen({
 
                   {!isBalanceInitialized ? (
                     <Text style={styles.metaText}>
-                      Loading balance types...
+                      {t(language, 'balance.loadingTypes')}
                     </Text>
                   ) : null}
 
                   {isBalanceInitialized && activeBalanceTypes.length === 0 ? (
                     <Text style={styles.metaText}>
-                      Add a balance type before saving.
+                      {t(language, 'balance.addTypeBeforeSaving')}
                     </Text>
                   ) : null}
 
@@ -606,7 +576,11 @@ export function AddBalanceScreen({
             {isAddingType ? (
               <PrimaryAction
                 isDisabled={isBalanceLoading}
-                label={isBalanceLoading ? 'Saving...' : 'Save Type'}
+                label={
+                  isBalanceLoading
+                    ? t(language, 'common.saving')
+                    : t(language, 'balance.saveType')
+                }
                 onPress={() => {
                   void handleSaveType();
                 }}
@@ -614,7 +588,11 @@ export function AddBalanceScreen({
             ) : (
               <PrimaryAction
                 isDisabled={isSaveDisabled}
-                label={isBalanceLoading ? 'Saving...' : submitLabel}
+                label={
+                  isBalanceLoading
+                    ? t(language, 'common.saving')
+                    : screenSubmitLabel
+                }
                 onPress={() => {
                   void handleSaveBalance();
                 }}
