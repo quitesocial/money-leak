@@ -41,11 +41,21 @@ import {
   getCategoryDisplayName,
 } from '@/lib/category-display';
 import { getCategoryIcon } from '@/lib/category-icons';
-import { formatLabel } from '@/lib/display-formatters';
+import {
+  formatLanguageDate,
+  getDefaultBalanceTypeName,
+  getDefaultCategoryName,
+  getLeakReasonLabel,
+  getMonthLabels,
+  getShortWeekdayLabels,
+  t,
+} from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useSettingsCurrency } from '@/lib/use-settings-currency';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
@@ -115,42 +125,6 @@ const LEAK_REASON_ICONS: Record<
   },
 };
 
-const ANALYTICS_LOAD_ERROR_TITLE = "Couldn't load analytics";
-const ANALYTICS_LOAD_ERROR_MESSAGE =
-  'Something went wrong while loading Analytics. Try again.';
-const ANALYTICS_REFRESH_ERROR_MESSAGE =
-  "Analytics couldn't refresh right now. Try again.";
-
-const INLINE_CALENDAR_WEEKDAYS = [
-  'SUN',
-  'MON',
-  'TUE',
-  'WED',
-  'THU',
-  'FRI',
-  'SAT',
-];
-
-const inlineCalendarMonthFormatter = new Intl.DateTimeFormat('en-GB', {
-  month: 'long',
-  year: 'numeric',
-});
-
-const INLINE_MONTH_OPTIONS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
 type DatePickerMode = 'range' | 'single';
 
 type InlinePickerMode = 'day' | 'month' | 'range' | 'year';
@@ -159,57 +133,67 @@ type BalanceTypeOption = Pick<BalanceType, 'id' | 'name' | 'sortOrder'>;
 
 type CategoryOption = Pick<
   CategoryInput,
-  'iconName' | 'id' | 'name' | 'sortOrder'
+  'iconName' | 'id' | 'isDefault' | 'name' | 'sortOrder'
 >;
 
 function getTodayTimestamp() {
   return getAnalyticsLocalDayTimestamp(Date.now()) ?? Date.now();
 }
 
-function getPeriodLabel(period: AnalyticsPeriod) {
+function getPeriodLabel(period: AnalyticsPeriod, language: SupportedLanguage) {
   switch (period) {
     case 'today':
-      return 'Today';
+      return t(language, 'analytics.period.today');
     case 'week':
-      return 'Week';
+      return t(language, 'analytics.period.week');
     case 'month':
-      return 'Month';
+      return t(language, 'analytics.period.month');
     case 'custom':
-      return 'Custom';
+      return t(language, 'analytics.period.custom');
   }
 }
 
-function getCustomPeriodTypeLabel(periodType: AnalyticsCustomPeriodType) {
+function getCustomPeriodTypeLabel(
+  periodType: AnalyticsCustomPeriodType,
+  language: SupportedLanguage,
+) {
   switch (periodType) {
     case 'day':
-      return 'Day';
+      return t(language, 'analytics.custom.day');
     case 'month':
-      return 'Month';
+      return t(language, 'analytics.custom.month');
     case 'year':
-      return 'Year';
+      return t(language, 'analytics.custom.year');
     case 'custom_dates':
-      return 'Custom dates';
+      return t(language, 'analytics.custom.customDates');
   }
 }
 
-function getOperationLabel(operation: AnalyticsFilterOperation) {
+function getOperationLabel(
+  operation: AnalyticsFilterOperation,
+  language: SupportedLanguage,
+) {
   switch (operation) {
     case 'added':
-      return 'Added';
+      return t(language, 'analytics.operation.added');
     case 'spent':
-      return 'Spent';
+      return t(language, 'analytics.operation.spent');
     case 'all':
-      return 'All';
+      return t(language, 'analytics.operation.all');
   }
 }
 
-function getBalanceTypeOptions(activeBalanceTypes: BalanceType[]) {
+function getBalanceTypeOptions(
+  activeBalanceTypes: BalanceType[],
+  language: SupportedLanguage,
+) {
   const optionsById = new Map<string, BalanceTypeOption>();
 
   for (const balanceType of DEFAULT_BALANCE_TYPES) {
     optionsById.set(balanceType.id, {
       id: balanceType.id,
-      name: balanceType.name,
+      name:
+        getDefaultBalanceTypeName(language, balanceType.id) ?? balanceType.name,
       sortOrder: balanceType.sortOrder,
     });
   }
@@ -217,7 +201,10 @@ function getBalanceTypeOptions(activeBalanceTypes: BalanceType[]) {
   for (const balanceType of activeBalanceTypes) {
     optionsById.set(balanceType.id, {
       id: balanceType.id,
-      name: balanceType.name,
+      name: balanceType.isDefault
+        ? (getDefaultBalanceTypeName(language, balanceType.id) ??
+          balanceType.name)
+        : balanceType.name,
       sortOrder: balanceType.sortOrder,
     });
   }
@@ -231,32 +218,53 @@ function getBalanceTypeOptions(activeBalanceTypes: BalanceType[]) {
   });
 }
 
-function getCategoryOptions(activeCategories: Category[]) {
+function getCategoryOptions(
+  activeCategories: Category[],
+  language: SupportedLanguage,
+) {
   const sourceCategories: CategoryOption[] =
     activeCategories.length > 0 ? activeCategories : DEFAULT_CATEGORIES;
 
-  return [...sourceCategories].sort((firstCategory, secondCategory) => {
-    if (firstCategory.sortOrder !== secondCategory.sortOrder) {
-      return firstCategory.sortOrder - secondCategory.sortOrder;
-    }
+  return [...sourceCategories]
+    .map((category) => ({
+      ...category,
+      name: category.isDefault
+        ? (getDefaultCategoryName(language, category.id) ?? category.name)
+        : category.name,
+    }))
+    .sort((firstCategory, secondCategory) => {
+      if (firstCategory.sortOrder !== secondCategory.sortOrder) {
+        return firstCategory.sortOrder - secondCategory.sortOrder;
+      }
 
-    return firstCategory.name.localeCompare(secondCategory.name);
-  });
+      return firstCategory.name.localeCompare(secondCategory.name);
+    });
 }
 
 function getBalanceTypeDisplayName({
   balanceTypeOptions,
   balanceTypes,
+  language,
   typeId,
 }: {
   balanceTypeOptions: BalanceTypeOption[];
   balanceTypes: BalanceType[];
+  language: SupportedLanguage;
   typeId: string;
 }) {
+  const balanceType = balanceTypes.find((candidate) => candidate.id === typeId);
+
+  if (balanceType) {
+    return balanceType.isDefault
+      ? (getDefaultBalanceTypeName(language, balanceType.id) ??
+          balanceType.name)
+      : balanceType.name;
+  }
+
   return (
-    balanceTypes.find((balanceType) => balanceType.id === typeId)?.name ??
-    balanceTypeOptions.find((balanceType) => balanceType.id === typeId)?.name ??
-    'Balance addition'
+    balanceTypeOptions.find((option) => option.id === typeId)?.name ??
+    getDefaultBalanceTypeName(language, typeId) ??
+    t(language, 'balanceType.fallback')
   );
 }
 
@@ -264,10 +272,12 @@ function getFilterLabel({
   balanceTypeOptions,
   categories,
   filter,
+  language,
 }: {
   balanceTypeOptions: BalanceTypeOption[];
   categories: Category[];
   filter: AnalyticsFilterState;
+  language: SupportedLanguage;
 }) {
   const normalizedFilter = normalizeAnalyticsFilter(filter);
 
@@ -279,7 +289,7 @@ function getFilterLabel({
     return (
       balanceTypeOptions.find(
         (balanceType) => balanceType.id === normalizedFilter.balanceTypeId,
-      )?.name ?? 'Balance addition'
+      )?.name ?? t(language, 'balanceType.fallback')
     );
   }
 
@@ -287,17 +297,19 @@ function getFilterLabel({
 
   if (normalizedFilter.transactionKind) {
     labels.push(
-      normalizedFilter.transactionKind === 'leak' ? 'Leak' : 'Normal',
+      normalizedFilter.transactionKind === 'leak'
+        ? t(language, 'home.leak')
+        : t(language, 'common.normal'),
     );
   }
 
   if (normalizedFilter.leakReason) {
-    labels.push(formatLabel(normalizedFilter.leakReason));
+    labels.push(getLeakReasonLabel(language, normalizedFilter.leakReason));
   }
 
   if (normalizedFilter.categoryId) {
     labels.push(
-      getCategoryDisplayName(normalizedFilter.categoryId, categories),
+      getCategoryDisplayName(normalizedFilter.categoryId, categories, language),
     );
   }
 
@@ -437,6 +449,7 @@ function getInlineDayTestID(date: Date) {
 }
 
 type InlineDayCalendarProps = {
+  language: SupportedLanguage;
   month: Date;
   selectedDate: number;
   onChangeMonth: (month: Date) => void;
@@ -444,6 +457,7 @@ type InlineDayCalendarProps = {
 };
 
 function InlineDayCalendar({
+  language,
   month,
   selectedDate,
   onChangeMonth,
@@ -451,13 +465,17 @@ function InlineDayCalendar({
 }: InlineDayCalendarProps) {
   const selectedDateValue = getValidInlineDate(selectedDate);
   const weeks = getInlineCalendarWeeks(month);
+  const weekdayLabels = getShortWeekdayLabels(language);
 
   return (
     <View style={styles.inlineCalendar} testID="analytics-inline-day-calendar">
       <View style={styles.inlineCalendarHeader}>
         <View style={styles.inlineCalendarMonthLabel}>
           <Text style={styles.inlineCalendarMonthText}>
-            {inlineCalendarMonthFormatter.format(month)}
+            {formatLanguageDate(language, month, {
+              month: 'long',
+              year: 'numeric',
+            })}
           </Text>
 
           <SymbolView
@@ -517,7 +535,7 @@ function InlineDayCalendar({
       </View>
 
       <View style={styles.inlineCalendarWeekdays}>
-        {INLINE_CALENDAR_WEEKDAYS.map((weekday) => (
+        {weekdayLabels.map((weekday) => (
           <Text key={weekday} style={styles.inlineCalendarWeekday}>
             {weekday}
           </Text>
@@ -570,6 +588,7 @@ function InlineDayCalendar({
 }
 
 type InlineRangeCalendarProps = {
+  language: SupportedLanguage;
   month: Date;
   rangeEnd: number;
   rangeStart: number;
@@ -578,6 +597,7 @@ type InlineRangeCalendarProps = {
 };
 
 function InlineRangeCalendar({
+  language,
   month,
   rangeEnd,
   rangeStart,
@@ -585,6 +605,7 @@ function InlineRangeCalendar({
   onSelectDate,
 }: InlineRangeCalendarProps) {
   const weeks = getInlineCalendarWeeks(month);
+  const weekdayLabels = getShortWeekdayLabels(language);
 
   return (
     <View
@@ -594,7 +615,10 @@ function InlineRangeCalendar({
       <View style={styles.inlineCalendarHeader}>
         <View style={styles.inlineCalendarMonthLabel}>
           <Text style={styles.inlineCalendarMonthText}>
-            {inlineCalendarMonthFormatter.format(month)}
+            {formatLanguageDate(language, month, {
+              month: 'long',
+              year: 'numeric',
+            })}
           </Text>
 
           <SymbolView
@@ -654,7 +678,7 @@ function InlineRangeCalendar({
       </View>
 
       <View style={styles.inlineCalendarWeekdays}>
-        {INLINE_CALENDAR_WEEKDAYS.map((weekday) => (
+        {weekdayLabels.map((weekday) => (
           <Text key={weekday} style={styles.inlineCalendarWeekday}>
             {weekday}
           </Text>
@@ -786,11 +810,13 @@ function InlineOptionPicker({
 }
 
 type AnalyticsSegmentedControlProps = {
+  language: SupportedLanguage;
   onSelectPeriod: (period: AnalyticsPeriod) => void;
   selectedPeriod: AnalyticsPeriod;
 };
 
 function AnalyticsSegmentedControl({
+  language,
   onSelectPeriod,
   selectedPeriod,
 }: AnalyticsSegmentedControlProps) {
@@ -814,7 +840,7 @@ function AnalyticsSegmentedControl({
                 isSelected ? styles.segmentTextSelected : null,
               ]}
             >
-              {getPeriodLabel(period)}
+              {getPeriodLabel(period, language)}
             </Text>
           </Pressable>
         );
@@ -992,7 +1018,13 @@ function TransactionDetailIcon({
   );
 }
 
-function TransactionDetailRow({ transaction }: { transaction: Transaction }) {
+function TransactionDetailRow({
+  language,
+  transaction,
+}: {
+  language: SupportedLanguage;
+  transaction: Transaction;
+}) {
   if (transaction.isLeak) {
     return (
       <View style={styles.transactionDetailRow}>
@@ -1004,7 +1036,7 @@ function TransactionDetailRow({ transaction }: { transaction: Transaction }) {
           />
 
           <Text numberOfLines={1} style={styles.ledgerDetail}>
-            Leak
+            {t(language, 'home.leak')}
           </Text>
         </View>
 
@@ -1013,7 +1045,7 @@ function TransactionDetailRow({ transaction }: { transaction: Transaction }) {
             <TransactionDetailIcon fallback="R" name={REASON_DETAIL_ICON} />
 
             <Text numberOfLines={1} style={styles.ledgerDetail}>
-              {formatLabel(transaction.leakReason)}
+              {getLeakReasonLabel(language, transaction.leakReason)}
             </Text>
           </View>
         ) : null}
@@ -1027,7 +1059,7 @@ function TransactionDetailRow({ transaction }: { transaction: Transaction }) {
         <TransactionDetailIcon fallback="N" name={NORMAL_DETAIL_ICON} />
 
         <Text numberOfLines={1} style={styles.ledgerDetail}>
-          Normal
+          {t(language, 'common.normal')}
         </Text>
       </View>
     </View>
@@ -1040,6 +1072,7 @@ type LedgerRowProps = {
   categories: Category[];
   currency: SettingsCurrency;
   item: AnalyticsLedgerItem;
+  language: SupportedLanguage;
 };
 
 function LedgerRow({
@@ -1048,6 +1081,7 @@ function LedgerRow({
   categories,
   currency,
   item,
+  language,
 }: LedgerRowProps) {
   if (item.kind === 'balance') {
     return (
@@ -1063,12 +1097,13 @@ function LedgerRow({
               {getBalanceTypeDisplayName({
                 balanceTypeOptions,
                 balanceTypes,
+                language,
                 typeId: item.entry.typeId,
               })}
             </Text>
 
             <Text style={styles.ledgerTime}>
-              {formatAnalyticsTime(item.entry.createdAt)}
+              {formatAnalyticsTime(item.entry.createdAt, language)}
             </Text>
           </View>
         </View>
@@ -1102,13 +1137,13 @@ function LedgerRow({
 
         <View style={styles.ledgerCopy}>
           <Text numberOfLines={1} style={styles.ledgerTitle}>
-            {getCategoryDisplayName(transaction.category, categories)}
+            {getCategoryDisplayName(transaction.category, categories, language)}
           </Text>
 
-          <TransactionDetailRow transaction={transaction} />
+          <TransactionDetailRow language={language} transaction={transaction} />
 
           <Text style={styles.ledgerTime}>
-            {formatAnalyticsTime(transaction.createdAt)}
+            {formatAnalyticsTime(transaction.createdAt, language)}
           </Text>
         </View>
       </View>
@@ -1167,25 +1202,29 @@ function EmptyIllustration({ testID }: EmptyIllustrationProps) {
 type EmptyStateProps = {
   hasAnyItems: boolean;
   isFilterActive: boolean;
+  language: SupportedLanguage;
   onAddTransaction: () => void;
 };
 
 function EmptyState({
   hasAnyItems,
   isFilterActive,
+  language,
   onAddTransaction,
 }: EmptyStateProps) {
   const emptyMessage = isFilterActive
-    ? 'No transactions match your current filters'
+    ? t(language, 'analytics.emptyFiltered')
     : hasAnyItems
-      ? 'No transactions match your date'
-      : 'Add your transaction to see it here';
+      ? t(language, 'analytics.emptyDate')
+      : t(language, 'analytics.emptyInitial');
 
   return (
     <View style={styles.emptyState}>
       <EmptyIllustration testID="analytics-empty-illustration" />
 
-      <Text style={styles.emptyTitle}>No Transactions</Text>
+      <Text style={styles.emptyTitle}>
+        {t(language, 'analytics.emptyTitle')}
+      </Text>
 
       <Text style={styles.emptyMessage}>{emptyMessage}</Text>
 
@@ -1195,7 +1234,9 @@ function EmptyState({
         style={styles.emptyActionButton}
         testID="analytics-empty-add-transaction"
       >
-        <Text style={styles.emptyActionButtonText}>Add Transaction</Text>
+        <Text style={styles.emptyActionButtonText}>
+          {t(language, 'analytics.addTransaction')}
+        </Text>
       </Pressable>
     </View>
   );
@@ -1205,6 +1246,7 @@ type FilterModalProps = {
   balanceTypeOptions: BalanceTypeOption[];
   categoryOptions: CategoryOption[];
   draftFilter: AnalyticsFilterState;
+  language: SupportedLanguage;
   onApply: () => void;
   onClose: () => void;
   onSelectBalanceType: (balanceTypeId: string) => void;
@@ -1221,6 +1263,7 @@ function FilterModal({
   balanceTypeOptions,
   categoryOptions,
   draftFilter,
+  language,
   onApply,
   onClose,
   onSelectBalanceType,
@@ -1245,7 +1288,7 @@ function FilterModal({
         <View style={styles.filterLayout}>
           <View style={styles.filterHeader}>
             <Pressable
-              accessibilityLabel="Close Filter by"
+              accessibilityLabel={t(language, 'analytics.filterClose')}
               accessibilityRole="button"
               onPress={onClose}
               style={styles.filterBackButton}
@@ -1261,14 +1304,16 @@ function FilterModal({
               />
             </Pressable>
 
-            <Text style={styles.filterTitle}>Filter by</Text>
+            <Text style={styles.filterTitle}>
+              {t(language, 'analytics.filterTitle')}
+            </Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.filterContent}>
           <View style={styles.chipRow}>
             <Chip
-              label="Added"
+              label={t(language, 'analytics.operation.added')}
               onPress={() => onSelectOperation('added')}
               selected={draftFilter.operation === 'added'}
               testID="analytics-filter-added-chip"
@@ -1276,7 +1321,7 @@ function FilterModal({
             />
 
             <Chip
-              label="Spent"
+              label={t(language, 'analytics.operation.spent')}
               onPress={() => onSelectOperation('spent')}
               selected={draftFilter.operation === 'spent'}
               testID="analytics-filter-spent-chip"
@@ -1286,7 +1331,9 @@ function FilterModal({
 
           {draftFilter.operation === 'added' ? (
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Type</Text>
+              <Text style={styles.filterSectionTitle}>
+                {t(language, 'common.type')}
+              </Text>
 
               <View style={styles.chipRow}>
                 {balanceTypeOptions.map((balanceType) => (
@@ -1306,7 +1353,9 @@ function FilterModal({
           {draftFilter.operation === 'spent' ? (
             <>
               <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Type</Text>
+                <Text style={styles.filterSectionTitle}>
+                  {t(language, 'common.type')}
+                </Text>
 
                 <View style={styles.chipRow}>
                   <Chip
@@ -1314,7 +1363,7 @@ function FilterModal({
                       fallback: 'N',
                       name: NORMAL_DETAIL_ICON,
                     }}
-                    label="Normal"
+                    label={t(language, 'common.normal')}
                     onPress={() => onSelectTransactionKind('normal')}
                     selected={draftFilter.transactionKind === 'normal'}
                     testID="analytics-filter-kind-normal"
@@ -1326,7 +1375,7 @@ function FilterModal({
                       fallback: 'L',
                       name: LEAK_DETAIL_ICON,
                     }}
-                    label="Leak"
+                    label={t(language, 'home.leak')}
                     onPress={() => onSelectTransactionKind('leak')}
                     selected={draftFilter.transactionKind === 'leak'}
                     testID="analytics-filter-kind-leak"
@@ -1338,14 +1387,16 @@ function FilterModal({
               {draftFilter.transactionKind === 'leak' ||
               draftFilter.leakReason ? (
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Reason</Text>
+                  <Text style={styles.filterSectionTitle}>
+                    {t(language, 'common.reason')}
+                  </Text>
 
                   <View style={styles.chipRow}>
                     {LEAK_REASONS.map((leakReason) => (
                       <Chip
                         icon={LEAK_REASON_ICONS[leakReason]}
                         key={leakReason}
-                        label={formatLabel(leakReason)}
+                        label={getLeakReasonLabel(language, leakReason)}
                         onPress={() => onSelectLeakReason(leakReason)}
                         selected={draftFilter.leakReason === leakReason}
                         testID={`analytics-filter-reason-${leakReason}`}
@@ -1357,7 +1408,9 @@ function FilterModal({
               ) : null}
 
               <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Category</Text>
+                <Text style={styles.filterSectionTitle}>
+                  {t(language, 'common.category')}
+                </Text>
 
                 <View style={styles.chipRow}>
                   {categoryOptions.map((category) => (
@@ -1381,7 +1434,9 @@ function FilterModal({
             style={styles.applyButton}
             testID="analytics-filter-apply-button"
           >
-            <Text style={styles.applyButtonText}>Apply</Text>
+            <Text style={styles.applyButtonText}>
+              {t(language, 'common.apply')}
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -1392,6 +1447,7 @@ function FilterModal({
 export function AnalyticsScreen() {
   const router = useRouter();
   const currency = useSettingsCurrency();
+  const language = useSettingsLanguage();
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
   const isInitialized = useTransactionsStore((state) => state.isInitialized);
@@ -1465,12 +1521,12 @@ export function AnalyticsScreen() {
   });
 
   const balanceTypeOptions = useMemo(
-    () => getBalanceTypeOptions(activeBalanceTypes),
-    [activeBalanceTypes],
+    () => getBalanceTypeOptions(activeBalanceTypes, language),
+    [activeBalanceTypes, language],
   );
   const categoryOptions = useMemo(
-    () => getCategoryOptions(activeCategories),
-    [activeCategories],
+    () => getCategoryOptions(activeCategories, language),
+    [activeCategories, language],
   );
 
   const ledgerItems = useMemo(
@@ -1497,13 +1553,14 @@ export function AnalyticsScreen() {
     ],
   );
   const ledgerGroups = useMemo(
-    () => groupAnalyticsLedgerItems(ledgerItems),
-    [ledgerItems],
+    () => groupAnalyticsLedgerItems(ledgerItems, language),
+    [ledgerItems, language],
   );
   const filterLabel = getFilterLabel({
     balanceTypeOptions,
     categories,
     filter,
+    language,
   });
   const isInitialLoading =
     !isInitialized || !isBalanceInitialized || !areCategoriesInitialized;
@@ -1741,8 +1798,12 @@ export function AnalyticsScreen() {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading analytics</Text>
-          <Text style={styles.stateMessage}>Getting your ledger ready.</Text>
+          <Text style={styles.stateTitle}>
+            {t(language, 'analytics.loadingTitle')}
+          </Text>
+          <Text style={styles.stateMessage}>
+            {t(language, 'analytics.loadingMessage')}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -1752,9 +1813,11 @@ export function AnalyticsScreen() {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>{ANALYTICS_LOAD_ERROR_TITLE}</Text>
+          <Text style={styles.stateTitle}>
+            {t(language, 'analytics.loadErrorTitle')}
+          </Text>
           <Text style={styles.stateMessage}>
-            {ANALYTICS_LOAD_ERROR_MESSAGE}
+            {t(language, 'analytics.loadErrorMessage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -1768,15 +1831,17 @@ export function AnalyticsScreen() {
         scrollEnabled={!shouldLockScreenScroll}
       >
         <View style={styles.contentColumn}>
-          <Text style={styles.pageTitle}>Analytics & Leaks</Text>
+          <Text style={styles.pageTitle}>
+            {t(language, 'tabs.analyticsTitle')}
+          </Text>
 
           <View style={styles.operationHeader}>
             <Text style={styles.operationLabel}>
-              {getOperationLabel(filter.operation)}
+              {getOperationLabel(filter.operation, language)}
             </Text>
 
             <Pressable
-              accessibilityLabel="Open analytics filters"
+              accessibilityLabel={t(language, 'analytics.filterOpen')}
               accessibilityRole="button"
               onPress={handleOpenFilter}
               style={styles.filterButton}
@@ -1788,7 +1853,9 @@ export function AnalyticsScreen() {
 
           {filterLabel ? (
             <View style={styles.filteredByRow}>
-              <Text style={styles.filteredByLabel}>Filtered by</Text>
+              <Text style={styles.filteredByLabel}>
+                {t(language, 'analytics.filteredBy')}
+              </Text>
 
               <Pressable
                 accessibilityRole="button"
@@ -1801,6 +1868,7 @@ export function AnalyticsScreen() {
           ) : null}
 
           <AnalyticsSegmentedControl
+            language={language}
             onSelectPeriod={handleSelectPeriod}
             selectedPeriod={selectedPeriod}
           />
@@ -1808,7 +1876,9 @@ export function AnalyticsScreen() {
           {selectedPeriod === 'custom' ? (
             <View style={styles.customControls}>
               <View style={styles.customControlGroup}>
-                <Text style={styles.customControlLabel}>Type</Text>
+                <Text style={styles.customControlLabel}>
+                  {t(language, 'common.type')}
+                </Text>
 
                 <Pressable
                   accessibilityRole="button"
@@ -1823,8 +1893,8 @@ export function AnalyticsScreen() {
                 >
                   <Text style={styles.customControlValue}>
                     {customPeriodType
-                      ? getCustomPeriodTypeLabel(customPeriodType)
-                      : 'Choose period type'}
+                      ? getCustomPeriodTypeLabel(customPeriodType, language)
+                      : t(language, 'analytics.choosePeriodType')}
                   </Text>
 
                   <SymbolView
@@ -1846,7 +1916,7 @@ export function AnalyticsScreen() {
                   {ANALYTICS_CUSTOM_PERIOD_TYPE_OPTIONS.map((periodType) => (
                     <Chip
                       key={periodType}
-                      label={getCustomPeriodTypeLabel(periodType)}
+                      label={getCustomPeriodTypeLabel(periodType, language)}
                       onPress={() => handleSelectCustomPeriodType(periodType)}
                       selected={customPeriodType === periodType}
                       testID={`analytics-custom-type-${periodType}`}
@@ -1857,7 +1927,9 @@ export function AnalyticsScreen() {
 
               {customPeriodType ? (
                 <View style={styles.customControlGroup}>
-                  <Text style={styles.customControlLabel}>Date</Text>
+                  <Text style={styles.customControlLabel}>
+                    {t(language, 'common.date')}
+                  </Text>
 
                   <Pressable
                     accessibilityRole="button"
@@ -1886,12 +1958,14 @@ export function AnalyticsScreen() {
                         customPeriodType,
                         customRangeEnd,
                         customRangeStart,
+                        language,
                       })}
                     </Text>
                   </Pressable>
 
                   {customPeriodType === 'day' && inlinePickerMode === 'day' ? (
                     <InlineDayCalendar
+                      language={language}
                       month={inlineCalendarMonth}
                       selectedDate={customDate}
                       onChangeMonth={setInlineCalendarMonth}
@@ -1902,6 +1976,7 @@ export function AnalyticsScreen() {
                   {customPeriodType === 'custom_dates' &&
                   inlinePickerMode === 'range' ? (
                     <InlineRangeCalendar
+                      language={language}
                       month={inlineCalendarMonth}
                       rangeEnd={customRangeEnd}
                       rangeStart={customRangeStart}
@@ -1913,20 +1988,24 @@ export function AnalyticsScreen() {
                   {customPeriodType === 'month' &&
                   inlinePickerMode === 'month' ? (
                     <InlineOptionPicker
-                      options={INLINE_MONTH_OPTIONS.map((monthLabel, index) => {
-                        const selectedDate = getValidInlineDate(customDate);
-                        const year = selectedDate.getFullYear();
+                      options={getMonthLabels(language).map(
+                        (monthLabel, index) => {
+                          const selectedDate = getValidInlineDate(customDate);
+                          const year = selectedDate.getFullYear();
 
-                        return {
-                          label: monthLabel,
-                          testID: `analytics-inline-month-${year}-${index + 1}`,
-                          value: index,
-                        };
-                      })}
+                          return {
+                            label: monthLabel,
+                            testID: `analytics-inline-month-${year}-${index + 1}`,
+                            value: index,
+                          };
+                        },
+                      )}
                       selectedValue={getValidInlineDate(customDate).getMonth()}
                       testID="analytics-inline-month-picker"
-                      title={inlineCalendarMonthFormatter.format(
+                      title={formatLanguageDate(
+                        language,
                         getValidInlineDate(customDate),
+                        { month: 'long', year: 'numeric' },
                       )}
                       onSelectValue={handleInlineMonthConfirm}
                     />
@@ -1956,13 +2035,15 @@ export function AnalyticsScreen() {
           ) : null}
 
           {isRefreshing ? (
-            <Text style={styles.refreshingText}>Refreshing analytics...</Text>
+            <Text style={styles.refreshingText}>
+              {t(language, 'analytics.refreshing')}
+            </Text>
           ) : null}
 
           {hasSafeError ? (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>
-                {ANALYTICS_REFRESH_ERROR_MESSAGE}
+                {t(language, 'analytics.refreshError')}
               </Text>
             </View>
           ) : null}
@@ -1981,6 +2062,7 @@ export function AnalyticsScreen() {
                         categories={categories}
                         currency={currency}
                         item={item}
+                        language={language}
                         key={item.id}
                       />
                     ))}
@@ -1994,6 +2076,7 @@ export function AnalyticsScreen() {
             <EmptyState
               hasAnyItems={hasAnyItems}
               isFilterActive={isFilterActive}
+              language={language}
               onAddTransaction={handleAddTransaction}
             />
           ) : null}
@@ -2005,6 +2088,7 @@ export function AnalyticsScreen() {
           balanceTypeOptions={balanceTypeOptions}
           categoryOptions={categoryOptions}
           draftFilter={draftFilter}
+          language={language}
           onApply={handleApplyFilter}
           onClose={() => setIsFilterVisible(false)}
           onSelectBalanceType={handleSelectBalanceType}

@@ -57,6 +57,7 @@ import {
 } from '@/lib/category-utils';
 import { getValidDate } from '@/lib/date-utils';
 import { featureFlags } from '@/lib/feature-flags';
+import { getDefaultCategoryName, t } from '@/lib/i18n/i18n';
 import {
   cancelDailyCheckInReminder,
   getReminderPermissionStatus,
@@ -88,8 +89,10 @@ import type {
   SyncResult,
   SyncSummary,
 } from '@/lib/sync/sync-types';
+import { hasHorizontalSwipeIntent } from '@/lib/swipe-actions';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { notifySettingsLanguageChanged } from '@/lib/use-settings-language';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
 import { useBalanceStore } from '@/store/balance-store';
@@ -128,11 +131,11 @@ type SyncUiResult = {
 type SettingsOptionSheet =
   | {
       kind: 'currency';
-      title: 'Choose Currency';
+      title: string;
     }
   | {
       kind: 'language';
-      title: 'Choose language';
+      title: string;
     };
 
 const TITLE_FONT_FAMILY = Platform.select({
@@ -149,9 +152,6 @@ const CATEGORY_SWIPE_ACTION_SIZE = 52;
 const CATEGORY_SWIPE_ACTION_GAP = 8;
 const CATEGORY_SWIPE_REVEAL_WIDTH =
   CATEGORY_SWIPE_ACTION_SIZE + CATEGORY_SWIPE_ACTION_GAP;
-const HORIZONTAL_ACTIVATION_DISTANCE = 10;
-const VERTICAL_SCROLL_DISTANCE = 8;
-const HORIZONTAL_INTENT_RATIO = 0.75;
 const SWIPE_OPEN_THRESHOLD = 44;
 const SWIPE_VELOCITY_THRESHOLD = 0.35;
 
@@ -178,27 +178,6 @@ function getReminderPermissionError(
 
 function clampCategorySwipeProgress(value: number) {
   return Math.max(-1, Math.min(1, value / CATEGORY_SWIPE_REVEAL_WIDTH));
-}
-
-function hasHorizontalSwipeIntent({ dx, dy }: { dx: number; dy: number }) {
-  const absoluteDx = Math.abs(dx);
-  const absoluteDy = Math.abs(dy);
-
-  if (
-    absoluteDx < HORIZONTAL_ACTIVATION_DISTANCE &&
-    absoluteDy < VERTICAL_SCROLL_DISTANCE
-  ) {
-    return false;
-  }
-
-  if (absoluteDy >= VERTICAL_SCROLL_DISTANCE && absoluteDy > absoluteDx) {
-    return false;
-  }
-
-  return (
-    absoluteDx >= HORIZONTAL_ACTIVATION_DISTANCE &&
-    absoluteDy <= absoluteDx * HORIZONTAL_INTENT_RATIO
-  );
 }
 
 function formatCountLabel(
@@ -575,6 +554,7 @@ type SwipeCategoryRowProps = {
   isDeleteDisabled: boolean;
   isDisabled: boolean;
   isOpen: boolean;
+  language: SettingsLanguage;
   onDelete: (category: Category) => void;
   onEdit: (category: Category) => void;
   onSwipeClose: (id: string) => void;
@@ -587,6 +567,7 @@ function SwipeCategoryRow({
   isDeleteDisabled,
   isDisabled,
   isOpen,
+  language,
   onDelete,
   onEdit,
   onSwipeClose,
@@ -826,7 +807,9 @@ function SwipeCategoryRow({
       >
         <CategoryIcon category={category} />
         <Text numberOfLines={1} style={styles.categoryName}>
-          {category.name}
+          {category.isDefault
+            ? (getDefaultCategoryName(language, category.id) ?? category.name)
+            : category.name}
         </Text>
       </Animated.View>
 
@@ -859,6 +842,7 @@ function SwipeCategoryRow({
 function OptionSheet({
   draftCurrency,
   draftLanguage,
+  language,
   onApply,
   onClose,
   onSelectCurrency,
@@ -867,6 +851,7 @@ function OptionSheet({
 }: {
   draftCurrency: SettingsCurrency;
   draftLanguage: SettingsLanguage;
+  language: SettingsLanguage;
   onApply: () => void;
   onClose: () => void;
   onSelectCurrency: (currency: SettingsCurrency) => void;
@@ -898,7 +883,7 @@ function OptionSheet({
 
           <View style={styles.sheetHeader}>
             <Pressable
-              accessibilityLabel="Close sheet"
+              accessibilityLabel={t(language, 'settings.closeSheet')}
               accessibilityRole="button"
               onPress={onClose}
               style={[styles.sheetCircleButton, styles.sheetCloseButton]}
@@ -909,7 +894,7 @@ function OptionSheet({
             <Text style={styles.sheetTitle}>{sheet.title}</Text>
 
             <Pressable
-              accessibilityLabel="Apply selection"
+              accessibilityLabel={t(language, 'settings.applySelection')}
               accessibilityRole="button"
               onPress={onApply}
               style={[styles.sheetCircleButton, styles.sheetApplyButton]}
@@ -1418,6 +1403,7 @@ export function SettingsScreen() {
       } else {
         await setSettingsLanguage(draftLanguage);
         setLanguage(draftLanguage);
+        notifySettingsLanguageChanged(draftLanguage);
       }
 
       setSheet(null);
@@ -1490,12 +1476,12 @@ export function SettingsScreen() {
     if (isDeleteAccountDisabled || !isAuthenticated) return;
 
     Alert.alert(
-      'Delete account data?',
-      'This will delete your cloud account data and cloud backup from Money Leak. Local transactions, categories, and balance data on this device will stay here.',
+      t(language, 'settings.deleteAccountTitle'),
+      t(language, 'settings.deleteAccountMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t(language, 'common.cancel'), style: 'cancel' },
         {
-          text: 'Delete Account',
+          text: t(language, 'settings.deleteAccountConfirm'),
           style: 'destructive',
           onPress: () => {
             void handleConfirmedDeleteAccount();
@@ -1647,16 +1633,16 @@ export function SettingsScreen() {
 
     return new Promise<boolean>((resolve) => {
       Alert.alert(
-        'Restore from backup?',
-        'This will merge your cloud backup into this device. Existing local data will not be deleted.',
+        t(language, 'settings.restoreTitle'),
+        t(language, 'settings.restoreMessage'),
         [
           {
-            text: 'Cancel',
+            text: t(language, 'common.cancel'),
             style: 'cancel',
             onPress: () => resolve(false),
           },
           {
-            text: 'Restore',
+            text: t(language, 'settings.restoreConfirm'),
             onPress: () => resolve(true),
           },
         ],
@@ -1904,12 +1890,12 @@ export function SettingsScreen() {
     if (validationError) return;
 
     Alert.alert(
-      'Delete category?',
-      'This hides the category from new transactions. Old transactions will still show it.',
+      t(language, 'settings.deleteCategoryTitle'),
+      t(language, 'settings.deleteCategoryMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t(language, 'common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t(language, 'common.delete'),
           style: 'destructive',
           onPress: () => {
             void archiveCategory(category.id);
@@ -1926,18 +1912,23 @@ export function SettingsScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.contentColumn}>
-          <Text style={styles.title}>Settings</Text>
+          <Text style={styles.title}>{t(language, 'settings.title')}</Text>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Account</Text>
+            <Text style={styles.sectionTitle}>
+              {t(language, 'settings.account')}
+            </Text>
 
             <View style={styles.rowGroup}>
               <SettingsRow
-                subtitle="This reminder fires every day at 21:00 local device time"
-                title="Daily check-in reminder"
+                subtitle={t(language, 'settings.dailyReminderSubtitle')}
+                title={t(language, 'settings.dailyReminder')}
                 trailing={
                   <Switch
-                    accessibilityLabel="Enable the daily check-in reminder"
+                    accessibilityLabel={t(
+                      language,
+                      'settings.dailyReminderA11y',
+                    )}
                     disabled={isReminderDisabled}
                     onValueChange={(nextEnabled) => {
                       void handleReminderToggle(nextEnabled);
@@ -1948,11 +1939,11 @@ export function SettingsScreen() {
               />
 
               <SettingsRow
-                subtitle="Runs when you return to the app"
-                title="Synchronization"
+                subtitle={t(language, 'settings.syncSubtitle')}
+                title={t(language, 'settings.sync')}
                 trailing={
                   <Switch
-                    accessibilityLabel="Enable synchronization when returning to the app"
+                    accessibilityLabel={t(language, 'settings.syncA11y')}
                     disabled={isSyncToggleDisabled}
                     onValueChange={(nextEnabled) => {
                       void handleForegroundSyncToggle(nextEnabled);
@@ -1968,9 +1959,12 @@ export function SettingsScreen() {
               <SettingsRow
                 onPress={() => {
                   setDraftCurrency(currency);
-                  setSheet({ kind: 'currency', title: 'Choose Currency' });
+                  setSheet({
+                    kind: 'currency',
+                    title: t(language, 'settings.chooseCurrency'),
+                  });
                 }}
-                title="Currency"
+                title={t(language, 'settings.currency')}
                 trailing={
                   <ActionText icon="chevron.up.chevron.down">
                     {currency}
@@ -1981,9 +1975,12 @@ export function SettingsScreen() {
               <SettingsRow
                 onPress={() => {
                   setDraftLanguage(language);
-                  setSheet({ kind: 'language', title: 'Choose language' });
+                  setSheet({
+                    kind: 'language',
+                    title: t(language, 'settings.chooseLanguage'),
+                  });
                 }}
-                title="Language"
+                title={t(language, 'settings.language')}
                 trailing={
                   <ActionText icon="chevron.up.chevron.down">
                     {language}
@@ -1993,11 +1990,13 @@ export function SettingsScreen() {
             </View>
 
             {isReminderLoading ? (
-              <Text style={styles.metaText}>Checking reminder support...</Text>
+              <Text style={styles.metaText}>
+                {t(language, 'settings.checkingReminder')}
+              </Text>
             ) : null}
             {isReminderUnsupported ? (
               <Text style={styles.metaText}>
-                Daily reminders are not available on this platform.
+                {t(language, 'settings.remindersUnsupported')}
               </Text>
             ) : null}
             {reminderError ? (
@@ -2017,7 +2016,9 @@ export function SettingsScreen() {
                   style={isSyncDisabled ? styles.disabled : null}
                 >
                   <Text style={styles.inlineActionText}>
-                    {isSyncing ? 'Syncing...' : 'Sync now'}
+                    {isSyncing
+                      ? t(language, 'settings.syncing')
+                      : t(language, 'settings.syncNow')}
                   </Text>
                 </Pressable>
               </View>
@@ -2035,7 +2036,9 @@ export function SettingsScreen() {
             ) : null}
 
             <View style={styles.categoryHeader}>
-              <Text style={styles.categoryHeaderTitle}>Category</Text>
+              <Text style={styles.categoryHeaderTitle}>
+                {t(language, 'settings.categorySingular')}
+              </Text>
 
               <Pressable
                 accessibilityRole="button"
@@ -2048,7 +2051,9 @@ export function SettingsScreen() {
                   size={14}
                   tintColor="#0088ff"
                 />
-                <Text style={styles.addCategoryText}>Add</Text>
+                <Text style={styles.addCategoryText}>
+                  {t(language, 'common.add')}
+                </Text>
               </Pressable>
             </View>
 
@@ -2062,7 +2067,7 @@ export function SettingsScreen() {
                       setNewCategoryName(value);
                       setAddCategoryError(null);
                     }}
-                    placeholder="Coffee"
+                    placeholder={t(language, 'settings.addCategoryPlaceholder')}
                     style={[
                       styles.categoryInput,
                       addCategoryError ? styles.inputError : null,
@@ -2091,7 +2096,9 @@ export function SettingsScreen() {
                       }}
                       style={styles.editorPrimaryButton}
                     >
-                      <Text style={styles.editorPrimaryText}>Save</Text>
+                      <Text style={styles.editorPrimaryText}>
+                        {t(language, 'common.save')}
+                      </Text>
                     </Pressable>
 
                     <Pressable
@@ -2102,14 +2109,18 @@ export function SettingsScreen() {
                       }}
                       style={styles.editorSecondaryButton}
                     >
-                      <Text style={styles.editorSecondaryText}>Cancel</Text>
+                      <Text style={styles.editorSecondaryText}>
+                        {t(language, 'common.cancel')}
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
               ) : null}
 
               {!isCategoriesInitialized ? (
-                <Text style={styles.metaText}>Loading categories...</Text>
+                <Text style={styles.metaText}>
+                  {t(language, 'form.loadingCategories')}
+                </Text>
               ) : null}
 
               {activeCategories.map((category) => {
@@ -2156,7 +2167,9 @@ export function SettingsScreen() {
                           }}
                           style={styles.editorPrimaryButton}
                         >
-                          <Text style={styles.editorPrimaryText}>Save</Text>
+                          <Text style={styles.editorPrimaryText}>
+                            {t(language, 'common.save')}
+                          </Text>
                         </Pressable>
 
                         <Pressable
@@ -2164,7 +2177,9 @@ export function SettingsScreen() {
                           onPress={resetCategoryDrafts}
                           style={styles.editorSecondaryButton}
                         >
-                          <Text style={styles.editorSecondaryText}>Cancel</Text>
+                          <Text style={styles.editorSecondaryText}>
+                            {t(language, 'common.cancel')}
+                          </Text>
                         </Pressable>
                       </View>
                     </View>
@@ -2178,6 +2193,7 @@ export function SettingsScreen() {
                     isDeleteDisabled={isOtherCategory}
                     isDisabled={isCategoriesLoading}
                     isOpen={openSwipeCategoryId === category.id}
+                    language={language}
                     onDelete={handleArchiveCategory}
                     onEdit={handleStartEditCategory}
                     onSwipeClose={handleCategorySwipeClose}
@@ -2199,19 +2215,21 @@ export function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>General</Text>
+            <Text style={styles.sectionTitle}>
+              {t(language, 'settings.general')}
+            </Text>
 
             <View style={styles.rowGroup}>
               <SettingsRow
                 subtitle={
                   isAuthenticated
-                    ? 'You signed in with this email when authenticated.'
-                    : 'Using local guest mode on this device.'
+                    ? t(language, 'settings.authenticatedSubtitle')
+                    : t(language, 'settings.guestSubtitle')
                 }
                 title={
                   isAuthenticated
                     ? getAccountDisplayName(authUser)
-                    : 'Guest account'
+                    : t(language, 'settings.guestAccount')
                 }
                 trailing={
                   isAuthenticated ? (
@@ -2223,7 +2241,9 @@ export function SettingsScreen() {
                       }}
                     >
                       <ActionText destructive disabled={isSignOutDisabled}>
-                        {isAuthBusy ? 'Signing out...' : 'Sign out'}
+                        {isAuthBusy
+                          ? t(language, 'settings.signingOut')
+                          : t(language, 'settings.signOut')}
                       </ActionText>
                     </Pressable>
                   ) : null
@@ -2232,8 +2252,8 @@ export function SettingsScreen() {
 
               <SettingsRow
                 disabled={!isAuthenticated}
-                subtitle="If you delete your account you will lose all current data."
-                title="Manage your account"
+                subtitle={t(language, 'settings.manageAccountSubtitle')}
+                title={t(language, 'settings.manageAccount')}
                 trailing={
                   <Pressable
                     accessibilityRole="button"
@@ -2245,8 +2265,8 @@ export function SettingsScreen() {
                       disabled={isDeleteAccountDisabled || !isAuthenticated}
                     >
                       {isDeletingAccount
-                        ? 'Deleting account...'
-                        : 'Delete account'}
+                        ? t(language, 'settings.deletingAccount')
+                        : t(language, 'settings.deleteAccount')}
                     </ActionText>
                   </Pressable>
                 }
@@ -2257,10 +2277,12 @@ export function SettingsScreen() {
                 onPress={() => {
                   void handleImportPress();
                 }}
-                title="Import Data"
+                title={t(language, 'settings.importData')}
                 trailing={
                   <ActionText disabled={isImportDisabled}>
-                    {isImporting ? 'Importing...' : 'Import CSV'}
+                    {isImporting
+                      ? t(language, 'settings.importing')
+                      : t(language, 'settings.importCsv')}
                   </ActionText>
                 }
               />
@@ -2270,10 +2292,12 @@ export function SettingsScreen() {
                 onPress={() => {
                   void handleExportPress();
                 }}
-                title="Export Data"
+                title={t(language, 'settings.exportData')}
                 trailing={
                   <ActionText disabled={isExportDisabled}>
-                    {isExporting ? 'Exporting...' : 'Export CSV'}
+                    {isExporting
+                      ? t(language, 'settings.exporting')
+                      : t(language, 'settings.exportCsv')}
                   </ActionText>
                 }
               />
@@ -2283,10 +2307,12 @@ export function SettingsScreen() {
                 onPress={() => {
                   void handleBackupPress();
                 }}
-                title="Backup"
+                title={t(language, 'settings.backup')}
                 trailing={
                   <ActionText disabled={isBackupDisabled}>
-                    {isBackingUp ? 'Creating backup...' : 'Create backup'}
+                    {isBackingUp
+                      ? t(language, 'settings.creatingBackup')
+                      : t(language, 'settings.createBackup')}
                   </ActionText>
                 }
               />
@@ -2296,12 +2322,12 @@ export function SettingsScreen() {
                 onPress={() => {
                   void handleRestorePress();
                 }}
-                title="Restore"
+                title={t(language, 'settings.restore')}
                 trailing={
                   <ActionText disabled={isRestoreDisabled}>
                     {isRestoring
-                      ? 'Restoring backup...'
-                      : 'Restore from backup'}
+                      ? t(language, 'settings.restoringBackup')
+                      : t(language, 'settings.restoreFromBackup')}
                   </ActionText>
                 }
               />
@@ -2313,8 +2339,12 @@ export function SettingsScreen() {
                     url: APP_LINKS.privacyPolicyUrl,
                   });
                 }}
-                title="Privacy policy"
-                trailing={<ActionText icon="arrow.up.right">Read</ActionText>}
+                title={t(language, 'settings.privacyPolicy')}
+                trailing={
+                  <ActionText icon="arrow.up.right">
+                    {t(language, 'common.read')}
+                  </ActionText>
+                }
               />
 
               <SettingsRow
@@ -2324,8 +2354,12 @@ export function SettingsScreen() {
                     url: APP_LINKS.supportUrl,
                   });
                 }}
-                title="Support"
-                trailing={<ActionText icon="arrow.up.right">Read</ActionText>}
+                title={t(language, 'settings.support')}
+                trailing={
+                  <ActionText icon="arrow.up.right">
+                    {t(language, 'common.read')}
+                  </ActionText>
+                }
               />
             </View>
 
@@ -2346,15 +2380,15 @@ export function SettingsScreen() {
                   >
                     <Text style={styles.authButtonText}>
                       {isAuthBusy
-                        ? 'Opening Google...'
-                        : 'Continue with Google'}
+                        ? t(language, 'settings.openingGoogle')
+                        : t(language, 'settings.continueGoogle')}
                     </Text>
                   </Pressable>
                 ) : null}
 
                 {shouldShowAppleAuth ? (
                   <AppleAuthentication.AppleAuthenticationButton
-                    accessibilityLabel="Continue with Apple"
+                    accessibilityLabel={t(language, 'settings.continueApple')}
                     buttonStyle={
                       AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
                     }
@@ -2380,7 +2414,7 @@ export function SettingsScreen() {
             ) : null}
             {authError ? (
               <Text style={styles.errorText}>
-                Could not update account. Try again.
+                {t(language, 'settings.accountUpdateError')}
               </Text>
             ) : null}
             {deleteAccountError ? (
@@ -2404,7 +2438,7 @@ export function SettingsScreen() {
             ) : null}
             {isRestoreEmpty ? (
               <Text style={styles.infoText}>
-                No backup found for this account.
+                {t(language, 'settings.noBackupFound')}
               </Text>
             ) : null}
             {restoreError ? (
@@ -2439,6 +2473,7 @@ export function SettingsScreen() {
       <OptionSheet
         draftCurrency={draftCurrency}
         draftLanguage={draftLanguage}
+        language={language}
         onApply={() => {
           void handleApplySheet();
         }}

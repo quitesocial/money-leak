@@ -1,5 +1,12 @@
 import type { Transaction } from '@/types/transaction';
-import { getReferenceDate, getValidDate } from '@/lib/date-utils';
+import {
+  addDays,
+  getReferenceDate,
+  getStartOfDay,
+  getValidDate,
+} from '@/lib/date-utils';
+import { formatLanguageDate, t } from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 
 export type PeriodScope = 'yesterday' | 'today' | 'this_week' | 'custom_date';
 
@@ -23,28 +30,6 @@ type FilterItemsByPeriodParams<T extends { createdAt: number }> = {
   selectedCustomDateStart?: number | null;
   now?: number | Date;
 };
-
-const customDateFormatter = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-});
-
-function getStartOfDay(referenceDate: Date) {
-  const startOfDay = new Date(referenceDate);
-
-  startOfDay.setHours(0, 0, 0, 0);
-
-  return startOfDay;
-}
-
-function addDays(referenceDate: Date, days: number) {
-  const nextDate = new Date(referenceDate);
-
-  nextDate.setDate(nextDate.getDate() + days);
-  nextDate.setHours(0, 0, 0, 0);
-
-  return nextDate;
-}
 
 export function getLocalDayStartTimestamp(
   value: number | Date | null | undefined,
@@ -118,24 +103,35 @@ function getPeriodRange({
 export function getPeriodLabel(
   period: PeriodScope,
   selectedCustomDateStart?: number | null,
+  language?: SupportedLanguage,
 ) {
   switch (period) {
     case 'yesterday':
-      return 'Yesterday';
+      return language ? t(language, 'period.yesterday') : 'Yesterday';
     case 'today':
-      return 'Today';
+      return language ? t(language, 'period.today') : 'Today';
     case 'this_week':
-      return 'This week';
+      return language ? t(language, 'period.thisWeek') : 'This week';
     case 'custom_date': {
       const customDateStartTime = getLocalDayStartTimestamp(
         selectedCustomDateStart,
       );
 
-      if (customDateStartTime === null) return 'Choose date';
+      if (customDateStartTime === null) {
+        return language ? t(language, 'common.chooseDate') : 'Choose date';
+      }
 
-      return `Choose date: ${customDateFormatter.format(
-        new Date(customDateStartTime),
-      )}`;
+      const date = new Date(customDateStartTime);
+      const formattedDate = language
+        ? formatLanguageDate(language, date, { month: 'short', day: 'numeric' })
+        : new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+          }).format(date);
+
+      return language
+        ? t(language, 'period.customDate', { date: formattedDate })
+        : `Choose date: ${formattedDate}`;
     }
   }
 }

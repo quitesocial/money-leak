@@ -4,6 +4,8 @@ import {
   type CategoryIconName,
 } from '@/lib/category-icons';
 import { getReadableCategoryNameFromId } from '@/lib/category-utils';
+import { getDefaultCategoryName } from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import type { Category } from '@/types/category';
 import { TRANSACTION_CATEGORIES } from '@/types/transaction';
 
@@ -14,9 +16,19 @@ const defaultCategoryOrder = new Map<string, number>(
 export function getCategoryDisplayName(
   categoryId: string,
   categories: Category[],
+  language?: SupportedLanguage,
 ) {
+  const category = categories.find((candidate) => candidate.id === categoryId);
+
+  if (category) {
+    return category.isDefault
+      ? ((language ? getDefaultCategoryName(language, category.id) : null) ??
+          category.name)
+      : category.name;
+  }
+
   return (
-    categories.find((category) => category.id === categoryId)?.name ??
+    (language ? getDefaultCategoryName(language, categoryId) : null) ??
     getReadableCategoryNameFromId(categoryId)
   );
 }

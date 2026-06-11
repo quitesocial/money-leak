@@ -1,16 +1,22 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import {
-  act,
-  create,
-  type ReactTestInstance,
-  type ReactTestRenderer,
-} from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import { AddBalanceScreen } from '@/features/add-balance/add-balance-screen';
 import { normalizeBalanceTypeName } from '@/lib/balance-utils';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
+import {
+  enterText,
+  expectNoText,
+  expectText,
+  findByTestID,
+  findSelectedButton,
+  flushPromises,
+  getNodeText,
+  pressAccessibleButton,
+  pressButton,
+} from '@/test-utils/react-test-renderer';
 import type {
   BalanceEntry,
   BalanceEntryInput,
@@ -38,6 +44,7 @@ const mockSelectedTestDate = new Date(2026, 10, 12, 0, 0, 0, 0);
 const mockText = Text;
 const mockView = View;
 let mockSettingsCurrency: SettingsCurrency = 'Euro';
+let mockSettingsLanguage = 'English';
 
 type MockBalanceStoreState = {
   balanceEntries: BalanceEntry[];
@@ -119,6 +126,10 @@ jest.mock('@/lib/use-settings-currency', () => ({
   useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
+jest.mock('@/lib/use-settings-language', () => ({
+  useSettingsLanguage: () => mockSettingsLanguage,
+}));
+
 jest.mock('@/store/balance-store', () => ({
   useBalanceStore: Object.assign(
     (selector: (state: MockBalanceStoreState) => unknown) => {
@@ -134,17 +145,17 @@ function createBalanceType(
   overrides: Partial<BalanceType> & Pick<BalanceType, 'id'>,
 ): BalanceType {
   return {
-    id: overrides.id,
-    ownerId: overrides.ownerId ?? 'local_test-owner',
-    name: overrides.name ?? overrides.id,
-    createdAt: overrides.createdAt ?? 1,
-    updatedAt: overrides.updatedAt ?? 1,
-    isDefault: overrides.isDefault ?? false,
-    isArchived: overrides.isArchived ?? false,
-    deletedAt: overrides.deletedAt ?? null,
-    schemaVersion: overrides.schemaVersion ?? 1,
-    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
-    sortOrder: overrides.sortOrder ?? 1,
+    ownerId: 'local_test-owner',
+    name: overrides.id,
+    createdAt: 1,
+    updatedAt: 1,
+    isDefault: false,
+    isArchived: false,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test-device',
+    sortOrder: 1,
+    ...overrides,
   };
 }
 
@@ -154,15 +165,15 @@ function createBalanceEntry(
   const createdAt = overrides.createdAt ?? 1;
 
   return {
-    id: overrides.id,
-    ownerId: overrides.ownerId ?? 'local_test-owner',
-    amount: overrides.amount ?? 100,
-    typeId: overrides.typeId ?? 'salary',
+    ownerId: 'local_test-owner',
+    amount: 100,
+    typeId: 'salary',
     createdAt,
-    updatedAt: overrides.updatedAt ?? createdAt,
-    deletedAt: overrides.deletedAt ?? null,
-    schemaVersion: overrides.schemaVersion ?? 1,
-    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
+    updatedAt: createdAt,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test-device',
+    ...overrides,
   };
 }
 
@@ -192,165 +203,48 @@ function resetBalanceTypes() {
   mockBalanceStoreState.activeBalanceTypes = balanceTypes;
 }
 
-function getNodeText(node: any): string {
-  if (typeof node === 'string') return node;
-
-  return node.children
-    .map((child: any) => {
-      return typeof child === 'string' ? child : getNodeText(child);
-    })
-    .join('');
-}
-
-function findButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onPress === 'function' &&
-      getNodeText(node).includes(label)
-    );
-  }) as ReactTestInstance & {
-    props: {
-      accessibilityState?: { selected?: boolean };
-      onPress: () => void;
-    };
-  };
-}
-
-function findTextInput(renderer: ReactTestRenderer, placeholder: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onChangeText === 'function' &&
-      node.props.placeholder === placeholder
-    );
-  }) as ReactTestInstance & {
-    props: {
-      onChangeText: (value: string) => void;
-    };
-  };
-}
-
-function findAccessibleButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onPress === 'function' &&
-      node.props.accessibilityLabel === label
-    );
-  }) as ReactTestInstance & {
-    props: {
-      onPress: () => void;
-    };
-  };
-}
-
-function findByTestID(renderer: ReactTestRenderer, testID: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return node.props.testID === testID;
-  }) as ReactTestInstance & {
-    props: {
-      onPress: () => void;
-    };
-  };
-}
-
 function findSelectedTypeButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    const accessibilityState = node.props.accessibilityState as
-      | { selected?: boolean }
-      | undefined;
-
-    return (
-      typeof node.props.onPress === 'function' &&
-      accessibilityState?.selected === true &&
-      getNodeText(node).includes(label)
-    );
-  });
+  return findSelectedButton(renderer, label);
 }
 
-function expectText(renderer: ReactTestRenderer, text: string) {
-  expect(getNodeText(renderer.root)).toContain(text);
-}
-
-function expectNoText(renderer: ReactTestRenderer, text: string) {
-  expect(getNodeText(renderer.root)).not.toContain(text);
-}
-
-async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
-async function renderAddBalanceScreen() {
-  const renderResult: { renderer: ReactTestRenderer | null } = {
-    renderer: null,
-  };
-
-  await act(async () => {
-    renderResult.renderer = create(React.createElement(AddBalanceScreen));
-    await flushPromises();
-  });
-
-  if (!renderResult.renderer) {
-    throw new Error('Add Balance screen did not render.');
-  }
-
-  return renderResult.renderer;
-}
-
-async function renderEditBalanceScreen(initialEntry: BalanceEntry) {
+async function renderBalanceScreen(
+  props?: React.ComponentProps<typeof AddBalanceScreen>,
+) {
   const renderResult: { renderer: ReactTestRenderer | null } = {
     renderer: null,
   };
 
   await act(async () => {
     renderResult.renderer = create(
-      React.createElement(AddBalanceScreen, {
-        initialEntry,
-        onSubmit: mockUpdateBalanceEntry,
-        submitLabel: 'Save Changes',
-        title: 'Edit Balance',
-      }),
+      React.createElement(AddBalanceScreen, props),
     );
     await flushPromises();
   });
 
   if (!renderResult.renderer) {
-    throw new Error('Edit Balance screen did not render.');
+    throw new Error('Balance screen did not render.');
   }
 
   return renderResult.renderer;
 }
 
-async function enterText(
-  renderer: ReactTestRenderer,
-  placeholder: string,
-  value: string,
-) {
-  await act(async () => {
-    findTextInput(renderer, placeholder).props.onChangeText(value);
-    await flushPromises();
-  });
+async function renderAddBalanceScreen() {
+  return renderBalanceScreen();
 }
 
-async function pressButton(renderer: ReactTestRenderer, label: string) {
-  await act(async () => {
-    findButton(renderer, label).props.onPress();
-    await flushPromises();
-  });
-}
-
-async function pressAccessibleButton(
-  renderer: ReactTestRenderer,
-  label: string,
-) {
-  await act(async () => {
-    findAccessibleButton(renderer, label).props.onPress();
-    await flushPromises();
+async function renderEditBalanceScreen(initialEntry: BalanceEntry) {
+  return renderBalanceScreen({
+    initialEntry,
+    onSubmit: mockUpdateBalanceEntry,
+    submitLabel: 'Save Changes',
+    title: 'Edit Balance',
   });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockSettingsCurrency = 'Euro';
+  mockSettingsLanguage = 'English';
 
   resetBalanceTypes();
 
@@ -435,7 +329,10 @@ describe('AddBalanceScreen', () => {
     await pressAccessibleButton(renderer, 'Choose balance date');
 
     await act(async () => {
-      findByTestID(renderer, 'mock-date-picker-confirm').props.onPress();
+      findByTestID<{ onPress: () => void }>(
+        renderer,
+        'mock-date-picker-confirm',
+      ).props.onPress();
       await flushPromises();
     });
 
@@ -566,7 +463,7 @@ describe('AddBalanceScreen', () => {
     const renderer = await renderAddBalanceScreen();
 
     await enterText(renderer, '0.00', '100');
-    await pressButton(renderer, 'Regalo');
+    await pressButton(renderer, 'Gift');
     await pressButton(renderer, 'Save Balance');
 
     expect(mockRouter.back).not.toHaveBeenCalled();

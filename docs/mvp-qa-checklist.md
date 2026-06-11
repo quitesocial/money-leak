@@ -3250,3 +3250,41 @@ Manual QA:
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
 - No forbidden UI dependency, backend/API/bank integration, raw backend error, env value, token, owner ID, localOwnerId, device ID, or row payload exposure is added.
+
+## ML-89 Runtime Language Switch
+
+### 61. Language display, persistence, and data contract regressions
+
+**Preconditions**
+
+- Use local data with default categories, at least one custom category, default balance types, at least one custom balance type, transactions, and balance additions.
+- Test every selectable Settings language: English, German, French, Spanish, Portuguese, Italian, Chinese, Russian, and Indian.
+- Restart the app at least once after applying a non-English language.
+
+**Steps**
+
+1. Open `Settings` > `Language`, select a draft option, close with `x`, and confirm the visible Settings value did not change.
+2. Reopen `Language`, select a language, apply with the checkmark, and confirm Settings updates without reinstalling the app.
+3. Restart the app and confirm the selected language is still visible in Settings and applied to runtime UI.
+4. For each supported language, review bottom tabs, Home, Analytics & Leaks, Settings, Add Transaction, Add Balance, Edit Transaction, and Edit Balance.
+5. In Home and Analytics, confirm period labels, custom period controls, month labels, weekday labels, loading states, empty states, row labels, and confirmation alerts use the selected language.
+6. Confirm default category names and default balance type names are displayed through the selected language.
+7. Confirm custom category names, custom balance type names, transaction notes, account/profile values, and imported data are not translated.
+8. Save a transaction after changing language and confirm the stored payload still uses the stable category ID only.
+9. Save a balance addition after changing language and confirm the stored payload still uses `typeId` only.
+10. Export and import Transaction CSV v1 and confirm the header remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+11. Run backup, restore, manual sync, and foreground sync regression checks where available.
+12. Confirm ML-88 route cleanup is preserved: no Shame Card route/screen and no separate Categories route.
+
+**Expected result**
+
+- English remains the default/fallback language.
+- Settings Language sheet still stages draft selections, cancels without applying, and applies only with the checkmark.
+- Applying language updates Settings and bottom tab labels predictably without reinstalling the app.
+- Runtime UI strings use the selected language, while user-generated data remains unchanged.
+- `Indian` remains the persisted selectable option and displays Hindi runtime UI copy.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`; no language column is added.
+- Backup/restore/sync DTOs and Supabase schemas remain unchanged.
+- Currency behavior from ML-88 remains display-only and unchanged.
+- Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
+- No forbidden UI dependency, backend/auth/API/bank integration, Supabase migration, service-role/admin mobile usage, raw backend error, env value, token, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.

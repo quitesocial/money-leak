@@ -12,6 +12,17 @@ import { AddTransactionScreen } from '@/features/add-transaction/add-transaction
 import type { CategoryIconName } from '@/lib/category-icons';
 import { normalizeCategoryName } from '@/lib/category-utils';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
+import {
+  enterText,
+  expectNoText,
+  expectText,
+  findAccessibleButton,
+  findByTestID,
+  findSelectedButton,
+  flushPromises,
+  pressAccessibleButton,
+  pressButton,
+} from '@/test-utils/react-test-renderer';
 import type { Category } from '@/types/category';
 import type { TransactionInput } from '@/types/transaction';
 
@@ -50,6 +61,7 @@ const mockUseCategoriesRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
 let mockSettingsCurrency: SettingsCurrency = 'Euro';
+let mockSettingsLanguage = 'English';
 let mockLatestDatePickerProps: LocalDatePickerMockProps | null = null;
 
 type MockCategoriesStoreState = {
@@ -92,8 +104,10 @@ const mockTransactionsStoreState: MockTransactionsStoreState = {
 };
 
 const mockUseCategoriesStore = jest.fn(
-  (selector: (state: MockCategoriesStoreState) => unknown) => {
-    return selector(mockCategoriesStoreState);
+  (selector?: (state: MockCategoriesStoreState) => unknown) => {
+    return selector
+      ? selector(mockCategoriesStoreState)
+      : mockCategoriesStoreState;
   },
 );
 
@@ -143,9 +157,13 @@ jest.mock('@/lib/use-settings-currency', () => ({
   useSettingsCurrency: () => mockSettingsCurrency,
 }));
 
+jest.mock('@/lib/use-settings-language', () => ({
+  useSettingsLanguage: () => mockSettingsLanguage,
+}));
+
 jest.mock('@/store/categories-store', () => ({
   useCategoriesStore: Object.assign(
-    (selector: (state: MockCategoriesStoreState) => unknown) => {
+    (selector?: (state: MockCategoriesStoreState) => unknown) => {
       return mockUseCategoriesStore(selector);
     },
     {
@@ -165,20 +183,22 @@ jest.mock('@/store/transactions-store', () => ({
   ),
 }));
 
-function createCategory(overrides: Partial<Category> & Pick<Category, 'id'>) {
+function createCategory(
+  overrides: Partial<Category> & Pick<Category, 'id'>,
+): Category {
   return {
-    id: overrides.id,
-    ownerId: overrides.ownerId ?? 'local_test-owner',
-    name: overrides.name ?? overrides.id,
-    iconName: overrides.iconName ?? 'tag',
-    createdAt: overrides.createdAt ?? 1,
-    updatedAt: overrides.updatedAt ?? 1,
-    isDefault: overrides.isDefault ?? false,
-    isArchived: overrides.isArchived ?? false,
-    deletedAt: overrides.deletedAt ?? null,
-    schemaVersion: overrides.schemaVersion ?? 1,
-    sourceDeviceId: overrides.sourceDeviceId ?? 'device_test-device',
-    sortOrder: overrides.sortOrder ?? 1,
+    ownerId: 'local_test-owner',
+    name: overrides.id,
+    iconName: 'tag',
+    createdAt: 1,
+    updatedAt: 1,
+    isDefault: false,
+    isArchived: false,
+    deletedAt: null,
+    schemaVersion: 1,
+    sourceDeviceId: 'device_test-device',
+    sortOrder: 1,
+    ...overrides,
   };
 }
 
@@ -212,91 +232,11 @@ function resetCategories() {
   );
 }
 
-function getNodeText(node: any): string {
-  if (typeof node === 'string') return node;
-
-  return node.children
-    .map((child: any) => {
-      return typeof child === 'string' ? child : getNodeText(child);
-    })
-    .join('');
-}
-
-function findButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onPress === 'function' &&
-      getNodeText(node).includes(label)
-    );
-  }) as ReactTestInstance & {
-    props: {
-      accessibilityState?: { selected?: boolean };
-      onPress: () => void;
-    };
-  };
-}
-
-function findTextInput(renderer: ReactTestRenderer, placeholder: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onChangeText === 'function' &&
-      node.props.placeholder === placeholder
-    );
-  }) as ReactTestInstance & {
-    props: {
-      onChangeText: (value: string) => void;
-    };
-  };
-}
-
-function findByTestID(renderer: ReactTestRenderer, testID: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return node.props.testID === testID;
-  });
-}
-
-function findAccessibleButton(renderer: ReactTestRenderer, label: string) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    return (
-      typeof node.props.onPress === 'function' &&
-      node.props.accessibilityLabel === label
-    );
-  }) as ReactTestInstance & {
-    props: {
-      accessibilityState?: { selected?: boolean };
-      onPress: () => void;
-    };
-  };
-}
-
 function findSelectedCategoryButton(
   renderer: ReactTestRenderer,
   label: string,
 ) {
-  return renderer.root.find((node: ReactTestInstance) => {
-    const accessibilityState = node.props.accessibilityState as
-      | { selected?: boolean }
-      | undefined;
-
-    return (
-      typeof node.props.onPress === 'function' &&
-      accessibilityState?.selected === true &&
-      getNodeText(node).includes(label)
-    );
-  });
-}
-
-function expectText(renderer: ReactTestRenderer, text: string) {
-  expect(getNodeText(renderer.root)).toContain(text);
-}
-
-function expectNoText(renderer: ReactTestRenderer, text: string) {
-  expect(getNodeText(renderer.root)).not.toContain(text);
-}
-
-async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
+  return findSelectedButton(renderer, label);
 }
 
 async function renderAddTransactionScreen() {
@@ -312,34 +252,6 @@ async function renderAddTransactionScreen() {
   }
 
   return renderer;
-}
-
-async function enterText(
-  renderer: ReactTestRenderer,
-  placeholder: string,
-  value: string,
-) {
-  await act(async () => {
-    findTextInput(renderer, placeholder).props.onChangeText(value);
-    await flushPromises();
-  });
-}
-
-async function pressButton(renderer: ReactTestRenderer, label: string) {
-  await act(async () => {
-    findButton(renderer, label).props.onPress();
-    await flushPromises();
-  });
-}
-
-async function pressAccessibleButton(
-  renderer: ReactTestRenderer,
-  label: string,
-) {
-  await act(async () => {
-    findAccessibleButton(renderer, label).props.onPress();
-    await flushPromises();
-  });
 }
 
 async function selectDate(renderer: ReactTestRenderer, date: Date) {
@@ -359,6 +271,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockLatestDatePickerProps = null;
   mockSettingsCurrency = 'Euro';
+  mockSettingsLanguage = 'English';
 
   resetCategories();
 

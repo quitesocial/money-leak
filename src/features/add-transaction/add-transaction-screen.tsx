@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryIconPicker } from '@/components/category-icon-picker';
 import { LocalDatePicker } from '@/components/local-date-picker';
+import { parseAmountText } from '@/lib/amount-input';
 import {
   CATEGORY_ICON_FALLBACK_NAME,
   getCategoryIcon,
@@ -25,9 +26,17 @@ import {
   normalizeCategoryName,
   validateCategoryName,
 } from '@/lib/category-utils';
-import { formatLabel, getCurrencySymbol } from '@/lib/display-formatters';
+import { getCurrencySymbol } from '@/lib/display-formatters';
+import {
+  formatLanguageDate,
+  getDefaultCategoryName,
+  getLeakReasonLabel,
+  t,
+} from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useSettingsCurrency } from '@/lib/use-settings-currency';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import type { Category } from '@/types/category';
@@ -41,16 +50,6 @@ import {
 type ScreenMode = 'transaction' | 'addCategory';
 type ScrollTarget = 'reason' | 'category';
 type TransactionType = 'normal' | 'leak';
-
-type AmountParseResult =
-  | {
-      amount: number;
-      error: null;
-    }
-  | {
-      amount: null;
-      error: string;
-    };
 
 type HeaderProps = {
   onBackPress: () => void;
@@ -76,6 +75,7 @@ type ChipProps = {
 type CategoryChipProps = {
   category: Category;
   isSelected: boolean;
+  language: SupportedLanguage;
   onPress: () => void;
 };
 
@@ -97,12 +97,6 @@ const TITLE_FONT_WEIGHT = Platform.select({
   default: '800' as const,
 });
 
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
-
 const leakReasonSet = new Set<string>(LEAK_REASONS);
 
 function generateTransactionId() {
@@ -113,47 +107,12 @@ function generateTransactionId() {
   return `transaction-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function parseAmountText(amountText: string): AmountParseResult {
-  const trimmedAmount = amountText.trim();
-
-  if (!trimmedAmount) {
-    return {
-      amount: null,
-      error: 'Enter an amount.',
-    };
-  }
-
-  if (!/^\d+([.,]\d+)?$/.test(trimmedAmount)) {
-    return {
-      amount: null,
-      error: 'Use a number like 12.50.',
-    };
-  }
-
-  const amount = Number(trimmedAmount.replace(',', '.'));
-
-  if (!Number.isFinite(amount)) {
-    return {
-      amount: null,
-      error: 'Use a number like 12.50.',
-    };
-  }
-
-  if (amount <= 0) {
-    return {
-      amount: null,
-      error: 'Amount must be greater than 0.',
-    };
-  }
-
-  return {
-    amount,
-    error: null,
-  };
-}
-
-function formatDateLabel(date: Date) {
-  return dateFormatter.format(date);
+function formatDateLabel(date: Date, language: SupportedLanguage) {
+  return formatLanguageDate(language, date, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function isSupportedLeakReason(value: LeakReason | null) {
@@ -262,7 +221,12 @@ function CategoryIconGlyph({
   );
 }
 
-function CategoryChip({ category, isSelected, onPress }: CategoryChipProps) {
+function CategoryChip({
+  category,
+  isSelected,
+  language,
+  onPress,
+}: CategoryChipProps) {
   const contentColor = isSelected ? '#ffffff' : '#100f10';
   const icon = getCategoryIcon(category.iconName);
 
@@ -282,7 +246,9 @@ function CategoryChip({ category, isSelected, onPress }: CategoryChipProps) {
       />
 
       <Text style={[styles.chipText, { color: contentColor }]}>
-        {category.name}
+        {category.isDefault
+          ? (getDefaultCategoryName(language, category.id) ?? category.name)
+          : category.name}
       </Text>
     </Pressable>
   );
@@ -333,6 +299,7 @@ function getCategoryByNormalizedName({
 export function AddTransactionScreen() {
   const router = useRouter();
   const currency = useSettingsCurrency();
+  const language = useSettingsLanguage();
   const amountInputRef = useRef<TextInput>(null);
   const categoryNameInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -348,18 +315,16 @@ export function AddTransactionScreen() {
   const isTransactionLoading = useTransactionsStore((state) => state.isLoading);
   const transactionError = useTransactionsStore((state) => state.error);
 
-  const categories = useCategoriesStore((state) => state.categories);
-  const activeCategories = useCategoriesStore(
-    (state) => state.activeCategories,
-  );
-  const isCategoriesLoading = useCategoriesStore((state) => state.isLoading);
-  const isCategoriesInitialized = useCategoriesStore(
-    (state) => state.isInitialized,
-  );
-  const categoriesError = useCategoriesStore((state) => state.error);
-  const loadCategories = useCategoriesStore((state) => state.loadCategories);
-  const addCategory = useCategoriesStore((state) => state.addCategory);
-  const clearCategoriesError = useCategoriesStore((state) => state.clearError);
+  const {
+    categories,
+    activeCategories,
+    isLoading: isCategoriesLoading,
+    isInitialized: isCategoriesInitialized,
+    error: categoriesError,
+    loadCategories,
+    addCategory,
+    clearError: clearCategoriesError,
+  } = useCategoriesStore();
 
   const [screenMode, setScreenMode] = useState<ScreenMode>('transaction');
   const [amountText, setAmountText] = useState('');
@@ -528,11 +493,13 @@ export function AddTransactionScreen() {
   }
 
   function validateTransactionForm() {
-    const amountResult = parseAmountText(amountText);
-    const nextTypeError = transactionType ? null : 'Choose Normal or Leak.';
+    const amountResult = parseAmountText(amountText, language);
+    const nextTypeError = transactionType
+      ? null
+      : t(language, 'form.chooseType');
     const nextLeakReasonError =
       transactionType === 'leak' && !isSupportedLeakReason(selectedLeakReason)
-        ? 'Choose why this felt like a leak.'
+        ? t(language, 'form.chooseLeakReason')
         : null;
     const validCategoryIds = new Set(
       visibleCategories.map((category) => category.id),
@@ -541,7 +508,7 @@ export function AddTransactionScreen() {
       !shouldShowCategory ||
       (selectedCategory && validCategoryIds.has(selectedCategory))
         ? null
-        : 'Choose a category.';
+        : t(language, 'form.chooseCategory');
 
     setAmountError(amountResult.error);
     setTypeError(nextTypeError);
@@ -655,8 +622,8 @@ export function AddTransactionScreen() {
               onBackPress={handleHeaderBackPress}
               title={
                 screenMode === 'addCategory'
-                  ? 'Add Category'
-                  : 'Add Transaction'
+                  ? t(language, 'transaction.addCategoryTitle')
+                  : t(language, 'transaction.addTitle')
               }
             />
 
@@ -664,7 +631,7 @@ export function AddTransactionScreen() {
               <View style={styles.contentColumn}>
                 <View style={styles.formGroup}>
                   <View style={styles.field}>
-                    <FieldLabel>Amount</FieldLabel>
+                    <FieldLabel>{t(language, 'form.amount')}</FieldLabel>
 
                     <View
                       style={[
@@ -697,7 +664,7 @@ export function AddTransactionScreen() {
                   </View>
 
                   <View style={styles.field}>
-                    <FieldLabel>Date</FieldLabel>
+                    <FieldLabel>{t(language, 'common.date')}</FieldLabel>
 
                     <Pressable
                       accessibilityRole="button"
@@ -711,19 +678,19 @@ export function AddTransactionScreen() {
                         size={17}
                       />
                       <Text style={styles.dateButtonText}>
-                        {formatDateLabel(selectedDate)}
+                        {formatDateLabel(selectedDate, language)}
                       </Text>
                     </Pressable>
                   </View>
 
                   <View style={styles.field}>
-                    <FieldLabel>Type</FieldLabel>
+                    <FieldLabel>{t(language, 'common.type')}</FieldLabel>
 
                     <View style={styles.chipList}>
                       <Chip
                         fallbackSymbol="N"
                         isSelected={transactionType === 'normal'}
-                        label="Normal"
+                        label={t(language, 'common.normal')}
                         onPress={() => handleTransactionTypePress('normal')}
                         symbolName="hand.thumbsup"
                       />
@@ -731,7 +698,7 @@ export function AddTransactionScreen() {
                       <Chip
                         fallbackSymbol="L"
                         isSelected={transactionType === 'leak'}
-                        label="Leak"
+                        label={t(language, 'home.leak')}
                         onPress={() => handleTransactionTypePress('leak')}
                         symbolName="drop.halffull"
                       />
@@ -752,14 +719,14 @@ export function AddTransactionScreen() {
                       }}
                       style={styles.field}
                     >
-                      <FieldLabel>Reason</FieldLabel>
+                      <FieldLabel>{t(language, 'common.reason')}</FieldLabel>
 
                       <View style={styles.chipList}>
                         {LEAK_REASONS.map((reason) => (
                           <Chip
                             key={reason}
                             isSelected={selectedLeakReason === reason}
-                            label={formatLabel(reason)}
+                            label={getLeakReasonLabel(language, reason)}
                             onPress={() => handleLeakReasonPress(reason)}
                           />
                         ))}
@@ -785,7 +752,7 @@ export function AddTransactionScreen() {
                     style={styles.categoryPanel}
                   >
                     <View style={styles.sectionHeader}>
-                      <FieldLabel>Category</FieldLabel>
+                      <FieldLabel>{t(language, 'common.category')}</FieldLabel>
 
                       <Pressable
                         accessibilityRole="button"
@@ -798,7 +765,9 @@ export function AddTransactionScreen() {
                           name="plus"
                           size={16}
                         />
-                        <Text style={styles.addCategoryLinkText}>Add</Text>
+                        <Text style={styles.addCategoryLinkText}>
+                          {t(language, 'common.add')}
+                        </Text>
                       </Pressable>
                     </View>
 
@@ -811,6 +780,7 @@ export function AddTransactionScreen() {
                             category={category}
                             key={category.id}
                             isSelected={isSelected}
+                            language={language}
                             onPress={() => handleCategoryPress(category.id)}
                           />
                         );
@@ -818,13 +788,15 @@ export function AddTransactionScreen() {
                     </View>
 
                     {!isCategoriesInitialized ? (
-                      <Text style={styles.metaText}>Loading categories...</Text>
+                      <Text style={styles.metaText}>
+                        {t(language, 'form.loadingCategories')}
+                      </Text>
                     ) : null}
 
                     {isCategoriesInitialized &&
                     visibleCategories.length === 0 ? (
                       <Text style={styles.metaText}>
-                        Add a category before saving.
+                        {t(language, 'transaction.addCategoryBeforeSaving')}
                       </Text>
                     ) : null}
 
@@ -847,7 +819,7 @@ export function AddTransactionScreen() {
               <View style={styles.contentColumn}>
                 <View style={styles.formGroup}>
                   <View style={styles.field}>
-                    <FieldLabel>Name</FieldLabel>
+                    <FieldLabel>{t(language, 'common.name')}</FieldLabel>
 
                     <TextInput
                       ref={categoryNameInputRef}
@@ -860,7 +832,10 @@ export function AddTransactionScreen() {
                       onSubmitEditing={() => {
                         void handleSaveCategory();
                       }}
-                      placeholder="Travel"
+                      placeholder={t(
+                        language,
+                        'transaction.categoryNamePlaceholder',
+                      )}
                       returnKeyType="done"
                       style={[
                         styles.nameInput,
@@ -880,7 +855,7 @@ export function AddTransactionScreen() {
 
                   <View style={styles.field}>
                     <Text style={styles.label}>
-                      Icon <Text style={styles.optionalLabel}>(optional)</Text>
+                      {t(language, 'transaction.iconOptional')}
                     </Text>
 
                     <CategoryIconPicker
@@ -900,7 +875,11 @@ export function AddTransactionScreen() {
               {screenMode === 'addCategory' ? (
                 <PrimaryAction
                   isDisabled={isCategoriesLoading}
-                  label={isCategoriesLoading ? 'Saving...' : 'Save Category'}
+                  label={
+                    isCategoriesLoading
+                      ? t(language, 'common.saving')
+                      : t(language, 'transaction.saveCategory')
+                  }
                   onPress={() => {
                     void handleSaveCategory();
                   }}
@@ -908,7 +887,7 @@ export function AddTransactionScreen() {
               ) : (
                 <PrimaryAction
                   isDisabled={isSaveDisabled}
-                  label="Save"
+                  label={t(language, 'transaction.save')}
                   onPress={() => {
                     void handleSaveTransaction();
                   }}

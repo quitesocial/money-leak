@@ -4,6 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AddBalanceScreen } from '@/features/add-balance/add-balance-screen';
+import { t } from '@/lib/i18n/i18n';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useBalanceStore } from '@/store/balance-store';
 import type { BalanceEntryInput } from '@/types/balance';
 
@@ -48,6 +50,7 @@ export function EditBalanceScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const balanceEntryId = getBalanceEntryId(id);
   const router = useRouter();
+  const language = useSettingsLanguage();
 
   const balanceEntries = useBalanceStore((state) => state.balanceEntries);
   const isInitialized = useBalanceStore((state) => state.isInitialized);
@@ -73,10 +76,10 @@ export function EditBalanceScreen() {
   if (!balanceEntryId) {
     return (
       <StateScreen
-        actionLabel="Go Home"
-        message="This balance link is invalid or the addition no longer exists."
+        actionLabel={t(language, 'common.goHome')}
+        message={t(language, 'balance.invalidLink')}
         onActionPress={() => router.replace('/(tabs)')}
-        title="Balance addition not found"
+        title={t(language, 'balance.notFoundTitle')}
       />
     );
   }
@@ -85,10 +88,12 @@ export function EditBalanceScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading balance addition</Text>
+          <Text style={styles.stateTitle}>
+            {t(language, 'balance.loadingEditTitle')}
+          </Text>
 
           <Text style={styles.stateMessage}>
-            Pulling the latest saved details before you edit.
+            {t(language, 'balance.loadingEditMessage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -98,10 +103,10 @@ export function EditBalanceScreen() {
   if (!balanceEntry) {
     return (
       <StateScreen
-        actionLabel="Go Home"
-        message="This balance addition may have been deleted, or the link points to an entry that does not exist."
+        actionLabel={t(language, 'common.goHome')}
+        message={t(language, 'balance.missingEditMessage')}
         onActionPress={() => router.replace('/(tabs)')}
-        title="Balance addition not found"
+        title={t(language, 'balance.notFoundTitle')}
       />
     );
   }
@@ -110,8 +115,8 @@ export function EditBalanceScreen() {
     <AddBalanceScreen
       initialEntry={balanceEntry}
       onSubmit={handleSubmit}
-      submitLabel="Save Changes"
-      title="Edit Balance"
+      submitLabel={t(language, 'balance.saveChanges')}
+      title={t(language, 'balance.editTitle')}
     />
   );
 }

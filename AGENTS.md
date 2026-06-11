@@ -155,6 +155,7 @@ If routing, startup, or platform config changed, also verify:
 - Avoid speculative abstractions.
 - Preserve the existing folder ownership model.
 - Do not move screen logic into `app/` unless explicitly requested.
+- Route runtime system UI strings through the local i18n layer. Do not translate user-generated values or add language fields to persisted models, CSV, backup/restore, or sync contracts unless a future task explicitly scopes a data-contract migration.
 - Do not leave generated artifacts in the repo.
 
 Generated/local artifacts that should stay out of commits:

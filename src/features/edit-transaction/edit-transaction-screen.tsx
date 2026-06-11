@@ -7,6 +7,8 @@ import {
   TransactionForm,
   type TransactionFormSubmissionValues,
 } from '@/features/transaction-form/transaction-form';
+import { t } from '@/lib/i18n/i18n';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 import { useTransactionsStore } from '@/store/transactions-store';
 
 function getTransactionId(value: string | string[] | undefined) {
@@ -50,6 +52,7 @@ export function EditTransactionScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const transactionId = getTransactionId(id);
   const router = useRouter();
+  const language = useSettingsLanguage();
 
   const transactions = useTransactionsStore((state) => state.transactions);
   const isLoading = useTransactionsStore((state) => state.isLoading);
@@ -102,9 +105,9 @@ export function EditTransactionScreen() {
   if (!transactionId) {
     return (
       <StateScreen
-        title="Transaction not found"
-        message="This transaction link is invalid or the expense no longer exists."
-        actionLabel="Go Home"
+        title={t(language, 'transaction.notFoundTitle')}
+        message={t(language, 'transaction.invalidLink')}
+        actionLabel={t(language, 'common.goHome')}
         onActionPress={() => router.replace('/(tabs)')}
       />
     );
@@ -114,10 +117,12 @@ export function EditTransactionScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centeredState}>
-          <Text style={styles.stateTitle}>Loading transaction</Text>
+          <Text style={styles.stateTitle}>
+            {t(language, 'transaction.loadingEditTitle')}
+          </Text>
 
           <Text style={styles.stateMessage}>
-            Pulling the latest saved details before you edit.
+            {t(language, 'transaction.loadingEditMessage')}
           </Text>
         </View>
       </SafeAreaView>
@@ -128,9 +133,9 @@ export function EditTransactionScreen() {
     if (error) {
       return (
         <StateScreen
-          title={"Couldn't load transaction"}
+          title={t(language, 'transaction.loadEditError')}
           message={error}
-          actionLabel="Go Home"
+          actionLabel={t(language, 'common.goHome')}
           onActionPress={() => router.replace('/(tabs)')}
         />
       );
@@ -138,9 +143,9 @@ export function EditTransactionScreen() {
 
     return (
       <StateScreen
-        title="Transaction not found"
-        message="This expense may have been deleted, or the link points to a transaction that does not exist."
-        actionLabel="Go Home"
+        title={t(language, 'transaction.notFoundTitle')}
+        message={t(language, 'transaction.missingEditMessage')}
+        actionLabel={t(language, 'common.goHome')}
         onActionPress={() => router.replace('/(tabs)')}
       />
     );
@@ -153,11 +158,12 @@ export function EditTransactionScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Edit Transaction</Text>
+          <Text style={styles.title}>
+            {t(language, 'transaction.editTitle')}
+          </Text>
 
           <Text style={styles.subtitle}>
-            Update the amount, category, and leak details without changing when
-            the expense originally happened.
+            {t(language, 'transaction.editSubtitle')}
           </Text>
         </View>
 
@@ -169,7 +175,7 @@ export function EditTransactionScreen() {
             leakReason: transaction.leakReason,
             note: transaction.note,
           }}
-          submitLabel="Save Changes"
+          submitLabel={t(language, 'transaction.saveChanges')}
           isLoading={isLoading}
           error={error}
           clearError={clearError}

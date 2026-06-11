@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { t } from '@/lib/i18n/i18n';
 import { setHasCompletedOnboarding } from '@/lib/onboarding-storage';
 import {
   cancelDailyCheckInReminder,
@@ -19,33 +20,43 @@ import {
   type ReminderPermissionStatus,
 } from '@/lib/reminder-notifications';
 import { getReminderEnabled, setReminderEnabled } from '@/lib/reminder-storage';
+import { useSettingsLanguage } from '@/lib/use-settings-language';
 
 type OnboardingStep = {
-  title: string;
-  body: string;
+  titleKey:
+    | 'onboarding.step1Title'
+    | 'onboarding.step2Title'
+    | 'onboarding.step3Title'
+    | 'onboarding.step4Title';
+  bodyKey:
+    | 'onboarding.step1Body'
+    | 'onboarding.step2Body'
+    | 'onboarding.step3Body'
+    | 'onboarding.step4Body';
 };
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
-    title: 'Find where money leaks',
-    body: 'Money Leak is not about strict budgets. It is about spotting the expenses that felt pointless afterwards.',
+    titleKey: 'onboarding.step1Title',
+    bodyKey: 'onboarding.step1Body',
   },
   {
-    title: 'Mark the leaks',
-    body: 'Add expenses quickly. If a transaction was impulsive, emotional, or just dumb, mark it as a leak.',
+    titleKey: 'onboarding.step2Title',
+    bodyKey: 'onboarding.step2Body',
   },
   {
-    title: 'See the pattern',
-    body: 'The app shows how much you leaked, what triggered it, and what that money could have been instead.',
+    titleKey: 'onboarding.step3Title',
+    bodyKey: 'onboarding.step3Body',
   },
   {
-    title: 'Start simple',
-    body: 'Add one real expense today. The truth gets clearer after a few days.',
+    titleKey: 'onboarding.step4Title',
+    bodyKey: 'onboarding.step4Body',
   },
 ];
 
 export function OnboardingScreen() {
   const router = useRouter();
+  const language = useSettingsLanguage();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -81,7 +92,7 @@ export function OnboardingScreen() {
 
         if (!isMounted) return;
 
-        setReminderError("Couldn't load reminder settings. Try again.");
+        setReminderError(t(language, 'onboarding.loadReminderError'));
       } finally {
         if (isMounted) {
           setIsReminderLoading(false);
@@ -92,7 +103,7 @@ export function OnboardingScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [language]);
 
   async function completeOnboarding() {
     if (isActionBusy) return;
@@ -105,7 +116,7 @@ export function OnboardingScreen() {
       router.replace('/(tabs)');
     } catch {
       console.error('Failed to persist onboarding completion');
-      setSaveError("Couldn't finish setup. Try again.");
+      setSaveError(t(language, 'onboarding.saveError'));
       setIsSaving(false);
     }
   }
@@ -137,10 +148,10 @@ export function OnboardingScreen() {
           setIsReminderEnabled(false);
           setReminderError(
             permissionStatus === 'denied'
-              ? 'Notifications are off for Money Leak. Turn them on in system settings to get the daily check-in.'
+              ? t(language, 'reminder.permissionDenied')
               : permissionStatus === 'unsupported'
-                ? "Daily reminders aren't available on this platform."
-                : 'Allow notifications to get the daily check-in.',
+                ? t(language, 'reminder.permissionUnsupported')
+                : t(language, 'reminder.permissionPrompt'),
           );
 
           return;
@@ -161,8 +172,8 @@ export function OnboardingScreen() {
       setIsReminderEnabled(previousEnabled);
       setReminderError(
         nextEnabled
-          ? "Couldn't turn on the daily reminder. Try again."
-          : "Couldn't turn off the daily reminder. Try again.",
+          ? t(language, 'reminder.enableError')
+          : t(language, 'reminder.disableError'),
       );
     } finally {
       setIsReminderBusy(false);
@@ -173,7 +184,9 @@ export function OnboardingScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>First run</Text>
+          <Text style={styles.eyebrow}>
+            {t(language, 'onboarding.firstRun')}
+          </Text>
 
           <Pressable
             accessibilityRole="button"
@@ -187,7 +200,9 @@ export function OnboardingScreen() {
               isActionBusy ? styles.disabledButton : null,
             ]}
           >
-            <Text style={styles.skipButtonText}>Skip</Text>
+            <Text style={styles.skipButtonText}>
+              {t(language, 'onboarding.skip')}
+            </Text>
           </Pressable>
         </View>
 
@@ -195,19 +210,22 @@ export function OnboardingScreen() {
           <Text style={styles.title}>Money Leak</Text>
 
           <Text style={styles.subtitle}>
-            A fast way to notice the small expenses that quietly add up.
+            {t(language, 'onboarding.subtitle')}
           </Text>
         </View>
 
         <View style={styles.progressRow}>
           <Text style={styles.progressLabel}>
-            Step {currentStepIndex + 1} of {ONBOARDING_STEPS.length}
+            {t(language, 'onboarding.stepLabel', {
+              current: currentStepIndex + 1,
+              total: ONBOARDING_STEPS.length,
+            })}
           </Text>
 
           <View style={styles.progressDots}>
             {ONBOARDING_STEPS.map((step, stepIndex) => (
               <View
-                key={step.title}
+                key={step.titleKey}
                 style={[
                   styles.progressDot,
                   stepIndex === currentStepIndex
@@ -220,16 +238,21 @@ export function OnboardingScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{currentStep.title}</Text>
-          <Text style={styles.cardBody}>{currentStep.body}</Text>
+          <Text style={styles.cardTitle}>
+            {t(language, currentStep.titleKey)}
+          </Text>
+          <Text style={styles.cardBody}>
+            {t(language, currentStep.bodyKey)}
+          </Text>
         </View>
 
         <View style={styles.notesCard}>
-          <Text style={styles.notesTitle}>What to do next</Text>
+          <Text style={styles.notesTitle}>
+            {t(language, 'onboarding.step4Title')}
+          </Text>
 
           <Text style={styles.notesBody}>
-            Start with one expense you actually made. Mark it honestly if it
-            felt pointless after the fact.
+            {t(language, 'onboarding.step4Body')}
           </Text>
         </View>
 
@@ -243,16 +266,16 @@ export function OnboardingScreen() {
             <View style={styles.reminderRow}>
               <View style={styles.reminderCopy}>
                 <Text style={styles.reminderTitle}>
-                  Daily check-in reminder
+                  {t(language, 'settings.dailyReminder')}
                 </Text>
 
                 <Text style={styles.reminderBody}>
-                  Get a local reminder at 21:00 daily before the day blurs.
+                  {t(language, 'onboarding.reminderBody')}
                 </Text>
               </View>
 
               <Switch
-                accessibilityLabel="Enable the daily check-in reminder"
+                accessibilityLabel={t(language, 'settings.dailyReminderA11y')}
                 disabled={
                   isReminderLoading || isReminderBusy || isReminderUnsupported
                 }
@@ -265,15 +288,15 @@ export function OnboardingScreen() {
 
             {isReminderLoading ? (
               <Text style={styles.reminderMeta}>
-                Checking reminder support…
+                {t(language, 'onboarding.reminderLoading')}
               </Text>
             ) : isReminderUnsupported ? (
               <Text style={styles.reminderInfoText}>
-                Daily reminders are not available on this platform.
+                {t(language, 'onboarding.reminderUnsupported')}
               </Text>
             ) : (
               <Text style={styles.reminderMeta}>
-                21:00 daily, on this device.
+                {t(language, 'settings.dailyReminderSubtitle')}
               </Text>
             )}
 
@@ -304,7 +327,11 @@ export function OnboardingScreen() {
           ]}
         >
           <Text style={styles.primaryButtonText}>
-            {isFinalStep ? 'Start tracking' : 'Next'}
+            {isActionBusy
+              ? t(language, 'onboarding.saving')
+              : isFinalStep
+                ? t(language, 'onboarding.finish')
+                : t(language, 'onboarding.next')}
           </Text>
         </Pressable>
       </ScrollView>

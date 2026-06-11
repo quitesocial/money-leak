@@ -1,5 +1,12 @@
-import { getReferenceDate, getValidDate } from '@/lib/date-utils';
+import {
+  addDays,
+  getReferenceDate,
+  getStartOfDay,
+  getValidDate,
+} from '@/lib/date-utils';
 import { formatMoneyAmount } from '@/lib/display-formatters';
+import { formatLanguageDate, t } from '@/lib/i18n/i18n';
+import type { SupportedLanguage } from '@/lib/i18n/languages';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
 import type { BalanceEntry } from '@/types/balance';
 import type { LeakReason, Transaction } from '@/types/transaction';
@@ -59,29 +66,6 @@ type BuildAnalyticsLedgerItemsParams = AnalyticsPeriodRangeParams & {
   transactions: Transaction[];
 };
 
-const fullDateFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
-
-const shortDateFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
-
-const monthFormatter = new Intl.DateTimeFormat('en-GB', {
-  month: 'short',
-  year: 'numeric',
-});
-
-const timeFormatter = new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  hour12: false,
-  minute: '2-digit',
-});
-
 export const ANALYTICS_PERIOD_OPTIONS: AnalyticsPeriod[] = [
   'today',
   'week',
@@ -100,23 +84,6 @@ export function createDefaultAnalyticsFilter(): AnalyticsFilterState {
     operation: 'all',
     transactionKind: null,
   };
-}
-
-function getStartOfDay(referenceDate: Date) {
-  const startOfDay = new Date(referenceDate);
-
-  startOfDay.setHours(0, 0, 0, 0);
-
-  return startOfDay;
-}
-
-function addDays(referenceDate: Date, days: number) {
-  const nextDate = new Date(referenceDate);
-
-  nextDate.setDate(nextDate.getDate() + days);
-  nextDate.setHours(0, 0, 0, 0);
-
-  return nextDate;
 }
 
 function getStartOfMondayWeek(referenceDate: Date) {
@@ -306,11 +273,7 @@ function doesTransactionMatchSpentFilter({
     return false;
   }
 
-  if (filter.leakReason && transaction.leakReason !== filter.leakReason) {
-    return false;
-  }
-
-  return true;
+  return !(filter.leakReason && transaction.leakReason !== filter.leakReason);
 }
 
 export function buildAnalyticsLedgerItems({
@@ -411,16 +374,30 @@ function getLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export function formatAnalyticsDateLabel(createdAt: number) {
+export function formatAnalyticsDateLabel(
+  createdAt: number,
+  language?: SupportedLanguage,
+) {
   const date = getValidDate(createdAt);
 
-  if (!date) return 'Unknown date';
+  if (!date) return language ? t(language, 'home.unknownDate') : 'Unknown date';
 
-  return fullDateFormatter.format(date);
+  return language
+    ? formatLanguageDate(language, date, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(date);
 }
 
 export function groupAnalyticsLedgerItems(
   items: AnalyticsLedgerItem[],
+  language?: SupportedLanguage,
 ): AnalyticsLedgerGroup[] {
   const groups = new Map<string, AnalyticsLedgerGroup>();
 
@@ -441,7 +418,7 @@ export function groupAnalyticsLedgerItems(
     groups.set(dateKey, {
       dateKey,
       items: [item],
-      label: formatAnalyticsDateLabel(item.createdAt),
+      label: formatAnalyticsDateLabel(item.createdAt, language),
     });
   }
 
@@ -469,12 +446,25 @@ export function formatAnalyticsAmount({
   });
 }
 
-export function formatAnalyticsTime(createdAt: number) {
+export function formatAnalyticsTime(
+  createdAt: number,
+  language?: SupportedLanguage,
+) {
   const date = getValidDate(createdAt);
 
   if (!date) return 'Unknown time';
 
-  return timeFormatter.format(date);
+  return language
+    ? formatLanguageDate(language, date, {
+        hour: '2-digit',
+        hour12: false,
+        minute: '2-digit',
+      })
+    : new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit',
+        hour12: false,
+        minute: '2-digit',
+      }).format(date);
 }
 
 export function formatAnalyticsCustomDateLabel({
@@ -482,19 +472,37 @@ export function formatAnalyticsCustomDateLabel({
   customPeriodType,
   customRangeEnd,
   customRangeStart,
-}: Omit<AnalyticsPeriodRangeParams, 'now' | 'period'>) {
+  language,
+}: Omit<AnalyticsPeriodRangeParams, 'now' | 'period'> & {
+  language?: SupportedLanguage;
+}) {
   const referenceDate = new Date();
+  const formatShortDate = (date: Date) =>
+    language
+      ? formatLanguageDate(language, date, {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : new Intl.DateTimeFormat('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }).format(date);
 
   if (customPeriodType === 'day') {
-    return shortDateFormatter.format(
-      getValidOrReferenceDate(customDate, referenceDate),
-    );
+    return formatShortDate(getValidOrReferenceDate(customDate, referenceDate));
   }
 
   if (customPeriodType === 'month') {
-    return monthFormatter.format(
-      getValidOrReferenceDate(customDate, referenceDate),
-    );
+    const date = getValidOrReferenceDate(customDate, referenceDate);
+
+    return language
+      ? formatLanguageDate(language, date, { month: 'short', year: 'numeric' })
+      : new Intl.DateTimeFormat('en-GB', {
+          month: 'short',
+          year: 'numeric',
+        }).format(date);
   }
 
   if (customPeriodType === 'year') {
@@ -518,7 +526,5 @@ export function formatAnalyticsCustomDateLabel({
       ? secondRangeDate
       : firstRangeDate;
 
-  return `${shortDateFormatter.format(start)} - ${shortDateFormatter.format(
-    end,
-  )}`;
+  return `${formatShortDate(start)} - ${formatShortDate(end)}`;
 }
