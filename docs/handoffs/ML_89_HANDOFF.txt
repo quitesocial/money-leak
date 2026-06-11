@@ -1,20 +1,55 @@
 Money Leak ML-89 Handoff
 Date: 2026-06-11
+Status: implemented, manually QA'd, and post-review cleanup completed.
+
+Purpose
+-------
+This handoff summarizes the completed ML-89 runtime language switch work plus
+follow-up fixes, validation, and cleanup so a future AI agent can plan from the
+actual current state instead of re-discovering what was already done.
+
+High-Level Result
+-----------------
+- Settings Language now controls runtime UI language across the app.
+- The implementation is dependency-free and local to the existing Expo/React
+  Native app.
+- English remains the default and safe fallback.
+- The existing persisted Settings value "Indian" is preserved and maps to Hindi
+  runtime UI copy.
+- User-generated values and persisted data contracts were intentionally not
+  translated or changed.
+- Manual QA was completed by the product owner after implementation and fixes;
+  the reported result was OK.
 
 Implemented Scope
 -----------------
 - Added a dependency-free runtime i18n layer in src/lib/i18n.
 - Added useSettingsLanguage with safe English fallback and an in-memory runtime
   notification path for immediate updates after Settings Apply.
-- Kept all current Settings language options selectable.
+- Kept all existing Settings language options selectable.
 - Kept the persisted Indian option string and mapped it to Hindi UI locale/copy.
-- Wired selected language into Onboarding, bottom tabs, Home, Analytics & Leaks,
-  Settings, Add Transaction, Edit Transaction, Add Balance, and Edit Balance.
+- Wired selected language into:
+  - Onboarding.
+  - Bottom tab labels and titles.
+  - Home.
+  - Analytics & Leaks, including filters and ledger display.
+  - Settings and option sheets.
+  - Add Transaction and Edit Transaction.
+  - Add Balance and Edit Balance.
+  - Empty, loading, error, success, and confirmation states touched by ML-89.
 - Made period/date/month/weekday display language-aware without changing local
-  calendar date filtering.
+  calendar date filtering or period logic.
 - Localized system-defined default category and balance type display names.
 - Preserved custom category names, custom balance type names, notes, account
-  values, IDs, CSV fields, backup/restore DTOs, and sync DTOs.
+  values, profile/account data, IDs, CSV fields, backup/restore DTOs, and sync
+  DTOs.
+- Updated app/package version from 1.24.1 to 1.25.0.
+- Updated docs/mvp-qa-checklist.md with ML-89 manual QA coverage.
+- Added a stable AGENTS.md rule for future i18n work:
+  route runtime system UI strings through the local i18n layer, and do not
+  translate user-generated values or add language fields to persisted models,
+  CSV, backup/restore, or sync contracts unless a future task explicitly scopes
+  a data-contract migration.
 
 Supported Languages
 -------------------
@@ -28,6 +63,20 @@ Supported Languages
 - Russian: ru.
 - Indian: hi runtime UI, persisted option remains Indian.
 
+Post-Implementation Fixes
+-------------------------
+- The initial runtime language wiring translated too little visible UI in some
+  screens. This was corrected by expanding runtime coverage and translation
+  dictionaries so supported languages are useful across the main app surfaces,
+  not limited to a small set of buttons.
+- Non-English dictionaries were completed for German, French, Spanish,
+  Portuguese, Italian, Chinese, Russian, and Hindi/Indian.
+- Translation dictionaries are now typed as complete dictionaries rather than
+  loose partials, so TypeScript catches missing keys.
+- i18n tests cover completeness and fallback behavior.
+- Existing tests that depended on English UI were adjusted to use the i18n
+  default path or explicit language mocks where appropriate.
+
 Important Files
 ---------------
 - src/lib/i18n/languages.ts
@@ -36,24 +85,79 @@ Important Files
 - src/lib/use-settings-language.ts
 - src/lib/period-scope.ts
 - src/lib/category-display.ts
+- src/lib/amount-input.ts
+- src/lib/date-utils.ts
+- src/lib/swipe-actions.ts
+- src/test-utils/react-test-renderer.ts
 - app/(tabs)/_layout.tsx
 - src/features/home/home-screen.tsx
 - src/features/analytics/analytics-screen.tsx
+- src/features/analytics/analytics-ledger.ts
 - src/features/settings/settings-screen.tsx
 - src/features/add-transaction/add-transaction-screen.tsx
 - src/features/add-balance/add-balance-screen.tsx
 - src/features/transaction-form/transaction-form.tsx
+- docs/mvp-qa-checklist.md
+- AGENTS.md
 
-Tests And Validation
---------------------
-- Targeted Jest run passed for i18n, project contracts, Home, Analytics,
-  Settings, Add Transaction, and Add Balance.
-- TypeScript check passed with Node 20.19.4.
-- Full release validation still should be rerun before release if more changes
-  land after this handoff.
+Cleanup Completed After Scanner Feedback
+----------------------------------------
+- Removed duplicated Add Balance test setup and React Test Renderer helper
+  fragments by introducing shared test helpers in src/test-utils.
+- Removed duplicated Add Transaction test setup fragments.
+- Removed duplicated Add Balance and Add Transaction amount parsing logic by
+  extracting src/lib/amount-input.ts.
+- Removed duplicated analytics date helper logic by extracting
+  src/lib/date-utils.ts.
+- Removed duplicated analytics test mock helper fragments.
+- Removed duplicated Home test history amount assertions.
+- Removed duplicated Home swipe intent / PanResponder fragments by extracting
+  src/lib/swipe-actions.ts and reusing it from Home and Settings where safe.
 
-Manual QA Checklist
+Preserved Contracts
 -------------------
+- No new dependencies.
+- No route changes.
+- Transaction CSV v1 header remains:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No language fields were added to transaction, balance, category, CSV, sync,
+  backup, restore, or remote DTOs.
+- No Supabase migrations or remote schema changes.
+- No currency behavior changes and no FX conversion.
+- Default category and balance type display names are translated at display
+  time only; stored IDs remain stable.
+- Custom category/type names and notes remain user-owned data and are not
+  translated.
+
+Validation Performed
+--------------------
+Node version used for validation: 20.19.4.
+
+Automated checks run during the implementation and cleanup:
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Targeted checks run during follow-up cleanup included:
+- src/lib/__tests__/i18n.test.ts
+- src/lib/__tests__/project-contracts.test.ts
+- src/features/home/__tests__/home-screen.test.tsx
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/features/add-transaction/__tests__/add-transaction-screen.test.tsx
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx
+
+Manual QA
+---------
+Manual QA was performed by the product owner after the runtime translation
+coverage fixes and cleanup. The reported result was that everything needed for
+the current task was checked manually and was OK.
+
+Manual QA areas covered or expected for ML-89:
 - Settings Language open, staged select, cancel, apply, and restart
   persistence.
 - Home, Analytics & Leaks, Settings, Add Transaction, Edit Transaction, Add
@@ -63,9 +167,26 @@ Manual QA Checklist
 - Custom category/type names and transaction notes are not translated.
 - Transaction save still stores stable category ID only.
 - Balance save still stores stable typeId only.
-- Transaction CSV v1 header remains id,amount,category,isLeak,leakReason,note,createdAt.
+- Transaction CSV v1 header remains unchanged.
 - Backup/restore/sync schemas remain unchanged.
 - ML-88 route cleanup remains preserved.
+
+Known Follow-Up Guidance For Future Agents
+------------------------------------------
+- Use src/lib/i18n/i18n.ts and translation keys for runtime system labels.
+- Do not translate user-generated data.
+- Do not add language to persisted data contracts unless a future task
+  explicitly scopes a data-contract migration.
+- If adding new UI strings, add English source copy and complete entries for
+  every supported language in src/lib/i18n/translations.ts.
+- If adding new default category or balance type labels, keep stable stored IDs
+  and translate only display labels.
+- Prefer existing shared helpers extracted during cleanup before adding new
+  local duplicates:
+  - src/lib/amount-input.ts
+  - src/lib/date-utils.ts
+  - src/lib/swipe-actions.ts
+  - src/test-utils/react-test-renderer.ts
 
 Non-Goals
 ---------
