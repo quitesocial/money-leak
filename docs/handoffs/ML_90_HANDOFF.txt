@@ -1,0 +1,55 @@
+ML-90 Currency/Language Sync Handoff
+
+Summary
+- Added account-level sync for Settings currency and language as a dedicated remote settings domain.
+- Guest/local mode remains local-only.
+- Authenticated manual backup, restore, manual sync now, and existing foreground sync include settings through the existing service boundaries.
+- Settings UI remains the ML-87 design and only shows safe aggregate counts.
+
+Implementation
+- Added Supabase migration:
+  supabase/migrations/20260615000000_create_remote_settings.sql
+- New remote table:
+  public.remote_settings(user_id, key, value, updated_at, schema_version, source_device_id)
+- Primary key is (user_id, key), with allowed keys currency and language.
+- RLS is enabled and authenticated users can only CRUD their own rows.
+- Local preferences keep existing AsyncStorage keys and support old plain string values.
+- New preference metadata envelope:
+  { key, value, updatedAt, schemaVersion, sourceDeviceId }
+- Sync conflict strategy is last-write-wins per key.
+- Invalid remote settings are ignored/skipped safely.
+- Currency notification mirrors the existing language notification path.
+- Delete-account cleanup now deletes remote_settings before profiles.
+
+Manual Supabase Steps
+- Apply the new migration to the target Supabase project.
+- Confirm anon/public have no table access to remote_settings.
+- Confirm authenticated users can select/insert/update/delete only their own rows.
+- Confirm repeated upserts on (user_id, key) do not duplicate rows.
+
+Validation
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Non-goals
+- No backend sync in guest mode.
+- No sync on app start, login, session restore, sign out, mutation, or background.
+- No direct Supabase calls from Settings screen.
+- No Transaction CSV v1 change.
+- No FX conversion or per-entry currency.
+- No language fields in transactions, balances, categories, CSV, backup rows, or sync rows outside remote_settings.
+- No translation of user-generated values.
+
+Manual QA
+- Guest: currency/language apply immediately, persist after restart, and do not write remote settings.
+- Auth device A to B: apply currency/language on A, backup/sync, restore/sync on B, confirm Settings and UI update.
+- Per-key conflict: change currency on A and language on B, sync both, confirm neither key overwrites the other.
+- Foreground sync: with stale metadata, return to foreground and confirm remote settings apply through existing foreground flow.
+- Invalid remote values: invalid settings are ignored safely and do not crash the app.
+- CSV remains exactly id,amount,category,isLeak,leakReason,note,createdAt.
+- Custom category names, balance type names, notes, and account/profile strings are not translated.

@@ -180,12 +180,16 @@ function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
   const optionalCountFields: (keyof SyncSummary)[] = [
     'pulledBalanceTypesCount',
     'pulledBalanceEntriesCount',
+    'pulledSettingsCount',
     'appliedBalanceTypesCount',
     'appliedBalanceEntriesCount',
+    'appliedSettingsCount',
     'pushedBalanceTypesCount',
     'pushedBalanceEntriesCount',
+    'pushedSettingsCount',
     'ignoredBalanceTypeTombstonesCount',
     'ignoredBalanceEntryTombstonesCount',
+    'ignoredSettingsCount',
   ];
 
   for (const field of optionalCountFields) {
@@ -210,14 +214,17 @@ function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
     pulledCategoriesCount: safeSummary.pulledCategoriesCount,
     pulledBalanceTypesCount: safeSummary.pulledBalanceTypesCount,
     pulledBalanceEntriesCount: safeSummary.pulledBalanceEntriesCount,
+    pulledSettingsCount: safeSummary.pulledSettingsCount,
     appliedTransactionsCount: safeSummary.appliedTransactionsCount,
     appliedCategoriesCount: safeSummary.appliedCategoriesCount,
     appliedBalanceTypesCount: safeSummary.appliedBalanceTypesCount,
     appliedBalanceEntriesCount: safeSummary.appliedBalanceEntriesCount,
+    appliedSettingsCount: safeSummary.appliedSettingsCount,
     pushedTransactionsCount: safeSummary.pushedTransactionsCount,
     pushedCategoriesCount: safeSummary.pushedCategoriesCount,
     pushedBalanceTypesCount: safeSummary.pushedBalanceTypesCount,
     pushedBalanceEntriesCount: safeSummary.pushedBalanceEntriesCount,
+    pushedSettingsCount: safeSummary.pushedSettingsCount,
     ignoredTransactionTombstonesCount:
       safeSummary.ignoredTransactionTombstonesCount,
     ignoredCategoryTombstonesCount: safeSummary.ignoredCategoryTombstonesCount,
@@ -225,6 +232,7 @@ function normalizeSummary(summary: Partial<SyncSummary>): SyncSummary {
       safeSummary.ignoredBalanceTypeTombstonesCount,
     ignoredBalanceEntryTombstonesCount:
       safeSummary.ignoredBalanceEntryTombstonesCount,
+    ignoredSettingsCount: safeSummary.ignoredSettingsCount,
     conflictsCount: safeSummary.conflictsCount,
   };
 }

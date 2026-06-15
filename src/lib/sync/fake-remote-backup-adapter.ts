@@ -4,6 +4,7 @@ import type {
   RemoteBalanceType,
   RemoteBackupAdapter,
   RemoteCategory,
+  RemoteSetting,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
 
@@ -16,6 +17,7 @@ export type FakeRemoteBackupAdapter = RemoteBackupAdapter & {
   getCategories: () => RemoteCategory[];
   getBalanceTypes: () => RemoteBalanceType[];
   getBalanceEntries: () => RemoteBalanceEntry[];
+  getSettings: () => RemoteSetting[];
   getWriteCount: () => number;
   setShouldFail: (shouldFail: boolean) => void;
 };
@@ -27,6 +29,7 @@ export function createFakeRemoteBackupAdapter({
   const categoriesByKey = new Map<string, RemoteCategory>();
   const balanceTypesByKey = new Map<string, RemoteBalanceType>();
   const balanceEntriesByKey = new Map<string, RemoteBalanceEntry>();
+  const settingsByKey = new Map<string, RemoteSetting>();
   let writeCount = 0;
   let isFailing = shouldFail;
 
@@ -80,11 +83,20 @@ export function createFakeRemoteBackupAdapter({
         balanceEntriesByKey.set(getUserOwnedKey(entry), entry);
       }
 
+      for (const setting of payload.settings ?? []) {
+        if (setting.userId !== userId) {
+          throw new Error('Remote setting user id does not match payload.');
+        }
+
+        settingsByKey.set(getUserOwnedSettingKey(setting), setting);
+      }
+
       return {
         uploadedTransactionsCount: payload.transactions.length,
         uploadedCategoriesCount: payload.categories.length,
         uploadedBalanceTypesCount: payload.balanceTypes.length,
         uploadedBalanceEntriesCount: payload.balanceEntries.length,
+        uploadedSettingsCount: payload.settings?.length ?? 0,
       };
     },
     getTransactions() {
@@ -99,6 +111,9 @@ export function createFakeRemoteBackupAdapter({
     getBalanceEntries() {
       return [...balanceEntriesByKey.values()];
     },
+    getSettings() {
+      return [...settingsByKey.values()];
+    },
     getWriteCount() {
       return writeCount;
     },
@@ -110,4 +125,8 @@ export function createFakeRemoteBackupAdapter({
 
 function getUserOwnedKey(row: { userId: string; id: string }) {
   return `${row.userId}\u0000${row.id}`;
+}
+
+function getUserOwnedSettingKey(row: { userId: string; key: string }) {
+  return `${row.userId}\u0000${row.key}`;
 }

@@ -92,6 +92,7 @@ import type {
 import { hasHorizontalSwipeIntent } from '@/lib/swipe-actions';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
+import { notifySettingsCurrencyChanged } from '@/lib/use-settings-currency';
 import { notifySettingsLanguageChanged } from '@/lib/use-settings-language';
 import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useAuthStore } from '@/store/auth-store';
@@ -111,6 +112,7 @@ type BackupResult = {
   uploadedCategoriesCount: number;
   uploadedBalanceTypesCount: number;
   uploadedBalanceEntriesCount: number;
+  uploadedSettingsCount: number;
 };
 
 type RestoreUiResult = {
@@ -118,6 +120,8 @@ type RestoreUiResult = {
   restoredCategoriesCount: number;
   restoredBalanceTypesCount: number;
   restoredBalanceEntriesCount: number;
+  ignoredSettingsCount: number;
+  restoredSettingsCount: number;
 };
 
 type SyncUiResult = {
@@ -196,18 +200,21 @@ function formatBackupResult({
   uploadedBalanceEntriesCount,
   uploadedBalanceTypesCount,
   uploadedCategoriesCount,
+  uploadedSettingsCount,
   uploadedTransactionsCount,
 }: BackupResult) {
-  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')}, ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')}, ${formatCountLabel(uploadedBalanceTypesCount, 'balance type')}, and ${formatCountLabel(uploadedBalanceEntriesCount, 'balance entry', 'balance entries')} saved.`;
+  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')}, ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')}, ${formatCountLabel(uploadedBalanceTypesCount, 'balance type')}, ${formatCountLabel(uploadedBalanceEntriesCount, 'balance entry', 'balance entries')}, and ${formatCountLabel(uploadedSettingsCount, 'setting')} saved.`;
 }
 
 function formatRestoreResult({
+  ignoredSettingsCount,
   restoredBalanceEntriesCount,
   restoredBalanceTypesCount,
   restoredCategoriesCount,
+  restoredSettingsCount,
   restoredTransactionsCount,
 }: RestoreUiResult) {
-  return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')}, ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')}, ${formatCountLabel(restoredBalanceTypesCount, 'balance type')}, and ${formatCountLabel(restoredBalanceEntriesCount, 'balance entry', 'balance entries')} restored.`;
+  return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')}, ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')}, ${formatCountLabel(restoredBalanceTypesCount, 'balance type')}, ${formatCountLabel(restoredBalanceEntriesCount, 'balance entry', 'balance entries')}, and ${formatCountLabel(restoredSettingsCount, 'setting')} restored. Ignored ${formatCountLabel(ignoredSettingsCount, 'setting')}.`;
 }
 
 function formatSyncResult({
@@ -284,23 +291,27 @@ function createSyncUiResult(
       result.appliedTransactionsCount +
       result.appliedCategoriesCount +
       result.appliedBalanceTypesCount +
-      result.appliedBalanceEntriesCount,
+      result.appliedBalanceEntriesCount +
+      (result.appliedSettingsCount ?? 0),
     conflictsCount: result.conflictsCount,
     ignoredCount:
       result.ignoredTransactionTombstonesCount +
       result.ignoredCategoryTombstonesCount +
       result.ignoredBalanceTypeTombstonesCount +
-      result.ignoredBalanceEntryTombstonesCount,
+      result.ignoredBalanceEntryTombstonesCount +
+      (result.ignoredSettingsCount ?? 0),
     pulledCount:
       result.pulledTransactionsCount +
       result.pulledCategoriesCount +
       result.pulledBalanceTypesCount +
-      result.pulledBalanceEntriesCount,
+      result.pulledBalanceEntriesCount +
+      (result.pulledSettingsCount ?? 0),
     pushedCount:
       result.pushedTransactionsCount +
       result.pushedCategoriesCount +
       result.pushedBalanceTypesCount +
-      result.pushedBalanceEntriesCount,
+      result.pushedBalanceEntriesCount +
+      (result.pushedSettingsCount ?? 0),
   };
 }
 
@@ -319,6 +330,9 @@ function createSyncUiResultFromSummary(
   const pulledBalanceEntriesCount = getOptionalSafeSyncCount(
     summary.pulledBalanceEntriesCount,
   );
+  const pulledSettingsCount = getOptionalSafeSyncCount(
+    summary.pulledSettingsCount,
+  );
   const pushedTransactionsCount = getSafeSyncCount(
     summary.pushedTransactionsCount,
   );
@@ -328,6 +342,9 @@ function createSyncUiResultFromSummary(
   );
   const pushedBalanceEntriesCount = getOptionalSafeSyncCount(
     summary.pushedBalanceEntriesCount,
+  );
+  const pushedSettingsCount = getOptionalSafeSyncCount(
+    summary.pushedSettingsCount,
   );
   const appliedTransactionsCount = getSafeSyncCount(
     summary.appliedTransactionsCount,
@@ -340,6 +357,9 @@ function createSyncUiResultFromSummary(
   );
   const appliedBalanceEntriesCount = getOptionalSafeSyncCount(
     summary.appliedBalanceEntriesCount,
+  );
+  const appliedSettingsCount = getOptionalSafeSyncCount(
+    summary.appliedSettingsCount,
   );
   const conflictsCount = getSafeSyncCount(summary.conflictsCount);
   const ignoredTransactionTombstonesCount = getSafeSyncCount(
@@ -354,25 +374,32 @@ function createSyncUiResultFromSummary(
   const ignoredBalanceEntryTombstonesCount = getOptionalSafeSyncCount(
     summary.ignoredBalanceEntryTombstonesCount,
   );
+  const ignoredSettingsCount = getOptionalSafeSyncCount(
+    summary.ignoredSettingsCount,
+  );
 
   if (
     pulledTransactionsCount === null ||
     pulledCategoriesCount === null ||
     pulledBalanceTypesCount === null ||
     pulledBalanceEntriesCount === null ||
+    pulledSettingsCount === null ||
     pushedTransactionsCount === null ||
     pushedCategoriesCount === null ||
     pushedBalanceTypesCount === null ||
     pushedBalanceEntriesCount === null ||
+    pushedSettingsCount === null ||
     appliedTransactionsCount === null ||
     appliedCategoriesCount === null ||
     appliedBalanceTypesCount === null ||
     appliedBalanceEntriesCount === null ||
+    appliedSettingsCount === null ||
     conflictsCount === null ||
     ignoredTransactionTombstonesCount === null ||
     ignoredCategoryTombstonesCount === null ||
     ignoredBalanceTypeTombstonesCount === null ||
-    ignoredBalanceEntryTombstonesCount === null
+    ignoredBalanceEntryTombstonesCount === null ||
+    ignoredSettingsCount === null
   ) {
     return null;
   }
@@ -382,23 +409,27 @@ function createSyncUiResultFromSummary(
       appliedTransactionsCount +
       appliedCategoriesCount +
       appliedBalanceTypesCount +
-      appliedBalanceEntriesCount,
+      appliedBalanceEntriesCount +
+      appliedSettingsCount,
     conflictsCount,
     ignoredCount:
       ignoredTransactionTombstonesCount +
       ignoredCategoryTombstonesCount +
       ignoredBalanceTypeTombstonesCount +
-      ignoredBalanceEntryTombstonesCount,
+      ignoredBalanceEntryTombstonesCount +
+      ignoredSettingsCount,
     pulledCount:
       pulledTransactionsCount +
       pulledCategoriesCount +
       pulledBalanceTypesCount +
-      pulledBalanceEntriesCount,
+      pulledBalanceEntriesCount +
+      pulledSettingsCount,
     pushedCount:
       pushedTransactionsCount +
       pushedCategoriesCount +
       pushedBalanceTypesCount +
-      pushedBalanceEntriesCount,
+      pushedBalanceEntriesCount +
+      pushedSettingsCount,
   };
 }
 
@@ -1400,6 +1431,7 @@ export function SettingsScreen() {
       if (sheet.kind === 'currency') {
         await setSettingsCurrency(draftCurrency);
         setCurrency(draftCurrency);
+        notifySettingsCurrencyChanged(draftCurrency);
       } else {
         await setSettingsLanguage(draftLanguage);
         setLanguage(draftLanguage);
@@ -1416,6 +1448,20 @@ export function SettingsScreen() {
     setDraftCurrency(currency);
     setDraftLanguage(language);
     setSheet(null);
+  }
+
+  async function refreshSettingsPreferences() {
+    const [storedCurrency, storedLanguage] = await Promise.all([
+      getSettingsCurrency(),
+      getSettingsLanguage(),
+    ]);
+
+    setCurrency(storedCurrency);
+    setDraftCurrency(storedCurrency);
+    setLanguage(storedLanguage);
+    setDraftLanguage(storedLanguage);
+    notifySettingsCurrencyChanged(storedCurrency);
+    notifySettingsLanguageChanged(storedLanguage);
   }
 
   async function handleGoogleSignInPress() {
@@ -1618,6 +1664,7 @@ export function SettingsScreen() {
         uploadedCategoriesCount: result.uploadedCategoriesCount,
         uploadedBalanceTypesCount: result.uploadedBalanceTypesCount,
         uploadedBalanceEntriesCount: result.uploadedBalanceEntriesCount,
+        uploadedSettingsCount: result.uploadedSettingsCount ?? 0,
       });
     } catch {
       setBackupError("Couldn't create backup. Try again.");
@@ -1696,9 +1743,16 @@ export function SettingsScreen() {
         restoredCategoriesCount: result.restoredCategoriesCount,
         restoredBalanceTypesCount: result.restoredBalanceTypesCount,
         restoredBalanceEntriesCount: result.restoredBalanceEntriesCount,
+        ignoredSettingsCount: result.ignoredSettingsCount ?? 0,
+        restoredSettingsCount: result.restoredSettingsCount ?? 0,
       });
 
-      await Promise.all([loadTransactions(), loadCategories(), loadBalance()]);
+      await Promise.all([
+        loadTransactions(),
+        loadCategories(),
+        loadBalance(),
+        refreshSettingsPreferences(),
+      ]);
     } catch {
       setRestoreError("Couldn't restore backup. Try again.");
     } finally {
@@ -1733,7 +1787,12 @@ export function SettingsScreen() {
       setSyncResult(createSyncUiResult(result));
       setPersistedSyncResult(null);
 
-      await Promise.all([loadTransactions(), loadCategories(), loadBalance()]);
+      await Promise.all([
+        loadTransactions(),
+        loadCategories(),
+        loadBalance(),
+        refreshSettingsPreferences(),
+      ]);
 
       try {
         const metadata = await getSyncMetadata();

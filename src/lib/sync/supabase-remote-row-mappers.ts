@@ -2,8 +2,13 @@ import type {
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
+import {
+  isSettingsPreferenceKey,
+  isSettingsPreferenceValue,
+} from '@/lib/settings-preferences';
 
 export type RemoteTransactionRow = {
   user_id: unknown;
@@ -56,6 +61,15 @@ export type RemoteBalanceEntryRow = {
   created_at: unknown;
   updated_at: unknown;
   deleted_at: unknown;
+  schema_version: unknown;
+  source_device_id: unknown;
+};
+
+export type RemoteSettingRow = {
+  user_id: unknown;
+  key: unknown;
+  value: unknown;
+  updated_at: unknown;
   schema_version: unknown;
   source_device_id: unknown;
 };
@@ -115,6 +129,15 @@ export type RemoteCategoryWriteRow = {
   source_device_id: string | null;
 };
 
+export type RemoteSettingWriteRow = {
+  user_id: string;
+  key: RemoteSetting['key'];
+  value: string;
+  updated_at: string;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
 export const REMOTE_CATEGORY_COLUMNS = [
   'user_id',
   'id',
@@ -166,6 +189,15 @@ export const REMOTE_BALANCE_ENTRY_COLUMNS = [
   'created_at',
   'updated_at',
   'deleted_at',
+  'schema_version',
+  'source_device_id',
+].join(',');
+
+export const REMOTE_SETTING_COLUMNS = [
+  'user_id',
+  'key',
+  'value',
+  'updated_at',
   'schema_version',
   'source_device_id',
 ].join(',');
@@ -238,6 +270,19 @@ export function mapRemoteBalanceEntryToRow(
     deleted_at: entry.deletedAt,
     schema_version: entry.schemaVersion,
     source_device_id: entry.sourceDeviceId,
+  };
+}
+
+export function mapRemoteSettingToRow(
+  setting: RemoteSetting,
+): RemoteSettingWriteRow {
+  return {
+    user_id: setting.userId,
+    key: setting.key,
+    value: setting.value,
+    updated_at: setting.updatedAt,
+    schema_version: setting.schemaVersion,
+    source_device_id: setting.sourceDeviceId,
   };
 }
 
@@ -314,6 +359,31 @@ export function mapRemoteTransactionRow(
     createdAt: parseString(row.created_at, 'created_at'),
     updatedAt: parseString(row.updated_at, 'updated_at'),
     deletedAt: parseNullableString(row.deleted_at, 'deleted_at'),
+    schemaVersion: parseNumber(row.schema_version, 'schema_version'),
+    sourceDeviceId: parseNullableString(
+      row.source_device_id,
+      'source_device_id',
+    ),
+  };
+}
+
+export function mapRemoteSettingRow(row: RemoteSettingRow): RemoteSetting {
+  const key = parseString(row.key, 'key');
+  const value = parseString(row.value, 'value');
+
+  if (!isSettingsPreferenceKey(key)) {
+    throw new Error('Invalid remote sync row: key.');
+  }
+
+  if (!isSettingsPreferenceValue(key, value)) {
+    throw new Error('Invalid remote sync row: value.');
+  }
+
+  return {
+    userId: parseString(row.user_id, 'user_id'),
+    key,
+    value,
+    updatedAt: parseString(row.updated_at, 'updated_at'),
     schemaVersion: parseNumber(row.schema_version, 'schema_version'),
     sourceDeviceId: parseNullableString(
       row.source_device_id,

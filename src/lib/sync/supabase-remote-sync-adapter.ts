@@ -9,21 +9,26 @@ import {
   mapRemoteBalanceTypeToRow,
   mapRemoteCategoryRow,
   mapRemoteCategoryToRow,
+  mapRemoteSettingRow,
+  mapRemoteSettingToRow,
   mapRemoteTransactionRow,
   mapRemoteTransactionToRow,
   REMOTE_BALANCE_ENTRY_COLUMNS,
   REMOTE_BALANCE_TYPE_COLUMNS,
   REMOTE_CATEGORY_COLUMNS,
+  REMOTE_SETTING_COLUMNS,
   REMOTE_TRANSACTION_COLUMNS,
   type RemoteBalanceEntryRow,
   type RemoteBalanceTypeRow,
   type RemoteCategoryRow,
+  type RemoteSettingRow,
   type RemoteTransactionRow,
 } from '@/lib/sync/supabase-remote-row-mappers';
 import type {
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteSyncAdapter,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
@@ -78,23 +83,30 @@ export function createSupabaseRemoteSyncAdapter({
       }
 
       try {
-        const [categories, transactions, balanceTypes, balanceEntries] =
-          await Promise.all([
-            readRemoteCategories({ client, since, userId: normalizedUserId }),
-            readRemoteTransactions({ client, since, userId: normalizedUserId }),
-            readRemoteBalanceTypes({ client, since, userId: normalizedUserId }),
-            readRemoteBalanceEntries({
-              client,
-              since,
-              userId: normalizedUserId,
-            }),
-          ]);
+        const [
+          categories,
+          transactions,
+          balanceTypes,
+          balanceEntries,
+          settings,
+        ] = await Promise.all([
+          readRemoteCategories({ client, since, userId: normalizedUserId }),
+          readRemoteTransactions({ client, since, userId: normalizedUserId }),
+          readRemoteBalanceTypes({ client, since, userId: normalizedUserId }),
+          readRemoteBalanceEntries({
+            client,
+            since,
+            userId: normalizedUserId,
+          }),
+          readRemoteSettings({ client, since, userId: normalizedUserId }),
+        ]);
 
         return {
           categories,
           transactions,
           balanceTypes,
           balanceEntries,
+          settings,
         };
       } catch {
         throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
@@ -105,6 +117,7 @@ export function createSupabaseRemoteSyncAdapter({
       balanceEntries,
       balanceTypes,
       categories,
+      settings = [],
       transactions,
     }) {
       const client = getClient();
@@ -116,6 +129,7 @@ export function createSupabaseRemoteSyncAdapter({
         await upsertRemoteBalanceTypes({ balanceTypes, client });
         await upsertRemoteTransactions({ client, transactions });
         await upsertRemoteBalanceEntries({ balanceEntries, client });
+        await upsertRemoteSettings({ client, settings });
       } catch {
         throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
       }
@@ -125,6 +139,7 @@ export function createSupabaseRemoteSyncAdapter({
         pushedCategoriesCount: categories.length,
         pushedBalanceTypesCount: balanceTypes.length,
         pushedBalanceEntriesCount: balanceEntries.length,
+        pushedSettingsCount: settings.length,
       };
     },
   };
@@ -236,6 +251,32 @@ async function readRemoteBalanceEntries({
   return result.data.map(mapRemoteBalanceEntryRow);
 }
 
+async function readRemoteSettings({
+  client,
+  since,
+  userId,
+}: {
+  client: SupabaseRemoteSyncClient;
+  since: number | null;
+  userId: string;
+}) {
+  const query = client
+    .from('remote_settings')
+    .select(REMOTE_SETTING_COLUMNS)
+    .eq('user_id', userId);
+
+  const result = (await applySettingsSinceFilter({
+    query,
+    since,
+  })) as SupabaseReadResult<RemoteSettingRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteSettingRow);
+}
+
 function applySinceFilter({
   query,
   since,
@@ -255,6 +296,25 @@ function applySinceFilter({
   return query.or(
     `updated_at.gt.${remoteTimestamp},deleted_at.gt.${remoteTimestamp}`,
   );
+}
+
+function applySettingsSinceFilter({
+  query,
+  since,
+}: {
+  query: {
+    gt?: (column: string, value: string) => unknown;
+    then?: unknown;
+  };
+  since: number | null;
+}) {
+  if (since === null) return query;
+
+  const remoteTimestamp = toRemoteTimestamp(since);
+
+  if (typeof query.gt !== 'function') return query;
+
+  return query.gt('updated_at', remoteTimestamp);
 }
 
 async function upsertRemoteCategories({
@@ -324,6 +384,24 @@ async function upsertRemoteBalanceEntries({
     .from('remote_balance_entries')
     .upsert(balanceEntries.map(mapRemoteBalanceEntryToRow), {
       onConflict: 'user_id,id',
+    })) as SupabaseWriteResult;
+
+  if (result.error) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);
+}
+
+async function upsertRemoteSettings({
+  client,
+  settings,
+}: {
+  client: SupabaseRemoteSyncClient;
+  settings: RemoteSetting[];
+}) {
+  if (settings.length === 0) return;
+
+  const result = (await client
+    .from('remote_settings')
+    .upsert(settings.map(mapRemoteSettingToRow), {
+      onConflict: 'user_id,key',
     })) as SupabaseWriteResult;
 
   if (result.error) throw new Error(GENERIC_REMOTE_SYNC_ERROR_MESSAGE);

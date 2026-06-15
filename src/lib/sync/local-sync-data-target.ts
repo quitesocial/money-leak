@@ -7,9 +7,19 @@ import {
   mapRemoteBalanceTypeToLocalInput,
   mapRemoteBalanceTypeTombstoneToLocalInput,
   mapRemoteCategoryToLocalInput,
+  mapRemoteSettingToLocalInput,
   mapRemoteTransactionToLocalInput,
   mapRemoteTransactionTombstoneToLocalInput,
 } from '@/lib/sync/sync-mappers';
+import {
+  applyRemoteSettingsPreferences,
+  getSettingsCurrency,
+  getSettingsLanguage,
+  type ApplySettingsPreferencesResult,
+  type SettingsPreferenceRemoteInput,
+} from '@/lib/settings-preferences';
+import { notifySettingsCurrencyChanged } from '@/lib/use-settings-currency';
+import { notifySettingsLanguageChanged } from '@/lib/use-settings-language';
 import type {
   LocalSyncDataTarget,
   LocalSyncWriteResult,
@@ -47,12 +57,16 @@ type LocalSyncDataTargetOptions = {
     upsertedBalanceEntriesCount: number;
     deletedBalanceEntriesCount: number;
   }>;
+  writeSettings?: (
+    settings: SettingsPreferenceRemoteInput[],
+  ) => Promise<ApplySettingsPreferencesResult>;
 };
 
 export function createLocalSyncDataTarget({
   writeCategories = applyCategorySyncChanges,
   writeTransactions = applyTransactionSyncChanges,
   writeBalance = applyBalanceSyncChanges,
+  writeSettings = applyRemoteSettingsPreferences,
 }: LocalSyncDataTargetOptions = {}): LocalSyncDataTarget {
   return {
     async applyRemoteChanges(changes: RemoteSyncChanges) {
@@ -83,6 +97,9 @@ export function createLocalSyncDataTarget({
       const balanceEntryTombstones = changes.balanceEntries
         .filter((balanceEntry) => balanceEntry.deletedAt !== null)
         .map(mapRemoteBalanceEntryTombstoneToLocalInput);
+      const settings = (changes.settings ?? []).map(
+        mapRemoteSettingToLocalInput,
+      );
 
       const appliedCategoriesCount = await writeCategories(categories);
       const balanceResult = await writeBalance({
@@ -95,6 +112,8 @@ export function createLocalSyncDataTarget({
         upserts: transactionUpserts,
         tombstones: transactionTombstones,
       });
+      const settingsResult = await writeSettings(settings);
+      await notifyAppliedSettings(settingsResult);
 
       return {
         appliedTransactionsCount:
@@ -107,7 +126,21 @@ export function createLocalSyncDataTarget({
         appliedBalanceEntriesCount:
           balanceResult.upsertedBalanceEntriesCount +
           balanceResult.deletedBalanceEntriesCount,
+        appliedSettingsCount: settingsResult.restoredSettingsCount,
+        ignoredSettingsCount: settingsResult.ignoredSettingsCount,
       } satisfies LocalSyncWriteResult;
     },
   };
+}
+
+async function notifyAppliedSettings(result: ApplySettingsPreferencesResult) {
+  if (result.restoredSettingsCount === 0) return;
+
+  const [currency, language] = await Promise.all([
+    getSettingsCurrency(),
+    getSettingsLanguage(),
+  ]);
+
+  notifySettingsCurrencyChanged(currency);
+  notifySettingsLanguageChanged(language);
 }

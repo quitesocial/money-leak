@@ -5,14 +5,17 @@ import {
   mapRemoteBalanceEntryRow,
   mapRemoteBalanceTypeRow,
   mapRemoteCategoryRow,
+  mapRemoteSettingRow,
   mapRemoteTransactionRow,
   REMOTE_BALANCE_ENTRY_COLUMNS,
   REMOTE_BALANCE_TYPE_COLUMNS,
   REMOTE_CATEGORY_COLUMNS,
+  REMOTE_SETTING_COLUMNS,
   REMOTE_TRANSACTION_COLUMNS,
   type RemoteBalanceEntryRow,
   type RemoteBalanceTypeRow,
   type RemoteCategoryRow,
+  type RemoteSettingRow,
   type RemoteTransactionRow,
 } from '@/lib/sync/supabase-remote-row-mappers';
 import {
@@ -46,13 +49,19 @@ export function createSupabaseRemoteRestoreAdapter({
       }
 
       try {
-        const [categories, transactions, balanceTypes, balanceEntries] =
-          await Promise.all([
-            readRemoteCategories({ client, userId: normalizedUserId }),
-            readRemoteTransactions({ client, userId: normalizedUserId }),
-            readRemoteBalanceTypes({ client, userId: normalizedUserId }),
-            readRemoteBalanceEntries({ client, userId: normalizedUserId }),
-          ]);
+        const [
+          categories,
+          transactions,
+          balanceTypes,
+          balanceEntries,
+          settings,
+        ] = await Promise.all([
+          readRemoteCategories({ client, userId: normalizedUserId }),
+          readRemoteTransactions({ client, userId: normalizedUserId }),
+          readRemoteBalanceTypes({ client, userId: normalizedUserId }),
+          readRemoteBalanceEntries({ client, userId: normalizedUserId }),
+          readRemoteSettings({ client, userId: normalizedUserId }),
+        ]);
 
         return {
           userId: normalizedUserId,
@@ -61,6 +70,7 @@ export function createSupabaseRemoteRestoreAdapter({
           transactions,
           balanceTypes,
           balanceEntries,
+          settings,
         };
       } catch {
         throw new Error(GENERIC_REMOTE_RESTORE_ERROR_MESSAGE);
@@ -146,4 +156,23 @@ async function readRemoteBalanceEntries({
   }
 
   return result.data.map(mapRemoteBalanceEntryRow);
+}
+
+async function readRemoteSettings({
+  client,
+  userId,
+}: {
+  client: SupabaseRemoteRestoreClient;
+  userId: string;
+}) {
+  const result = (await client
+    .from('remote_settings')
+    .select(REMOTE_SETTING_COLUMNS)
+    .eq('user_id', userId)) as SupabaseReadResult<RemoteSettingRow[]>;
+
+  if (result.error || !Array.isArray(result.data)) {
+    throw new Error(GENERIC_REMOTE_RESTORE_ERROR_MESSAGE);
+  }
+
+  return result.data.map(mapRemoteSettingRow);
 }

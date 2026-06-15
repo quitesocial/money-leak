@@ -24,6 +24,7 @@ type MockFetchOptions = {
     | 'remote_balance_entries'
     | 'remote_balance_types'
     | 'remote_categories'
+    | 'remote_settings'
     | 'remote_transactions';
 };
 
@@ -162,6 +163,9 @@ describe('delete-account Edge Function handler', () => {
     );
     expect(calledUrls).toContain(
       `${SUPABASE_URL}/rest/v1/remote_transactions?user_id=eq.${VERIFIED_USER_ID}`,
+    );
+    expect(calledUrls).toContain(
+      `${SUPABASE_URL}/rest/v1/remote_settings?user_id=eq.${VERIFIED_USER_ID}`,
     );
     expect(calledUrls).toContain(
       `${SUPABASE_URL}/rest/v1/remote_categories?user_id=eq.${VERIFIED_USER_ID}`,

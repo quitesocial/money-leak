@@ -27,16 +27,11 @@ describe('project contracts', () => {
     expect(csvFormat).not.toContain("'language");
   });
 
-  it('does not add language fields to local sync data contracts', () => {
+  it('does not add language fields to transaction, balance, or category contracts', () => {
     const contractFiles = [
       'src/types/transaction.ts',
       'src/types/balance.ts',
       'src/types/category.ts',
-      'src/lib/sync/sync-types.ts',
-      'src/lib/sync/sync-mappers.ts',
-      'src/lib/sync/supabase-remote-row-mappers.ts',
-      'src/lib/sync/local-backup-data-source.ts',
-      'src/lib/sync/local-restore-data-target.ts',
     ];
 
     for (const filePath of contractFiles) {
@@ -104,7 +99,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-89 version bump and Expo metadata aligned', () => {
+  it('keeps ML-90 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -118,9 +113,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.25.0');
-    expect(packageLock.version).toBe('1.25.0');
-    expect(packageLock.packages[''].version).toBe('1.25.0');
+    expect(packageJson.version).toBe('1.26.0');
+    expect(packageLock.version).toBe('1.26.0');
+    expect(packageLock.packages[''].version).toBe('1.26.0');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

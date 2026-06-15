@@ -271,6 +271,8 @@ describe('restore service', () => {
       restoredCategoriesCount: 0,
       restoredBalanceTypesCount: 0,
       restoredBalanceEntriesCount: 0,
+      ignoredSettingsCount: 0,
+      restoredSettingsCount: 0,
       isRecoverable: true,
     });
 

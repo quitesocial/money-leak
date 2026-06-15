@@ -1,5 +1,6 @@
 import type { AuthStatus } from '@/types/auth';
 import type { LeakReason } from '@/types/transaction';
+import type { SettingsPreferenceKey } from '@/lib/settings-preferences';
 
 export const BACKUP_PAYLOAD_SCHEMA_VERSION = 2;
 
@@ -58,6 +59,15 @@ export type RemoteBalanceEntry = {
   sourceDeviceId: string | null;
 };
 
+export type RemoteSetting = {
+  userId: string;
+  key: SettingsPreferenceKey;
+  value: string;
+  updatedAt: string;
+  schemaVersion: number;
+  sourceDeviceId: string | null;
+};
+
 export type BackupPayload = {
   userId: string;
   schemaVersion: typeof BACKUP_PAYLOAD_SCHEMA_VERSION;
@@ -68,6 +78,7 @@ export type BackupPayload = {
   categories: RemoteCategory[];
   balanceTypes: RemoteBalanceType[];
   balanceEntries: RemoteBalanceEntry[];
+  settings?: RemoteSetting[];
 };
 
 export type BackupSkippedReason =
@@ -85,6 +96,7 @@ export type BackupResult =
       uploadedCategoriesCount: number;
       uploadedBalanceTypesCount: number;
       uploadedBalanceEntriesCount: number;
+      uploadedSettingsCount?: number;
     }
   | {
       status: 'skipped';
@@ -109,6 +121,7 @@ export type RestorePayload = {
   transactions: RemoteTransaction[];
   balanceTypes: RemoteBalanceType[];
   balanceEntries: RemoteBalanceEntry[];
+  settings?: RemoteSetting[];
 };
 
 export type RestoreSkippedReason =
@@ -125,6 +138,8 @@ export type RestoreResult =
       restoredCategoriesCount: number;
       restoredBalanceTypesCount: number;
       restoredBalanceEntriesCount: number;
+      ignoredSettingsCount?: number;
+      restoredSettingsCount?: number;
     }
   | {
       status: 'empty';
@@ -132,6 +147,8 @@ export type RestoreResult =
       restoredCategoriesCount: 0;
       restoredBalanceTypesCount: 0;
       restoredBalanceEntriesCount: 0;
+      ignoredSettingsCount?: 0;
+      restoredSettingsCount?: 0;
       isRecoverable: true;
     }
   | {
@@ -153,6 +170,7 @@ export type RemoteBackupWriteResult = {
   uploadedCategoriesCount: number;
   uploadedBalanceTypesCount: number;
   uploadedBalanceEntriesCount: number;
+  uploadedSettingsCount?: number;
 };
 
 export type RemoteBackupAdapter = {
@@ -168,6 +186,8 @@ export type LocalRestoreWriteResult = {
   restoredCategoriesCount: number;
   restoredBalanceTypesCount: number;
   restoredBalanceEntriesCount: number;
+  ignoredSettingsCount?: number;
+  restoredSettingsCount?: number;
 };
 
 export type LocalRestoreDataTarget = {
@@ -212,18 +232,22 @@ export type SyncCounts = {
   pulledCategoriesCount: number;
   pulledBalanceTypesCount: number;
   pulledBalanceEntriesCount: number;
+  pulledSettingsCount?: number;
   appliedTransactionsCount: number;
   appliedCategoriesCount: number;
   appliedBalanceTypesCount: number;
   appliedBalanceEntriesCount: number;
+  appliedSettingsCount?: number;
   pushedTransactionsCount: number;
   pushedCategoriesCount: number;
   pushedBalanceTypesCount: number;
   pushedBalanceEntriesCount: number;
+  pushedSettingsCount?: number;
   ignoredTransactionTombstonesCount: number;
   ignoredCategoryTombstonesCount: number;
   ignoredBalanceTypeTombstonesCount: number;
   ignoredBalanceEntryTombstonesCount: number;
+  ignoredSettingsCount?: number;
   conflictsCount: number;
 };
 
@@ -265,6 +289,7 @@ export type RemoteSyncChanges = {
   categories: RemoteCategory[];
   balanceTypes: RemoteBalanceType[];
   balanceEntries: RemoteBalanceEntry[];
+  settings?: RemoteSetting[];
 };
 
 export type RemoteSyncPushResult = {
@@ -272,6 +297,7 @@ export type RemoteSyncPushResult = {
   pushedCategoriesCount: number;
   pushedBalanceTypesCount: number;
   pushedBalanceEntriesCount: number;
+  pushedSettingsCount?: number;
 };
 
 export type RemoteSyncAdapter = {
@@ -286,6 +312,7 @@ export type RemoteSyncAdapter = {
     categories: RemoteCategory[];
     balanceTypes: RemoteBalanceType[];
     balanceEntries: RemoteBalanceEntry[];
+    settings?: RemoteSetting[];
   }) => Promise<RemoteSyncPushResult>;
 };
 
@@ -294,6 +321,8 @@ export type LocalSyncWriteResult = {
   appliedCategoriesCount: number;
   appliedBalanceTypesCount: number;
   appliedBalanceEntriesCount: number;
+  appliedSettingsCount?: number;
+  ignoredSettingsCount?: number;
 };
 
 export type LocalSyncDataTarget = {

@@ -3,6 +3,7 @@ import type {
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteSyncAdapter,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
@@ -12,6 +13,7 @@ type FakeRemoteSyncAdapterOptions = {
   balanceTypes?: RemoteBalanceType[];
   categories?: RemoteCategory[];
   sessionUserId?: string | null;
+  settings?: RemoteSetting[];
   shouldFailPull?: boolean;
   shouldFailPush?: boolean;
   transactions?: RemoteTransaction[];
@@ -21,6 +23,7 @@ export type FakeRemoteSyncAdapter = RemoteSyncAdapter & {
   getBalanceEntries: () => RemoteBalanceEntry[];
   getBalanceTypes: () => RemoteBalanceType[];
   getCategories: () => RemoteCategory[];
+  getSettings: () => RemoteSetting[];
   getTransactions: () => RemoteTransaction[];
   setSessionUserId: (userId: string | null) => void;
   setShouldFailPull: (shouldFail: boolean) => void;
@@ -32,6 +35,7 @@ export function createFakeRemoteSyncAdapter({
   balanceTypes = [],
   categories = [],
   sessionUserId = null,
+  settings = [],
   shouldFailPull = false,
   shouldFailPush = false,
   transactions = [],
@@ -39,6 +43,7 @@ export function createFakeRemoteSyncAdapter({
   const balanceEntriesByKey = new Map<string, RemoteBalanceEntry>();
   const balanceTypesByKey = new Map<string, RemoteBalanceType>();
   const categoriesByKey = new Map<string, RemoteCategory>();
+  const settingsByKey = new Map<string, RemoteSetting>();
   const transactionsByKey = new Map<string, RemoteTransaction>();
   let currentSessionUserId = sessionUserId;
   let isPullFailing = shouldFailPull;
@@ -58,6 +63,10 @@ export function createFakeRemoteSyncAdapter({
 
   for (const transaction of transactions) {
     transactionsByKey.set(getUserOwnedKey(transaction), transaction);
+  }
+
+  for (const setting of settings) {
+    settingsByKey.set(getUserOwnedSettingKey(setting), setting);
   }
 
   return {
@@ -93,6 +102,12 @@ export function createFakeRemoteSyncAdapter({
           ),
           since,
         }),
+        settings: getSettingsSince({
+          rows: [...settingsByKey.values()].filter(
+            (setting) => setting.userId === userId,
+          ),
+          since,
+        }),
       };
     },
 
@@ -100,6 +115,7 @@ export function createFakeRemoteSyncAdapter({
       balanceEntries,
       balanceTypes,
       categories,
+      settings = [],
       transactions,
     }) {
       if (isPushFailing) throw new Error('Fake remote push failure.');
@@ -120,11 +136,16 @@ export function createFakeRemoteSyncAdapter({
         balanceEntriesByKey.set(getUserOwnedKey(balanceEntry), balanceEntry);
       }
 
+      for (const setting of settings) {
+        settingsByKey.set(getUserOwnedSettingKey(setting), setting);
+      }
+
       return {
         pushedTransactionsCount: transactions.length,
         pushedCategoriesCount: categories.length,
         pushedBalanceTypesCount: balanceTypes.length,
         pushedBalanceEntriesCount: balanceEntries.length,
+        pushedSettingsCount: settings.length,
       };
     },
 
@@ -138,6 +159,10 @@ export function createFakeRemoteSyncAdapter({
 
     getCategories() {
       return [...categoriesByKey.values()];
+    },
+
+    getSettings() {
+      return [...settingsByKey.values()];
     },
 
     getTransactions() {
@@ -174,6 +199,22 @@ function getRowsSince<
   });
 }
 
+function getSettingsSince<T extends { updatedAt: string }>({
+  rows,
+  since,
+}: {
+  rows: T[];
+  since: number | null;
+}) {
+  if (since === null) return rows;
+
+  return rows.filter((row) => parseRemoteTimestamp(row.updatedAt) > since);
+}
+
 function getUserOwnedKey(row: { userId: string; id: string }) {
   return `${row.userId}\u0000${row.id}`;
+}
+
+function getUserOwnedSettingKey(row: { userId: string; key: string }) {
+  return `${row.userId}\u0000${row.key}`;
 }

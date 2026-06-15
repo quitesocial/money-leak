@@ -4,6 +4,10 @@ import {
 } from '@/db/balance';
 import { getCategories } from '@/db/categories';
 import { getTransactionsForBackup } from '@/db/transactions';
+import {
+  getSettingsPreferenceSnapshot,
+  type SettingsPreferenceSnapshot,
+} from '@/lib/settings-preferences';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
@@ -13,6 +17,7 @@ export type LocalBackupData = {
   categories: Category[];
   balanceTypes: BalanceType[];
   balanceEntries: BalanceEntry[];
+  settings?: SettingsPreferenceSnapshot;
 };
 
 export type LocalBackupDataSource = {
@@ -24,20 +29,23 @@ export function createLocalBackupDataSource({
   readCategories = getCategories,
   readBalanceTypes = getBalanceTypesForBackup,
   readBalanceEntries = getBalanceEntriesForBackup,
+  readSettings = getSettingsPreferenceSnapshot,
 }: {
   readTransactions?: () => Promise<Transaction[]>;
   readCategories?: () => Promise<Category[]>;
   readBalanceTypes?: () => Promise<BalanceType[]>;
   readBalanceEntries?: () => Promise<BalanceEntry[]>;
+  readSettings?: () => Promise<SettingsPreferenceSnapshot>;
 } = {}): LocalBackupDataSource {
   return {
     async getBackupData() {
-      const [transactions, categories, balanceTypes, balanceEntries] =
+      const [transactions, categories, balanceTypes, balanceEntries, settings] =
         await Promise.all([
           readTransactions(),
           readCategories(),
           readBalanceTypes(),
           readBalanceEntries(),
+          readSettings(),
         ]);
 
       return {
@@ -47,6 +55,7 @@ export function createLocalBackupDataSource({
         ),
         balanceTypes,
         balanceEntries,
+        settings,
       };
     },
   };

@@ -52,6 +52,8 @@ export function createRestoreService({
           restoredCategoriesCount: 0,
           restoredBalanceTypesCount: 0,
           restoredBalanceEntriesCount: 0,
+          ignoredSettingsCount: 0,
+          restoredSettingsCount: 0,
           isRecoverable: true,
         };
       }
@@ -65,6 +67,8 @@ export function createRestoreService({
           restoredCategoriesCount: result.restoredCategoriesCount,
           restoredBalanceTypesCount: result.restoredBalanceTypesCount,
           restoredBalanceEntriesCount: result.restoredBalanceEntriesCount,
+          ignoredSettingsCount: result.ignoredSettingsCount,
+          restoredSettingsCount: result.restoredSettingsCount,
         };
       } catch {
         return createFailedResult('local_write_failed');
@@ -78,7 +82,8 @@ function hasRestorableRemoteRows(payload: RestorePayload) {
     payload.categories.some((category) => category.deletedAt === null) ||
     payload.transactions.length > 0 ||
     payload.balanceTypes.length > 0 ||
-    payload.balanceEntries.length > 0
+    payload.balanceEntries.length > 0 ||
+    (payload.settings?.length ?? 0) > 0
   );
 }
 

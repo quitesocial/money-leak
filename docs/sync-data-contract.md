@@ -50,9 +50,8 @@ sync, remote merge, delete account, or Apple Sign-In.
   and preserves transaction references.
 - Normal ML-64 backup payloads do not include tombstones. `deleted_at` remains
   in the remote schema for soft-delete-compatible future backup/sync work.
-- No `remote_settings` or `sync_metadata` table is created in ML-64. Current
-  settings remain device-local until a later product decision justifies account
-  settings backup.
+- No `sync_metadata` table is created in ML-64. Settings remained device-local
+  until ML-90 added account-level remote settings backup/sync.
 - The mobile app still uses only the Supabase anon client boundary. It does not
   use a service role key.
 
@@ -119,7 +118,27 @@ Current local settings/storage baseline:
 - The shared period scope is in-memory Zustand state:
   `selectedPeriod` and `selectedCustomDateStart`.
 
-These values are not currently account-scoped and do not sync.
+Before ML-90, these values were not account-scoped and did not sync.
+
+## ML-90 Implementation Notes
+
+ML-90 adds account-level sync for Settings `currency` and `language` only.
+
+- Supabase now has `remote_settings` with primary key `(user_id, key)`.
+- Allowed setting keys are `currency` and `language`.
+- Remote settings use `value`, `updated_at`, `schema_version`, and nullable
+  `source_device_id`.
+- Backup, restore, manual sync now, and foreground sync include settings through
+  existing sync service boundaries.
+- Conflict handling is deterministic last-write-wins per key, so currency and
+  language are resolved independently.
+- Guest/local mode remains local-only and does not read or write remote
+  settings.
+- Invalid remote setting keys or values are ignored safely.
+- Settings currency remains display formatting only. ML-90 does not add FX
+  conversion, per-entry currency fields, CSV columns, or language fields to
+  transaction, balance, category, CSV, backup, or sync row domains outside the
+  dedicated settings contract.
 
 ### CSV v1
 

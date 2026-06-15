@@ -2193,7 +2193,7 @@ describe('SettingsScreen backup section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain(
-      'Backup created. 2 transactions, 4 categories, 3 balance types, and 6 balance entries saved.',
+      'Backup created. 2 transactions, 4 categories, 3 balance types, 6 balance entries, and 0 settings saved.',
     );
     expect(text).toContain('Create backup');
     expect(mockSetLastSuccessfulBackupAt).toHaveBeenCalledWith(
@@ -2345,7 +2345,7 @@ describe('SettingsScreen restore section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain(
-      'Backup restored. 2 transactions, 4 categories, 3 balance types, and 6 balance entries restored.',
+      'Backup restored. 2 transactions, 4 categories, 3 balance types, 6 balance entries, and 0 settings restored. Ignored 0 settings.',
     );
     expect(text).toContain('Restore from backup');
     expect(mockLoadTransactions).toHaveBeenCalled();

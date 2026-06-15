@@ -7,12 +7,20 @@ import {
   type SettingsCurrency,
 } from '@/lib/settings-preferences';
 
+const listeners = new Set<(currency: SettingsCurrency) => void>();
+
 async function readSettingsCurrency() {
   try {
     return await getSettingsCurrency();
   } catch {
     return DEFAULT_SETTINGS_CURRENCY;
   }
+}
+
+export function notifySettingsCurrencyChanged(currency: SettingsCurrency) {
+  listeners.forEach((listener) => {
+    listener(currency);
+  });
 }
 
 export function useSettingsCurrency() {
@@ -34,6 +42,13 @@ export function useSettingsCurrency() {
 
   useEffect(() => refreshCurrency(), [refreshCurrency]);
   useFocusEffect(refreshCurrency);
+  useEffect(() => {
+    listeners.add(setCurrency);
+
+    return () => {
+      listeners.delete(setCurrency);
+    };
+  }, []);
 
   return currency;
 }
