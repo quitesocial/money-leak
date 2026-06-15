@@ -25,6 +25,7 @@ type RemoteDeleteStep = {
     | 'remote_balance_entries'
     | 'remote_balance_types'
     | 'remote_categories'
+    | 'remote_settings'
     | 'remote_transactions';
 };
 
@@ -39,6 +40,10 @@ const DELETE_ACCOUNT_STEPS: RemoteDeleteStep[] = [
   },
   {
     tableName: 'remote_transactions',
+    column: 'user_id',
+  },
+  {
+    tableName: 'remote_settings',
     column: 'user_id',
   },
   {

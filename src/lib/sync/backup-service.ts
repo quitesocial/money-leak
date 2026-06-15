@@ -7,6 +7,7 @@ import {
   mapLocalBalanceEntryToRemote,
   mapLocalBalanceTypeToRemote,
   mapLocalCategoryToRemote,
+  mapLocalSettingToRemote,
   mapLocalTransactionToRemote,
   toRemoteTimestamp,
 } from '@/lib/sync/sync-mappers';
@@ -76,6 +77,18 @@ export function createBackupService({
           userId: normalizedUserId,
         }),
       ),
+      settings: localData.settings
+        ? [
+            mapLocalSettingToRemote({
+              setting: localData.settings.currency,
+              userId: normalizedUserId,
+            }),
+            mapLocalSettingToRemote({
+              setting: localData.settings.language,
+              userId: normalizedUserId,
+            }),
+          ]
+        : [],
     };
   }
 
@@ -110,6 +123,7 @@ export function createBackupService({
           uploadedCategoriesCount: writeResult.uploadedCategoriesCount,
           uploadedBalanceTypesCount: writeResult.uploadedBalanceTypesCount,
           uploadedBalanceEntriesCount: writeResult.uploadedBalanceEntriesCount,
+          uploadedSettingsCount: writeResult.uploadedSettingsCount,
         };
       } catch {
         return createFailedResult('remote_write_failed');

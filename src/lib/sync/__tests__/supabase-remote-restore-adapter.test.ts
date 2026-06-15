@@ -41,6 +41,7 @@ type RemoteTableName =
   | 'remote_balance_entries'
   | 'remote_balance_types'
   | 'remote_categories'
+  | 'remote_settings'
   | 'remote_transactions';
 
 type RemoteCategoryRow = {
@@ -94,6 +95,15 @@ type RemoteBalanceEntryRow = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  schema_version: number;
+  source_device_id: string | null;
+};
+
+type RemoteSettingRow = {
+  user_id: string;
+  key: string;
+  value: string;
+  updated_at: string;
   schema_version: number;
   source_device_id: string | null;
 };
@@ -176,6 +186,20 @@ function createBalanceEntryRow(
   };
 }
 
+function createSettingRow(
+  overrides: Partial<RemoteSettingRow> = {},
+): RemoteSettingRow {
+  return {
+    user_id: TEST_USER_ID,
+    key: 'currency',
+    value: 'Euro',
+    updated_at: '2026-05-19T07:00:00.000Z',
+    schema_version: 1,
+    source_device_id: null,
+    ...overrides,
+  };
+}
+
 function createDataTarget(): LocalRestoreDataTarget & {
   restoreBackup: jest.MockedFunction<LocalRestoreDataTarget['restoreBackup']>;
 } {
@@ -195,12 +219,14 @@ function createMockRemoteRestoreClient({
   remoteBalanceEntries = [createBalanceEntryRow()],
   remoteBalanceTypes = [createBalanceTypeRow()],
   remoteCategories = [createCategoryRow()],
+  remoteSettings = [createSettingRow()],
   remoteTransactions = [createTransactionRow()],
 }: {
   failTable?: RemoteTableName;
   remoteBalanceEntries?: RemoteBalanceEntryRow[];
   remoteBalanceTypes?: RemoteBalanceTypeRow[];
   remoteCategories?: RemoteCategoryRow[];
+  remoteSettings?: RemoteSettingRow[];
   remoteTransactions?: RemoteTransactionRow[];
 } = {}) {
   const read = jest.fn(
@@ -222,6 +248,7 @@ function createMockRemoteRestoreClient({
           remoteBalanceEntries,
           remoteBalanceTypes,
           remoteCategories,
+          remoteSettings,
           remoteTransactions,
           tableName,
           userId: value,
@@ -253,6 +280,7 @@ function getRowsForTable({
   remoteBalanceEntries,
   remoteBalanceTypes,
   remoteCategories,
+  remoteSettings,
   remoteTransactions,
   tableName,
   userId,
@@ -260,6 +288,7 @@ function getRowsForTable({
   remoteBalanceEntries: RemoteBalanceEntryRow[];
   remoteBalanceTypes: RemoteBalanceTypeRow[];
   remoteCategories: RemoteCategoryRow[];
+  remoteSettings: RemoteSettingRow[];
   remoteTransactions: RemoteTransactionRow[];
   tableName: RemoteTableName;
   userId: string;
@@ -274,6 +303,10 @@ function getRowsForTable({
 
   if (tableName === 'remote_categories') {
     return remoteCategories.filter((row) => row.user_id === userId);
+  }
+
+  if (tableName === 'remote_settings') {
+    return remoteSettings.filter((row) => row.user_id === userId);
   }
 
   return remoteTransactions.filter((row) => row.user_id === userId);
@@ -477,6 +510,7 @@ describe('Supabase remote restore adapter', () => {
       remoteBalanceEntries: [],
       remoteBalanceTypes: [],
       remoteCategories: [],
+      remoteSettings: [],
       remoteTransactions: [],
     });
     const adapter = createSupabaseRemoteRestoreAdapter({

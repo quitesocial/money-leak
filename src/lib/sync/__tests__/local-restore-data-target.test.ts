@@ -225,6 +225,8 @@ describe('local restore data target', () => {
       restoredTransactionsCount: 1,
       restoredBalanceTypesCount: 1,
       restoredBalanceEntriesCount: 1,
+      ignoredSettingsCount: 0,
+      restoredSettingsCount: 0,
     });
 
     expect(calls).toEqual([

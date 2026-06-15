@@ -3288,3 +3288,36 @@ Manual QA:
 - Currency behavior from ML-88 remains display-only and unchanged.
 - Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
 - No forbidden UI dependency, backend/auth/API/bank integration, Supabase migration, service-role/admin mobile usage, raw backend error, env value, token, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.
+
+## ML-90 Currency And Language Account Sync
+
+### 62. Settings preferences sync without changing data contracts
+
+**Preconditions**
+
+- Use one guest/local install and one authenticated account on two devices or simulators.
+- Apply the `remote_settings` Supabase migration before authenticated sync checks.
+- Keep test data with transactions, categories, balances, custom category names, custom balance type names, and notes.
+
+**Steps**
+
+1. In guest/local mode, change Settings Currency and Language and confirm both apply immediately and persist after restart.
+2. In guest/local mode, confirm backup/sync controls remain hidden or skipped and no remote settings rows are written.
+3. On authenticated device A, change Currency and Language, then run manual backup.
+4. On authenticated device B for the same account, run restore and confirm Currency and Language update locally without reinstalling.
+5. Change only Currency on device A and only Language on device B, then run manual sync on both devices and confirm per-key last-write-wins behavior.
+6. Return the app from background to foreground with foreground sync enabled and stale sync metadata; confirm remote Currency/Language changes apply through the existing foreground sync path only.
+7. Force an invalid remote settings value in Supabase and run restore/sync; confirm valid settings still apply, invalid settings are ignored, and UI shows only generic safe copy if the operation fails.
+8. Export/import Transaction CSV v1 and confirm the header remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+9. Confirm custom category names, custom balance type names, notes, and other user-generated values are not translated.
+10. Confirm money labels use the selected currency symbol only, with no FX conversion or per-entry currency behavior.
+
+**Expected result**
+
+- Guest/local mode remains fully usable and local-only.
+- Authenticated backup, restore, manual sync now, and foreground sync include Currency and Language through the sync service boundaries.
+- Settings screen does not call Supabase adapters directly.
+- Currency and Language resolve independently; repeated backup/sync does not duplicate remote rows.
+- Applying remote Language refreshes runtime i18n UI; applying remote Currency refreshes money labels without app restart where hooks are mounted or focused.
+- Transaction CSV v1, transaction/balance/category contracts, bottom tabs, and root stack routes remain unchanged.
+- No raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload is rendered or logged.

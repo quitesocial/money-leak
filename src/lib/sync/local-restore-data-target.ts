@@ -18,9 +18,19 @@ import {
   mapRemoteBalanceTypeToLocalInput,
   mapRemoteBalanceTypeTombstoneToLocalInput,
   mapRemoteCategoryToLocalInput,
+  mapRemoteSettingToLocalInput,
   mapRemoteTransactionToLocalInput,
   mapRemoteTransactionTombstoneToLocalInput,
 } from '@/lib/sync/sync-mappers';
+import {
+  applyRemoteSettingsPreferences,
+  getSettingsCurrency,
+  getSettingsLanguage,
+  type ApplySettingsPreferencesResult,
+  type SettingsPreferenceRemoteInput,
+} from '@/lib/settings-preferences';
+import { notifySettingsCurrencyChanged } from '@/lib/use-settings-currency';
+import { notifySettingsLanguageChanged } from '@/lib/use-settings-language';
 import type {
   LocalRestoreDataTarget,
   LocalRestoreWriteResult,
@@ -63,6 +73,9 @@ type LocalRestoreDataTargetOptions = {
   writeTransactionTombstones?: (
     tombstones: TransactionTombstoneRestoreInput[],
   ) => Promise<number>;
+  writeSettings?: (
+    settings: SettingsPreferenceRemoteInput[],
+  ) => Promise<ApplySettingsPreferencesResult>;
 };
 
 export function createLocalRestoreDataTarget({
@@ -77,6 +90,7 @@ export function createLocalRestoreDataTarget({
   writeBalanceEntryTombstones = restoreBalanceEntryTombstones,
   writeTransactions = restoreTransactions,
   writeTransactionTombstones = restoreTransactionTombstones,
+  writeSettings = applyRemoteSettingsPreferences,
 }: LocalRestoreDataTargetOptions = {}): LocalRestoreDataTarget {
   return {
     async hasLocalData() {
@@ -124,6 +138,9 @@ export function createLocalRestoreDataTarget({
       const balanceEntryTombstones = payload.balanceEntries
         .filter(isDeletedRemoteRow)
         .map(mapRemoteBalanceEntryTombstoneToLocalInput);
+      const settings = (payload.settings ?? []).map(
+        mapRemoteSettingToLocalInput,
+      );
 
       const restoredCategoriesCount = await writeCategories(categories);
       const restoredActiveBalanceTypesCount =
@@ -138,6 +155,8 @@ export function createLocalRestoreDataTarget({
         await writeBalanceTypeTombstones(balanceTypeTombstones);
       const restoredBalanceEntryTombstonesCount =
         await writeBalanceEntryTombstones(balanceEntryTombstones);
+      const settingsResult = await writeSettings(settings);
+      await notifyAppliedSettings(settingsResult);
 
       return {
         restoredTransactionsCount:
@@ -148,9 +167,23 @@ export function createLocalRestoreDataTarget({
         restoredBalanceEntriesCount:
           restoredActiveBalanceEntriesCount +
           restoredBalanceEntryTombstonesCount,
+        ignoredSettingsCount: settingsResult.ignoredSettingsCount,
+        restoredSettingsCount: settingsResult.restoredSettingsCount,
       } satisfies LocalRestoreWriteResult;
     },
   };
+}
+
+async function notifyAppliedSettings(result: ApplySettingsPreferencesResult) {
+  if (result.restoredSettingsCount === 0) return;
+
+  const [currency, language] = await Promise.all([
+    getSettingsCurrency(),
+    getSettingsLanguage(),
+  ]);
+
+  notifySettingsCurrencyChanged(currency);
+  notifySettingsLanguageChanged(language);
 }
 
 function isActiveRemoteRow(row: { deletedAt: string | null }) {

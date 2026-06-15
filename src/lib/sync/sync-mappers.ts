@@ -2,9 +2,14 @@ import type {
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteTransaction,
 } from '@/lib/sync/sync-types';
 import { CATEGORY_ICON_FALLBACK_NAME } from '@/lib/category-icons';
+import type {
+  SettingsPreferenceKey,
+  SettingsPreferenceSnapshot,
+} from '@/lib/settings-preferences';
 import type {
   BalanceEntry,
   BalanceEntryRestoreInput,
@@ -114,6 +119,33 @@ export function mapLocalBalanceEntryToRemote({
       entry.deletedAt === null ? null : toRemoteTimestamp(entry.deletedAt),
     schemaVersion: entry.schemaVersion,
     sourceDeviceId: entry.sourceDeviceId || null,
+  };
+}
+
+export function mapLocalSettingToRemote<Key extends SettingsPreferenceKey>({
+  setting,
+  userId,
+}: {
+  setting: SettingsPreferenceSnapshot[Key];
+  userId: string;
+}): RemoteSetting {
+  return {
+    userId,
+    key: setting.key,
+    value: setting.value,
+    updatedAt: toRemoteTimestamp(setting.updatedAt),
+    schemaVersion: setting.schemaVersion,
+    sourceDeviceId: setting.sourceDeviceId,
+  };
+}
+
+export function mapRemoteSettingToLocalInput(setting: RemoteSetting) {
+  return {
+    key: setting.key,
+    value: setting.value,
+    updatedAt: parseRemoteTimestamp(setting.updatedAt),
+    schemaVersion: setting.schemaVersion,
+    sourceDeviceId: setting.sourceDeviceId,
   };
 }
 

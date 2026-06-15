@@ -5,6 +5,7 @@ import {
   mapRemoteBalanceEntryToRow,
   mapRemoteBalanceTypeToRow,
   mapRemoteCategoryToRow,
+  mapRemoteSettingToRow,
   mapRemoteTransactionToRow,
 } from '@/lib/sync/supabase-remote-row-mappers';
 import type { BackupPayload, RemoteBackupAdapter } from '@/lib/sync/sync-types';
@@ -51,6 +52,11 @@ export function createSupabaseRemoteBackupAdapter({
           balanceEntries: payload.balanceEntries,
           client,
         });
+
+        await upsertRemoteSettings({
+          client,
+          settings: payload.settings ?? [],
+        });
       } catch {
         throw new Error(GENERIC_REMOTE_BACKUP_ERROR_MESSAGE);
       }
@@ -60,6 +66,7 @@ export function createSupabaseRemoteBackupAdapter({
         uploadedCategoriesCount: payload.categories.length,
         uploadedBalanceTypesCount: payload.balanceTypes.length,
         uploadedBalanceEntriesCount: payload.balanceEntries.length,
+        uploadedSettingsCount: payload.settings?.length ?? 0,
       };
     },
   };
@@ -134,6 +141,24 @@ async function upsertRemoteBalanceEntries({
     .from('remote_balance_entries')
     .upsert(balanceEntries.map(mapRemoteBalanceEntryToRow), {
       onConflict: 'user_id,id',
+    })) as SupabaseWriteResult;
+
+  if (result.error) throw new Error(GENERIC_REMOTE_BACKUP_ERROR_MESSAGE);
+}
+
+async function upsertRemoteSettings({
+  client,
+  settings,
+}: {
+  client: SupabaseRemoteBackupClient;
+  settings: NonNullable<BackupPayload['settings']>;
+}) {
+  if (settings.length === 0) return;
+
+  const result = (await client
+    .from('remote_settings')
+    .upsert(settings.map(mapRemoteSettingToRow), {
+      onConflict: 'user_id,key',
     })) as SupabaseWriteResult;
 
   if (result.error) throw new Error(GENERIC_REMOTE_BACKUP_ERROR_MESSAGE);

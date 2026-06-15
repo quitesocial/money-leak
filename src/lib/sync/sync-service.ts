@@ -10,15 +10,21 @@ import {
   mapLocalBalanceEntryToRemote,
   mapLocalBalanceTypeToRemote,
   mapLocalCategoryToRemote,
+  mapLocalSettingToRemote,
   mapLocalTransactionToRemote,
   parseRemoteTimestamp,
 } from '@/lib/sync/sync-mappers';
+import type {
+  SettingsPreferenceKey,
+  SettingsPreference,
+} from '@/lib/settings-preferences';
 import type {
   LocalSyncDataTarget,
   LocalSyncMetadataStore,
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteSyncAdapter,
   RemoteSyncChanges,
   RemoteTransaction,
@@ -47,6 +53,7 @@ type SyncPlan = SyncCounts & {
   localBalanceEntriesToPush: BalanceEntry[];
   localBalanceTypesToPush: BalanceType[];
   localCategoriesToPush: Category[];
+  localSettingsToPush: SettingsPreference[];
   localTransactionsToPush: Transaction[];
   remoteChangesToApply: RemoteSyncChanges;
 };
@@ -61,18 +68,22 @@ const EMPTY_COUNTS: SyncCounts = {
   pulledCategoriesCount: 0,
   pulledBalanceTypesCount: 0,
   pulledBalanceEntriesCount: 0,
+  pulledSettingsCount: 0,
   appliedTransactionsCount: 0,
   appliedCategoriesCount: 0,
   appliedBalanceTypesCount: 0,
   appliedBalanceEntriesCount: 0,
+  appliedSettingsCount: 0,
   pushedTransactionsCount: 0,
   pushedCategoriesCount: 0,
   pushedBalanceTypesCount: 0,
   pushedBalanceEntriesCount: 0,
+  pushedSettingsCount: 0,
   ignoredTransactionTombstonesCount: 0,
   ignoredCategoryTombstonesCount: 0,
   ignoredBalanceTypeTombstonesCount: 0,
   ignoredBalanceEntryTombstonesCount: 0,
+  ignoredSettingsCount: 0,
   conflictsCount: 0,
 };
 
@@ -175,6 +186,8 @@ export function createSyncService({
       | 'appliedBalanceEntriesCount'
       | 'appliedBalanceTypesCount'
       | 'appliedCategoriesCount'
+      | 'appliedSettingsCount'
+      | 'ignoredSettingsCount'
       | 'appliedTransactionsCount'
     >;
 
@@ -191,6 +204,7 @@ export function createSyncService({
       | 'pushedBalanceEntriesCount'
       | 'pushedBalanceTypesCount'
       | 'pushedCategoriesCount'
+      | 'pushedSettingsCount'
       | 'pushedTransactionsCount'
     >;
 
@@ -209,6 +223,9 @@ export function createSyncService({
         balanceEntries: plan.localBalanceEntriesToPush.map((entry) =>
           mapLocalBalanceEntryToRemote({ entry, userId }),
         ),
+        settings: plan.localSettingsToPush.map((setting) =>
+          mapLocalSettingToRemote({ setting, userId }),
+        ),
       });
     } catch {
       return createFailedResult('remote_write_failed');
@@ -223,19 +240,25 @@ export function createSyncService({
       pulledCategoriesCount: plan.pulledCategoriesCount,
       pulledBalanceTypesCount: plan.pulledBalanceTypesCount,
       pulledBalanceEntriesCount: plan.pulledBalanceEntriesCount,
+      pulledSettingsCount: plan.pulledSettingsCount,
       appliedTransactionsCount: appliedCounts.appliedTransactionsCount,
       appliedCategoriesCount: appliedCounts.appliedCategoriesCount,
       appliedBalanceTypesCount: appliedCounts.appliedBalanceTypesCount,
       appliedBalanceEntriesCount: appliedCounts.appliedBalanceEntriesCount,
+      appliedSettingsCount: appliedCounts.appliedSettingsCount ?? 0,
       pushedTransactionsCount: pushedCounts.pushedTransactionsCount,
       pushedCategoriesCount: pushedCounts.pushedCategoriesCount,
       pushedBalanceTypesCount: pushedCounts.pushedBalanceTypesCount,
       pushedBalanceEntriesCount: pushedCounts.pushedBalanceEntriesCount,
+      pushedSettingsCount: pushedCounts.pushedSettingsCount ?? 0,
       ignoredTransactionTombstonesCount: plan.ignoredTransactionTombstonesCount,
       ignoredCategoryTombstonesCount: plan.ignoredCategoryTombstonesCount,
       ignoredBalanceTypeTombstonesCount: plan.ignoredBalanceTypeTombstonesCount,
       ignoredBalanceEntryTombstonesCount:
         plan.ignoredBalanceEntryTombstonesCount,
+      ignoredSettingsCount:
+        (plan.ignoredSettingsCount ?? 0) +
+        (appliedCounts.ignoredSettingsCount ?? 0),
       conflictsCount: plan.conflictsCount,
     };
 
@@ -252,14 +275,17 @@ export function createSyncService({
       pulledCategoriesCount: summary.pulledCategoriesCount,
       pulledBalanceTypesCount: summary.pulledBalanceTypesCount,
       pulledBalanceEntriesCount: summary.pulledBalanceEntriesCount,
+      pulledSettingsCount: summary.pulledSettingsCount,
       appliedTransactionsCount: summary.appliedTransactionsCount,
       appliedCategoriesCount: summary.appliedCategoriesCount,
       appliedBalanceTypesCount: summary.appliedBalanceTypesCount,
       appliedBalanceEntriesCount: summary.appliedBalanceEntriesCount,
+      appliedSettingsCount: summary.appliedSettingsCount,
       pushedTransactionsCount: summary.pushedTransactionsCount,
       pushedCategoriesCount: summary.pushedCategoriesCount,
       pushedBalanceTypesCount: summary.pushedBalanceTypesCount,
       pushedBalanceEntriesCount: summary.pushedBalanceEntriesCount,
+      pushedSettingsCount: summary.pushedSettingsCount,
       ignoredTransactionTombstonesCount:
         summary.ignoredTransactionTombstonesCount,
       ignoredCategoryTombstonesCount: summary.ignoredCategoryTombstonesCount,
@@ -267,6 +293,7 @@ export function createSyncService({
         summary.ignoredBalanceTypeTombstonesCount,
       ignoredBalanceEntryTombstonesCount:
         summary.ignoredBalanceEntryTombstonesCount,
+      ignoredSettingsCount: summary.ignoredSettingsCount,
       conflictsCount: summary.conflictsCount,
     };
   }
@@ -303,6 +330,7 @@ function createSyncPlan({
   const remoteCategories = remoteChanges.categories ?? [];
   const remoteBalanceTypes = remoteChanges.balanceTypes ?? [];
   const remoteBalanceEntries = remoteChanges.balanceEntries ?? [];
+  const remoteSettings = remoteChanges.settings ?? [];
   const localTransactionsById = new Map(
     localData.transactions.map((transaction) => [transaction.id, transaction]),
   );
@@ -322,14 +350,17 @@ function createSyncPlan({
   const categoryDecisions = new Map<string, RowDecision>();
   const balanceTypeDecisions = new Map<string, RowDecision>();
   const balanceEntryDecisions = new Map<string, RowDecision>();
+  const settingDecisions = new Map<SettingsPreferenceKey, RowDecision>();
   const transactionsToApply: RemoteTransaction[] = [];
   const categoriesToApply: RemoteCategory[] = [];
   const balanceTypesToApply: RemoteBalanceType[] = [];
   const balanceEntriesToApply: RemoteBalanceEntry[] = [];
+  const settingsToApply: RemoteSetting[] = [];
   let ignoredTransactionTombstonesCount = 0;
   let ignoredCategoryTombstonesCount = 0;
   let ignoredBalanceTypeTombstonesCount = 0;
   let ignoredBalanceEntryTombstonesCount = 0;
+  let ignoredSettingsCount = 0;
   let conflictsCount = 0;
   let cursorFloor = 0;
 
@@ -507,6 +538,47 @@ function createSyncPlan({
     }
   }
 
+  const localSettings = localData.settings
+    ? [localData.settings.currency, localData.settings.language]
+    : [];
+  const localSettingsByKey = new Map(
+    localSettings.map((setting) => [setting.key, setting]),
+  );
+
+  for (const setting of remoteSettings) {
+    const remoteTimestamp = parseRemoteTimestamp(setting.updatedAt);
+    const localSetting = localSettingsByKey.get(setting.key);
+
+    cursorFloor = Math.max(cursorFloor, remoteTimestamp);
+
+    if (!localSetting) {
+      ignoredSettingsCount += 1;
+
+      continue;
+    }
+
+    const localTimestamp = localSetting.updatedAt;
+    const areSame = localSetting.value === setting.value;
+    const hasConflict =
+      !areSame &&
+      isChangedSince(localTimestamp, since) &&
+      isChangedSince(remoteTimestamp, since);
+
+    if (hasConflict) conflictsCount += 1;
+
+    const decision = getLwwDecision({
+      areSame,
+      localTimestamp,
+      remoteTimestamp,
+    });
+
+    settingDecisions.set(setting.key, decision);
+
+    if (decision === 'remote_wins') {
+      settingsToApply.push(setting);
+    }
+  }
+
   const localTransactionsToPush = localData.transactions.filter(
     (transaction) => {
       const effectiveTimestamp =
@@ -562,35 +634,51 @@ function createSyncPlan({
     },
   );
 
+  const localSettingsToPush = localSettings.filter((setting) => {
+    cursorFloor = Math.max(cursorFloor, setting.updatedAt);
+
+    if (!isChangedSince(setting.updatedAt, since)) return false;
+
+    const decision = settingDecisions.get(setting.key);
+
+    return decision !== 'remote_wins' && decision !== 'same';
+  });
+
   return {
     ...EMPTY_COUNTS,
     pulledTransactionsCount: remoteTransactions.length,
     pulledCategoriesCount: remoteCategories.length,
     pulledBalanceTypesCount: remoteBalanceTypes.length,
     pulledBalanceEntriesCount: remoteBalanceEntries.length,
+    pulledSettingsCount: remoteSettings.length,
     appliedTransactionsCount: transactionsToApply.length,
     appliedCategoriesCount: categoriesToApply.length,
     appliedBalanceTypesCount: balanceTypesToApply.length,
     appliedBalanceEntriesCount: balanceEntriesToApply.length,
+    appliedSettingsCount: settingsToApply.length,
     pushedTransactionsCount: localTransactionsToPush.length,
     pushedCategoriesCount: localCategoriesToPush.length,
     pushedBalanceTypesCount: localBalanceTypesToPush.length,
     pushedBalanceEntriesCount: localBalanceEntriesToPush.length,
+    pushedSettingsCount: localSettingsToPush.length,
     ignoredTransactionTombstonesCount,
     ignoredCategoryTombstonesCount,
     ignoredBalanceTypeTombstonesCount,
     ignoredBalanceEntryTombstonesCount,
+    ignoredSettingsCount,
     conflictsCount,
     cursorFloor,
     localBalanceEntriesToPush,
     localBalanceTypesToPush,
     localCategoriesToPush,
+    localSettingsToPush,
     localTransactionsToPush,
     remoteChangesToApply: {
       transactions: transactionsToApply,
       categories: categoriesToApply,
       balanceTypes: balanceTypesToApply,
       balanceEntries: balanceEntriesToApply,
+      settings: settingsToApply,
     },
   };
 }

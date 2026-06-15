@@ -29,11 +29,12 @@ type RemoteTableName =
   | 'remote_balance_entries'
   | 'remote_balance_types'
   | 'remote_categories'
+  | 'remote_settings'
   | 'remote_transactions';
 
 type RemoteRow = {
   user_id: string;
-  id: string;
+  id?: string;
   [key: string]: unknown;
 };
 
@@ -108,11 +109,24 @@ function createBalanceEntryRow(overrides: Partial<RemoteRow> = {}): RemoteRow {
   };
 }
 
+function createSettingRow(overrides: Partial<RemoteRow> = {}): RemoteRow {
+  return {
+    user_id: TEST_USER_ID,
+    key: 'currency',
+    value: 'Euro',
+    updated_at: '2026-05-21T07:00:00.000Z',
+    schema_version: 1,
+    source_device_id: null,
+    ...overrides,
+  };
+}
+
 function createMockRemoteSyncClient({
   failTable,
   remoteBalanceEntries = [createBalanceEntryRow()],
   remoteBalanceTypes = [createBalanceTypeRow()],
   remoteCategories = [createCategoryRow()],
+  remoteSettings = [createSettingRow()],
   remoteTransactions = [createTransactionRow()],
   sessionUserId = TEST_USER_ID,
 }: {
@@ -120,6 +134,7 @@ function createMockRemoteSyncClient({
   remoteBalanceEntries?: RemoteRow[];
   remoteBalanceTypes?: RemoteRow[];
   remoteCategories?: RemoteRow[];
+  remoteSettings?: RemoteRow[];
   remoteTransactions?: RemoteRow[];
   sessionUserId?: string | null;
 } = {}) {
@@ -133,6 +148,9 @@ function createMockRemoteSyncClient({
     ),
     remote_categories: new Map(
       remoteCategories.map((row) => [`${row.user_id}\u0000${row.id}`, row]),
+    ),
+    remote_settings: new Map(
+      remoteSettings.map((row) => [`${row.user_id}\u0000${row.key}`, row]),
     ),
     remote_transactions: new Map(
       remoteTransactions.map((row) => [`${row.user_id}\u0000${row.id}`, row]),
@@ -150,6 +168,11 @@ function createMockRemoteSyncClient({
       }),
       or: jest.fn((filters: string) => {
         filtersByTable[tableName] = filters;
+
+        return query;
+      }),
+      gt: jest.fn((columnName: string, value: string) => {
+        filtersByTable[tableName] = `${columnName}.gt.${value}`;
 
         return query;
       }),
@@ -190,7 +213,10 @@ function createMockRemoteSyncClient({
       }
 
       for (const row of rows) {
-        rowsByTable[tableName].set(`${row.user_id}\u0000${row.id}`, row);
+        rowsByTable[tableName].set(
+          `${row.user_id}\u0000${tableName === 'remote_settings' ? row.key : row.id}`,
+          row,
+        );
       }
 
       return {
@@ -375,6 +401,7 @@ describe('Supabase remote sync adapter', () => {
       pushedCategoriesCount: 1,
       pushedBalanceTypesCount: 1,
       pushedBalanceEntriesCount: 1,
+      pushedSettingsCount: 0,
     });
     expect(upsert).toHaveBeenNthCalledWith(
       1,

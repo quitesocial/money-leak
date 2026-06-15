@@ -9,6 +9,7 @@ import type {
   RemoteBalanceEntry,
   RemoteBalanceType,
   RemoteCategory,
+  RemoteSetting,
   RemoteSyncAdapter,
   RemoteSyncChanges,
   RemoteTransaction,
@@ -18,6 +19,7 @@ import type {
   SyncService,
   SyncSummary,
 } from '@/lib/sync/sync-types';
+import type { SettingsPreferenceSnapshot } from '@/lib/settings-preferences';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
 import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
@@ -221,17 +223,55 @@ function createRemoteBalanceEntry(
   };
 }
 
+function createSettingsSnapshot(
+  overrides: Partial<SettingsPreferenceSnapshot> = {},
+): SettingsPreferenceSnapshot {
+  return {
+    currency: {
+      key: 'currency',
+      value: 'Euro',
+      updatedAt: Date.parse('2026-05-21T07:00:00.000Z'),
+      schemaVersion: 1,
+      sourceDeviceId: null,
+    },
+    language: {
+      key: 'language',
+      value: 'English',
+      updatedAt: Date.parse('2026-05-21T07:05:00.000Z'),
+      schemaVersion: 1,
+      sourceDeviceId: null,
+    },
+    ...overrides,
+  };
+}
+
+function createRemoteSetting(
+  overrides: Partial<RemoteSetting> = {},
+): RemoteSetting {
+  return {
+    userId: TEST_USER_ID,
+    key: 'currency',
+    value: 'United States dollar',
+    updatedAt: '2026-05-21T11:30:00.000Z',
+    schemaVersion: 1,
+    sourceDeviceId: null,
+    ...overrides,
+  };
+}
+
 function createDataSource({
   balanceEntries = [],
   balanceTypes = [],
   categories = [],
   shouldFail = false,
+  settings,
   transactions = [],
 }: {
   balanceEntries?: BalanceEntry[];
   balanceTypes?: BalanceType[];
   categories?: Category[];
   shouldFail?: boolean;
+  settings?: SettingsPreferenceSnapshot;
   transactions?: Transaction[];
 } = {}): LocalSyncDataSource & {
   getSyncData: jest.MockedFunction<LocalSyncDataSource['getSyncData']>;
@@ -244,6 +284,7 @@ function createDataSource({
         balanceEntries,
         balanceTypes,
         categories,
+        settings,
         transactions,
       };
     }),
@@ -267,13 +308,23 @@ function createDataTarget({
     applyRemoteChanges: jest.fn(async (changes) => {
       if (shouldFail) throw new Error(RAW_FAILURE);
 
-      appliedChanges.push(changes);
+      appliedChanges.push({
+        balanceEntries: changes.balanceEntries,
+        balanceTypes: changes.balanceTypes,
+        categories: changes.categories,
+        transactions: changes.transactions,
+        ...(changes.settings && changes.settings.length > 0
+          ? { settings: changes.settings }
+          : {}),
+      });
 
       return {
         appliedTransactionsCount: changes.transactions.length,
         appliedCategoriesCount: changes.categories.length,
         appliedBalanceTypesCount: changes.balanceTypes.length,
         appliedBalanceEntriesCount: changes.balanceEntries.length,
+        appliedSettingsCount: changes.settings?.length ?? 0,
+        ignoredSettingsCount: 0,
       };
     }),
   };
@@ -667,6 +718,121 @@ describe('incremental sync service', () => {
       ]),
     );
     expect(JSON.stringify(result)).not.toContain('local-balance-entry');
+  });
+
+  it('pulls and pushes settings with LWW per key', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+      settings: [
+        createRemoteSetting({
+          key: 'currency',
+          value: 'United States dollar',
+          updatedAt: '2026-05-21T11:30:00.000Z',
+        }),
+        createRemoteSetting({
+          key: 'language',
+          value: 'German',
+          updatedAt: '2026-05-21T07:01:00.000Z',
+        }),
+      ],
+    });
+    const dataTarget = createDataTarget();
+    const service = createService({
+      dataSource: createDataSource({
+        settings: createSettingsSnapshot({
+          currency: {
+            key: 'currency',
+            value: 'Euro',
+            updatedAt: Date.parse('2026-05-21T07:00:00.000Z'),
+            schemaVersion: 1,
+            sourceDeviceId: null,
+          },
+          language: {
+            key: 'language',
+            value: 'English',
+            updatedAt: Date.parse('2026-05-21T11:45:00.000Z'),
+            schemaVersion: 1,
+            sourceDeviceId: null,
+          },
+        }),
+      }),
+      dataTarget,
+      remoteAdapter,
+    });
+
+    const result = await runManualIncrementalSync(service, {
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      pulledSettingsCount: 2,
+      appliedSettingsCount: 1,
+      pushedSettingsCount: 1,
+      conflictsCount: 2,
+    });
+    expect(dataTarget.appliedChanges[0].settings).toEqual([
+      expect.objectContaining({
+        key: 'currency',
+        value: 'United States dollar',
+      }),
+    ]);
+    expect(remoteAdapter.getSettings()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'currency',
+          value: 'United States dollar',
+        }),
+        expect.objectContaining({
+          key: 'language',
+          value: 'English',
+        }),
+      ]),
+    );
+  });
+
+  it('does not duplicate remote settings on repeated sync', async () => {
+    const remoteAdapter = createFakeRemoteSyncAdapter({
+      sessionUserId: TEST_USER_ID,
+    });
+    const metadataStore = createMetadataStore({
+      initialMetadata: {
+        lastSuccessfulSyncAt: null,
+        lastSyncErrorAt: null,
+        lastSyncSummary: null,
+        lastSuccessfulSyncSource: null,
+      },
+    });
+    const service = createService({
+      dataSource: createDataSource({
+        settings: createSettingsSnapshot(),
+      }),
+      metadataStore,
+      remoteAdapter,
+    });
+
+    await runManualIncrementalSync(service, {
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+    const secondResult = await runManualIncrementalSync(service, {
+      auth: {
+        status: 'authenticated',
+        userId: TEST_USER_ID,
+      },
+    });
+
+    expect(remoteAdapter.getSettings()).toHaveLength(2);
+    expect(secondResult).toMatchObject({
+      status: 'succeeded',
+      pulledSettingsCount: 0,
+      pushedSettingsCount: 0,
+    });
   });
 
   it('applies matching remote balance tombstones and ignores orphan balance tombstones', async () => {

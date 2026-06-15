@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { createBackupService } from '@/lib/sync/backup-service';
 import { createFakeRemoteBackupAdapter } from '@/lib/sync/fake-remote-backup-adapter';
+import type { SettingsPreferenceSnapshot } from '@/lib/settings-preferences';
 import {
   createLocalBackupDataSource,
   type LocalBackupDataSource,
@@ -107,16 +108,37 @@ function createBalanceEntry(
   };
 }
 
+function createSettingsSnapshot(): SettingsPreferenceSnapshot {
+  return {
+    currency: {
+      key: 'currency',
+      value: 'Euro',
+      updatedAt: Date.parse('2026-05-19T07:00:00.000Z'),
+      schemaVersion: 1,
+      sourceDeviceId: null,
+    },
+    language: {
+      key: 'language',
+      value: 'English',
+      updatedAt: Date.parse('2026-05-19T07:05:00.000Z'),
+      schemaVersion: 1,
+      sourceDeviceId: null,
+    },
+  };
+}
+
 function createDataSource({
   balanceEntries = [createBalanceEntry()],
   balanceTypes = [createBalanceType()],
   transactions = [createTransaction()],
   categories = [createCategory()],
+  settings = createSettingsSnapshot(),
 }: {
   balanceEntries?: BalanceEntry[];
   balanceTypes?: BalanceType[];
   transactions?: Transaction[];
   categories?: Category[];
+  settings?: SettingsPreferenceSnapshot;
 } = {}): LocalBackupDataSource {
   return {
     getBackupData: jest.fn(async () => ({
@@ -124,6 +146,7 @@ function createDataSource({
       balanceTypes,
       transactions,
       categories,
+      settings,
     })),
   };
 }
@@ -182,6 +205,7 @@ describe('backup service foundation', () => {
       readCategories,
       readBalanceTypes,
       readBalanceEntries,
+      readSettings: jest.fn(async () => createSettingsSnapshot()),
     });
 
     await expect(dataSource.getBackupData()).resolves.toEqual({
@@ -212,6 +236,7 @@ describe('backup service foundation', () => {
           deletedAt: Date.parse('2026-05-20T08:00:00.000Z'),
         }),
       ],
+      settings: createSettingsSnapshot(),
     });
     expect(readTransactions).toHaveBeenCalledTimes(1);
     expect(readCategories).toHaveBeenCalledTimes(1);
@@ -295,6 +320,24 @@ describe('backup service foundation', () => {
           deletedAt: null,
           schemaVersion: 1,
           sourceDeviceId: 'device_test',
+        },
+      ],
+      settings: [
+        {
+          key: 'currency',
+          userId: TEST_USER_ID,
+          value: 'Euro',
+          updatedAt: '2026-05-19T07:00:00.000Z',
+          schemaVersion: 1,
+          sourceDeviceId: null,
+        },
+        {
+          key: 'language',
+          userId: TEST_USER_ID,
+          value: 'English',
+          updatedAt: '2026-05-19T07:05:00.000Z',
+          schemaVersion: 1,
+          sourceDeviceId: null,
         },
       ],
     });
@@ -555,6 +598,7 @@ describe('backup service foundation', () => {
     expect(adapter.getCategories()).toHaveLength(2);
     expect(adapter.getBalanceTypes()).toHaveLength(2);
     expect(adapter.getBalanceEntries()).toHaveLength(2);
+    expect(adapter.getSettings()).toHaveLength(4);
     expect(
       adapter
         .getTransactions()
