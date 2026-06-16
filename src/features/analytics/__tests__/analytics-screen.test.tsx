@@ -14,6 +14,7 @@ import { AnalyticsScreen } from '@/features/analytics/analytics-screen';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
 import {
   findButton,
+  findAllNodes,
   findByTestID,
   findNodeByProp,
   findTextNode,
@@ -319,6 +320,20 @@ function getSymbolNames() {
   return mockSymbolView.mock.calls.map(([props]) => props.name);
 }
 
+function getOverviewChartPaths(renderer: ReactTestRenderer) {
+  return findAllNodes(renderer.root, (node) => typeof node.props.d === 'string')
+    .map((node) => node.props.d as string)
+    .sort();
+}
+
+function getOverviewChartCircleStrokes(renderer: ReactTestRenderer) {
+  return findAllNodes(
+    renderer.root,
+    (node) =>
+      typeof node.props.r === 'number' && typeof node.props.stroke === 'string',
+  ).map((node) => node.props.stroke as string);
+}
+
 async function renderAnalyticsScreen() {
   const renderResult: { renderer: ReactTestRenderer | null } = {
     renderer: null,
@@ -416,7 +431,7 @@ afterEach(() => {
 });
 
 describe('AnalyticsScreen', () => {
-  it('renders the ML-86 title, segmented control, and default filter', async () => {
+  it('renders the ML-91 title, segmented control, Overview, and Transactions', async () => {
     const renderer = await renderAnalyticsScreen();
     const screenText = getNodeText(renderer.root);
 
@@ -425,7 +440,11 @@ describe('AnalyticsScreen', () => {
     expect(screenText).toContain('Week');
     expect(screenText).toContain('Month');
     expect(screenText).toContain('Custom');
-    expect(screenText).toContain('All');
+    expect(screenText).toContain('Overview');
+    expect(screenText).toContain('Income');
+    expect(screenText).toContain('Expenses');
+    expect(screenText).toContain('Leaks');
+    expect(screenText).toContain('Transactions');
     expect(getLatestSymbolName('analytics-filter-icon')).toBe(
       'line.horizontal.3.decrease.circle',
     );
@@ -463,6 +482,11 @@ describe('AnalyticsScreen', () => {
     const screenText = getNodeText(renderer.root);
 
     expect(screenText).toContain('23 April 2026');
+    expect(screenText).toContain('Income');
+    expect(screenText).toContain('Expenses');
+    expect(screenText).toContain('Leaks');
+    expect(screenText).toContain('+1 000.00 €');
+    expect(screenText).toContain('-15.00 €');
     expect(screenText).toContain('Salary');
     expect(screenText).toContain('+1 000.00 €');
     expect(screenText).toContain('Shopping');
@@ -483,9 +507,16 @@ describe('AnalyticsScreen', () => {
     ).toMatchObject({
       color: '#2bbd50',
     });
-    expect(
-      StyleSheet.flatten(findTextNode(renderer, '-10.00 €').props.style),
-    ).toMatchObject({
+    const shoppingRow = findByTestID(
+      renderer,
+      'analytics-transaction-row-txn-shopping',
+    );
+    const shoppingAmount = findAllNodes(
+      shoppingRow,
+      (node) => getNodeText(node) === '-10.00 €',
+    )[0];
+
+    expect(StyleSheet.flatten(shoppingAmount.props.style)).toMatchObject({
       color: '#100f10',
     });
   });
@@ -516,8 +547,14 @@ describe('AnalyticsScreen', () => {
     await pressByTestID(renderer, 'analytics-filter-added-chip');
     await pressByTestID(renderer, 'analytics-filter-apply-button');
 
-    expect(getNodeText(renderer.root)).toContain('+100.00 £');
-    expect(getNodeText(renderer.root)).not.toContain('-10.00 £');
+    expect(
+      getNodeText(
+        findByTestID(renderer, 'analytics-balance-row-balance-salary'),
+      ),
+    ).toContain('+100.00 £');
+    expect(() =>
+      findByTestID(renderer, 'analytics-transaction-row-txn-food'),
+    ).toThrow();
 
     await act(async () => {
       findButton(renderer, 'Week').props.onPress();
@@ -525,6 +562,147 @@ describe('AnalyticsScreen', () => {
     });
 
     expect(getNodeText(renderer.root)).toContain('+100.00 £');
+  });
+
+  it('keeps Overview period-scoped and independent from ledger filters', async () => {
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-salary',
+        amount: 1000,
+        typeId: 'salary',
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-food',
+        amount: 10,
+        category: 'food',
+      }),
+      createTransaction({
+        id: 'txn-shopping',
+        amount: 20,
+        category: 'shopping',
+        isLeak: true,
+        leakReason: 'impulse',
+      }),
+      createTransaction({
+        id: 'txn-old',
+        amount: 40,
+        category: 'food',
+        createdAt: new Date(2026, 3, 22, 12, 0).getTime(),
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+    const overviewText = getNodeText(
+      findByTestID(renderer, 'analytics-overview-section'),
+    );
+
+    expect(overviewText).toContain('+1 000.00 €');
+    expect(overviewText).toContain('-30.00 €');
+    expect(overviewText).toContain('-20.00 €');
+    expect(overviewText).not.toContain('-40.00 €');
+
+    await pressByTestID(renderer, 'analytics-filter-button');
+    await pressByTestID(renderer, 'analytics-filter-spent-chip');
+    await pressByTestID(renderer, 'analytics-filter-kind-leak');
+    await pressByTestID(renderer, 'analytics-filter-apply-button');
+
+    expect(
+      getNodeText(findByTestID(renderer, 'analytics-overview-section')),
+    ).toContain('+1 000.00 €');
+    expect(
+      getNodeText(findByTestID(renderer, 'analytics-overview-section')),
+    ).toContain('-30.00 €');
+    expect(() =>
+      findByTestID(renderer, 'analytics-transaction-row-txn-food'),
+    ).toThrow();
+    expect(
+      getNodeText(
+        findByTestID(renderer, 'analytics-transaction-row-txn-shopping'),
+      ),
+    ).toContain('-20.00 €');
+  });
+
+  it('rebuilds the Overview chart geometry when the selected period changes', async () => {
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-today',
+        amount: 1000,
+      }),
+      createBalanceEntry({
+        id: 'balance-month',
+        amount: 5000,
+        createdAt: new Date(2026, 3, 1, 12, 0).getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today-leak',
+        amount: 20,
+        isLeak: true,
+      }),
+      createTransaction({
+        id: 'txn-month-normal',
+        amount: 700,
+        createdAt: new Date(2026, 3, 1, 12, 0).getTime(),
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+    const todayPaths = getOverviewChartPaths(renderer);
+
+    await act(async () => {
+      findButton(renderer, 'Month').props.onPress();
+      await flushPromises();
+    });
+
+    const monthPaths = getOverviewChartPaths(renderer);
+
+    expect(todayPaths.length).toBeGreaterThan(0);
+    expect(monthPaths.length).toBeGreaterThan(0);
+    expect(monthPaths).not.toEqual(todayPaths);
+  });
+
+  it('renders a continuous Overview ring without segment gaps when only one total is present', async () => {
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-only-income',
+        amount: 5000,
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+
+    expect(getOverviewChartPaths(renderer)).toEqual([]);
+    expect(getOverviewChartCircleStrokes(renderer)).toContain('#34c759');
+  });
+
+  it('localizes Overview system labels without translating custom row values', async () => {
+    mockSettingsLanguage = 'Spanish';
+    mockBalanceStoreState.balanceTypes = [
+      createBalanceType({
+        id: 'freelance',
+        name: 'Freelance',
+      }),
+    ];
+    mockBalanceStoreState.activeBalanceTypes =
+      mockBalanceStoreState.balanceTypes;
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-freelance',
+        amount: 100,
+        typeId: 'freelance',
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('Resumen');
+    expect(screenText).toContain('Ingresos');
+    expect(screenText).toContain('Transacciones');
+    expect(screenText).toContain('Freelance');
   });
 
   it('filters the feed by Today, Week, and Month', async () => {
@@ -559,8 +737,12 @@ describe('AnalyticsScreen', () => {
     });
 
     expect(getNodeText(renderer.root)).toContain('-10.00 €');
-    expect(getNodeText(renderer.root)).toContain('-20.00 €');
-    expect(getNodeText(renderer.root)).not.toContain('-30.00 €');
+    expect(
+      getNodeText(findByTestID(renderer, 'analytics-transaction-row-txn-week')),
+    ).toContain('-20.00 €');
+    expect(() =>
+      findByTestID(renderer, 'analytics-transaction-row-txn-month'),
+    ).toThrow();
 
     await act(async () => {
       findButton(renderer, 'Month').props.onPress();
@@ -681,17 +863,23 @@ describe('AnalyticsScreen', () => {
     await pressByTestID(renderer, 'analytics-filter-apply-button');
 
     expect(getNodeText(renderer.root)).toContain('Added');
-    expect(getNodeText(renderer.root)).toContain('Filtered by');
     expect(getNodeText(renderer.root)).toContain('Salary ×');
-    expect(getNodeText(renderer.root)).toContain('+100.00 €');
-    expect(getNodeText(renderer.root)).not.toContain('+200.00 €');
-    expect(getNodeText(renderer.root)).not.toContain('-10.00 €');
+    expect(
+      getNodeText(
+        findByTestID(renderer, 'analytics-balance-row-balance-salary'),
+      ),
+    ).toContain('+100.00 €');
+    expect(() =>
+      findByTestID(renderer, 'analytics-balance-row-balance-investment'),
+    ).toThrow();
+    expect(() =>
+      findByTestID(renderer, 'analytics-transaction-row-txn-food'),
+    ).toThrow();
     expect(getLatestSymbolName('analytics-filter-icon')).toBe(
       'line.horizontal.3.decrease.circle.fill',
     );
 
     await pressByTestID(renderer, 'analytics-clear-filter');
-    expect(getNodeText(renderer.root)).toContain('All');
     expect(getNodeText(renderer.root)).toContain('+100.00 €');
     expect(getNodeText(renderer.root)).toContain('+200.00 €');
     expect(getNodeText(renderer.root)).toContain('-10.00 €');
@@ -704,8 +892,12 @@ describe('AnalyticsScreen', () => {
     await pressByTestID(renderer, 'analytics-filter-apply-button');
 
     expect(getNodeText(renderer.root)).toContain('Spent');
-    expect(getNodeText(renderer.root)).not.toContain('+100.00 €');
-    expect(getNodeText(renderer.root)).toContain('-10.00 €');
+    expect(() =>
+      findByTestID(renderer, 'analytics-balance-row-balance-salary'),
+    ).toThrow();
+    expect(
+      getNodeText(findByTestID(renderer, 'analytics-transaction-row-txn-food')),
+    ).toContain('-10.00 €');
   });
 
   it('applies Spent category and leak reason filters', async () => {
