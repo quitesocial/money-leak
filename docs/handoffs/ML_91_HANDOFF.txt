@@ -1,0 +1,129 @@
+ML-91 [DEV] Analytics enhancements handoff
+Date: 2026-06-16
+Project: Money Leak
+Version after task: 1.27.0
+
+Summary
+
+ML-91 is implemented and manually tested. Analytics & Leaks now has a Figma-aligned Overview section above the Transactions ledger. The existing ledger remains read-only and keeps the same filter semantics.
+
+Key product behavior implemented
+
+- Overview totals are scoped to the selected Analytics period: Today, Week, Month, or Custom.
+- Income total is the sum of active balance entries in the selected period.
+- Expenses total is the sum of active expense transactions in the selected period.
+- Leaks total is the sum of active expense transactions with isLeak === true in the selected period.
+- Deleted/tombstoned balance entries and transactions are ignored.
+- Invalid or non-finite amounts are sanitized to 0.
+- Overview is intentionally independent from Analytics ledger filters. Filters still affect only Transactions rows.
+- Home period state is not mutated.
+- Balance additions remain a separate domain and are not encoded as Transactions.
+- Transaction.category still stores the stable category ID only.
+- Transaction CSV v1 remains unchanged: id,amount,category,isLeak,leakReason,note,createdAt.
+- Currency remains display-only; no FX conversion or per-entry currency fields were added.
+- System labels are localized; custom category names, custom balance type names, notes, and user-generated values are not translated.
+
+Key implementation files
+
+- src/features/analytics/analytics-overview.ts
+  Pure helper calculateAnalyticsOverview. Reuses getAnalyticsPeriodRange from analytics-ledger.
+
+- src/features/analytics/analytics-screen.tsx
+  Adds Overview section, dynamic SVG donut chart, summary labels, and chart transition animation.
+
+- src/features/analytics/__tests__/analytics-overview.test.ts
+  Unit tests for totals, deleted rows, period filtering, mixed data, and amount safety.
+
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+  Screen tests for Overview rendering, currency/language behavior, filter independence, period chart geometry changes, and single-segment chart behavior.
+
+- src/lib/i18n/translations.ts
+  Added keys across all supported languages:
+  analytics.overview, analytics.income, analytics.expenses, analytics.leaks, analytics.transactions.
+
+- docs/mvp-qa-checklist.md
+  Added ML-91 manual QA section.
+
+- package.json / package-lock.json
+  Version bumped to 1.27.0.
+  Added react-native-svg@15.12.1.
+
+Chart implementation details
+
+- Uses react-native-svg, installed with npx expo install react-native-svg.
+- The chart is dynamic and rebuilds from overview.chartParts:
+  - yellow = expenses excluding leaks, calculated as expenses - leaks
+  - green = income
+  - red = leaks
+- Chart shape follows Figma node 272:4095:
+  - filled annular sectors, not strokeLinecap round pills
+  - outer arc + inner arc + straight radial sides
+  - small quadratic corner rounding
+  - gap only between different sections
+  - no gap when there is only one non-zero segment
+- Current chart constants in analytics-screen.tsx:
+  - size: 160
+  - outer radius: 78
+  - inner radius: 39
+  - corner radius: 9
+  - gap: 4.5 degrees
+  - start angle: 270 degrees
+- Empty data renders a neutral grey ring.
+- Single-segment data renders one continuous colored SVG Circle with no artificial break.
+- Chart animates on rebuild with a short fade/scale transition using React Native Animated.
+
+Figma references used
+
+- Full Analytics frame: https://www.figma.com/design/h0QVqyKT70KlwgNfgRbrjm/Money-Leak?node-id=272-4081&m=dev
+- Chart node: https://www.figma.com/design/h0QVqyKT70KlwgNfgRbrjm/Money-Leak?node-id=272-4095&m=dev
+
+Manual QA status
+
+User completed manual testing after final visual tweaks and reported everything OK.
+
+Important manual tweaks made during review
+
+- Replaced the initial incorrect static chart image with dynamic react-native-svg chart.
+- Added proper data-driven chart rebuilding for period changes.
+- Reduced inter-segment gaps after visual review.
+- Removed gap for one-section chart state.
+- Increased chart section thickness to better match Figma.
+- Kept the chart dynamic and animated.
+
+Validation commands run successfully during implementation
+
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npm test -- --runInBand
+- npm run release:preflight
+- git diff --check
+
+Final targeted checks also passed after the last visual chart tweaks:
+
+- npm run typecheck
+- npm run format:check
+- npm test -- --runInBand src/features/analytics/__tests__/analytics-screen.test.tsx src/features/analytics/__tests__/analytics-overview.test.ts
+
+Things not changed
+
+- No backend.
+- No auth changes.
+- No cloud sync behavior changes.
+- No Supabase migrations.
+- No sync/backup/restore DTO or schema changes.
+- No Transaction CSV v1 change.
+- No balance entries in Transaction CSV.
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No bottom tabs/navigation changes.
+- No Shame Card route/CTA restored.
+- No old Analytics statistics dashboard restored.
+
+Notes for future agents
+
+- If chart visuals need more adjustment, start with constants in analytics-screen.tsx near OVERVIEW_CHART_*.
+- Keep the one-segment no-gap behavior. It was explicitly requested and manually reviewed.
+- Keep Overview period-scoped but filter-independent unless a future task explicitly changes Analytics filter semantics.
+- Do not move Overview totals into ledger filtering logic.
+- Do not replace the dynamic chart with a static image.
