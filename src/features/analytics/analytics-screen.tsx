@@ -1,7 +1,8 @@
 import { useRouter, type Href } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Modal,
   Platform,
@@ -12,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import {
   LocalDatePicker,
@@ -37,10 +39,15 @@ import {
   type AnalyticsSpentKind,
 } from '@/features/analytics/analytics-ledger';
 import {
+  calculateAnalyticsOverview,
+  type AnalyticsOverview,
+} from '@/features/analytics/analytics-overview';
+import {
   getCategoryDisplayIconName,
   getCategoryDisplayName,
 } from '@/lib/category-display';
 import { getCategoryIcon } from '@/lib/category-icons';
+import { formatMoneyAmount } from '@/lib/display-formatters';
 import {
   formatLanguageDate,
   getDefaultBalanceTypeName,
@@ -1183,6 +1190,339 @@ function FilterGlyph({ isActive }: { isActive: boolean }) {
   );
 }
 
+function formatOverviewAmount({
+  amount,
+  currency,
+  sign,
+}: {
+  amount: number;
+  currency: SettingsCurrency;
+  sign: '+' | '-';
+}) {
+  return formatMoneyAmount({
+    amount,
+    currency,
+    sign,
+    useGrouping: true,
+  });
+}
+
+type OverviewChartProps = {
+  chartParts: AnalyticsOverview['chartParts'];
+};
+
+const OVERVIEW_CHART_SIZE = 160;
+const OVERVIEW_CHART_CENTER = OVERVIEW_CHART_SIZE / 2;
+const OVERVIEW_CHART_OUTER_RADIUS = 78;
+const OVERVIEW_CHART_INNER_RADIUS = 39;
+const OVERVIEW_CHART_CORNER_RADIUS = 9;
+const OVERVIEW_CHART_GAP_DEGREES = 4.5;
+const OVERVIEW_CHART_START_DEGREES = 270;
+
+type OverviewChartSegment = {
+  color: string;
+  key: string;
+  value: number;
+};
+
+function getPointOnOverviewChart({
+  angleDegrees,
+  radius,
+}: {
+  angleDegrees: number;
+  radius: number;
+}) {
+  const angle = ((angleDegrees - 90) * Math.PI) / 180;
+
+  return {
+    x: OVERVIEW_CHART_CENTER + radius * Math.cos(angle),
+    y: OVERVIEW_CHART_CENTER + radius * Math.sin(angle),
+  };
+}
+
+function getOverviewChartArcPath(startAngle: number, endAngle: number) {
+  const sweep = Math.max(endAngle - startAngle, 0);
+  const radialCornerRadius = Math.min(
+    OVERVIEW_CHART_CORNER_RADIUS,
+    (OVERVIEW_CHART_OUTER_RADIUS - OVERVIEW_CHART_INNER_RADIUS) / 2 - 1,
+  );
+  const outerCornerDegrees = Math.min(
+    (radialCornerRadius / OVERVIEW_CHART_OUTER_RADIUS) * (180 / Math.PI),
+    sweep * 0.24,
+  );
+  const innerCornerDegrees = Math.min(
+    (radialCornerRadius / OVERVIEW_CHART_INNER_RADIUS) * (180 / Math.PI),
+    sweep * 0.24,
+  );
+  const outerStart = getPointOnOverviewChart({
+    angleDegrees: startAngle + outerCornerDegrees,
+    radius: OVERVIEW_CHART_OUTER_RADIUS,
+  });
+  const outerEnd = getPointOnOverviewChart({
+    angleDegrees: endAngle - outerCornerDegrees,
+    radius: OVERVIEW_CHART_OUTER_RADIUS,
+  });
+  const outerEndCorner = getPointOnOverviewChart({
+    angleDegrees: endAngle,
+    radius: OVERVIEW_CHART_OUTER_RADIUS,
+  });
+  const endSideOuter = getPointOnOverviewChart({
+    angleDegrees: endAngle,
+    radius: OVERVIEW_CHART_OUTER_RADIUS - radialCornerRadius,
+  });
+  const endSideInner = getPointOnOverviewChart({
+    angleDegrees: endAngle,
+    radius: OVERVIEW_CHART_INNER_RADIUS + radialCornerRadius,
+  });
+  const innerEndCorner = getPointOnOverviewChart({
+    angleDegrees: endAngle,
+    radius: OVERVIEW_CHART_INNER_RADIUS,
+  });
+  const innerEnd = getPointOnOverviewChart({
+    angleDegrees: endAngle - innerCornerDegrees,
+    radius: OVERVIEW_CHART_INNER_RADIUS,
+  });
+  const innerStart = getPointOnOverviewChart({
+    angleDegrees: startAngle + innerCornerDegrees,
+    radius: OVERVIEW_CHART_INNER_RADIUS,
+  });
+  const innerStartCorner = getPointOnOverviewChart({
+    angleDegrees: startAngle,
+    radius: OVERVIEW_CHART_INNER_RADIUS,
+  });
+  const startSideInner = getPointOnOverviewChart({
+    angleDegrees: startAngle,
+    radius: OVERVIEW_CHART_INNER_RADIUS + radialCornerRadius,
+  });
+  const startSideOuter = getPointOnOverviewChart({
+    angleDegrees: startAngle,
+    radius: OVERVIEW_CHART_OUTER_RADIUS - radialCornerRadius,
+  });
+  const outerStartCorner = getPointOnOverviewChart({
+    angleDegrees: startAngle,
+    radius: OVERVIEW_CHART_OUTER_RADIUS,
+  });
+  const largeOuterArcFlag = sweep - outerCornerDegrees * 2 > 180 ? 1 : 0;
+  const largeInnerArcFlag = sweep - innerCornerDegrees * 2 > 180 ? 1 : 0;
+
+  return [
+    `M ${outerStart.x.toFixed(3)} ${outerStart.y.toFixed(3)}`,
+    `A ${OVERVIEW_CHART_OUTER_RADIUS} ${OVERVIEW_CHART_OUTER_RADIUS} 0 ${largeOuterArcFlag} 1 ${outerEnd.x.toFixed(3)} ${outerEnd.y.toFixed(3)}`,
+    `Q ${outerEndCorner.x.toFixed(3)} ${outerEndCorner.y.toFixed(3)} ${endSideOuter.x.toFixed(3)} ${endSideOuter.y.toFixed(3)}`,
+    `L ${endSideInner.x.toFixed(3)} ${endSideInner.y.toFixed(3)}`,
+    `Q ${innerEndCorner.x.toFixed(3)} ${innerEndCorner.y.toFixed(3)} ${innerEnd.x.toFixed(3)} ${innerEnd.y.toFixed(3)}`,
+    `A ${OVERVIEW_CHART_INNER_RADIUS} ${OVERVIEW_CHART_INNER_RADIUS} 0 ${largeInnerArcFlag} 0 ${innerStart.x.toFixed(3)} ${innerStart.y.toFixed(3)}`,
+    `Q ${innerStartCorner.x.toFixed(3)} ${innerStartCorner.y.toFixed(3)} ${startSideInner.x.toFixed(3)} ${startSideInner.y.toFixed(3)}`,
+    `L ${startSideOuter.x.toFixed(3)} ${startSideOuter.y.toFixed(3)}`,
+    `Q ${outerStartCorner.x.toFixed(3)} ${outerStartCorner.y.toFixed(3)} ${outerStart.x.toFixed(3)} ${outerStart.y.toFixed(3)}`,
+    'Z',
+  ].join(' ');
+}
+
+function buildOverviewChartSegments(
+  chartParts: AnalyticsOverview['chartParts'],
+) {
+  const sourceSegments: OverviewChartSegment[] = [
+    {
+      color: '#ffcc00',
+      key: 'normalExpenses',
+      value: chartParts.normalExpenses,
+    },
+    {
+      color: '#34c759',
+      key: 'income',
+      value: chartParts.income,
+    },
+    {
+      color: '#ff3b30',
+      key: 'leaks',
+      value: chartParts.leaks,
+    },
+  ].filter((segment) => segment.value > 0);
+
+  const total = sourceSegments.reduce((sum, segment) => sum + segment.value, 0);
+
+  if (total <= 0) return [];
+
+  if (sourceSegments.length === 1) {
+    return [
+      {
+        ...sourceSegments[0],
+        path: null,
+      },
+    ];
+  }
+
+  const totalGapDegrees = sourceSegments.length * OVERVIEW_CHART_GAP_DEGREES;
+  const drawableDegrees = Math.max(360 - totalGapDegrees, 0);
+  let cursor = OVERVIEW_CHART_START_DEGREES;
+
+  return sourceSegments.map((segment) => {
+    const sweep = (segment.value / total) * drawableDegrees;
+    const startAngle = cursor;
+    const endAngle = cursor + sweep;
+
+    cursor = endAngle + OVERVIEW_CHART_GAP_DEGREES;
+
+    return {
+      ...segment,
+      path: getOverviewChartArcPath(startAngle, endAngle),
+    };
+  });
+}
+
+function OverviewChart({ chartParts }: OverviewChartProps) {
+  const chartSegments = buildOverviewChartSegments(chartParts);
+  const hasData = chartSegments.length > 0;
+  const chartSignature = chartSegments
+    .map((segment) => `${segment.key}:${segment.value.toFixed(4)}`)
+    .join('|');
+  const animationProgress = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    animationProgress.setValue(0);
+
+    const animation = Animated.timing(animationProgress, {
+      duration: 220,
+      toValue: 1,
+      useNativeDriver: true,
+    });
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [animationProgress, chartSignature]);
+
+  const animatedStyle = {
+    opacity: animationProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.56, 1],
+    }),
+    transform: [
+      {
+        scale: animationProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.96, 1],
+        }),
+      },
+    ],
+  };
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Svg
+        accessibilityElementsHidden
+        height={OVERVIEW_CHART_SIZE}
+        importantForAccessibility="no"
+        style={styles.overviewChart}
+        testID="analytics-overview-chart"
+        viewBox={`0 0 ${OVERVIEW_CHART_SIZE} ${OVERVIEW_CHART_SIZE}`}
+        width={OVERVIEW_CHART_SIZE}
+      >
+        {!hasData || chartSegments.length === 1 ? (
+          <Circle
+            cx={OVERVIEW_CHART_CENTER}
+            cy={OVERVIEW_CHART_CENTER}
+            fill="none"
+            r={(OVERVIEW_CHART_OUTER_RADIUS + OVERVIEW_CHART_INNER_RADIUS) / 2}
+            stroke={hasData ? chartSegments[0].color : 'rgba(16, 15, 16, 0.1)'}
+            strokeWidth={
+              OVERVIEW_CHART_OUTER_RADIUS - OVERVIEW_CHART_INNER_RADIUS
+            }
+          />
+        ) : null}
+
+        {chartSegments
+          .filter((segment) => segment.path !== null)
+          .map((segment) => (
+            <Path d={segment.path} fill={segment.color} key={segment.key} />
+          ))}
+      </Svg>
+    </Animated.View>
+  );
+}
+
+type OverviewMetricProps = {
+  amount: string;
+  label: string;
+  tone: 'income' | 'expense' | 'leak';
+};
+
+function OverviewMetric({ amount, label, tone }: OverviewMetricProps) {
+  return (
+    <View style={styles.overviewMetric}>
+      <Text style={styles.overviewMetricLabel}>{label}</Text>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        style={[
+          styles.overviewMetricAmount,
+          tone === 'income' ? styles.overviewMetricIncome : null,
+          tone === 'expense' ? styles.overviewMetricExpense : null,
+          tone === 'leak' ? styles.overviewMetricLeak : null,
+        ]}
+      >
+        {amount}
+      </Text>
+    </View>
+  );
+}
+
+type AnalyticsOverviewSectionProps = {
+  currency: SettingsCurrency;
+  language: SupportedLanguage;
+  overview: AnalyticsOverview;
+};
+
+function AnalyticsOverviewSection({
+  currency,
+  language,
+  overview,
+}: AnalyticsOverviewSectionProps) {
+  return (
+    <View style={styles.overviewSection} testID="analytics-overview-section">
+      <Text style={styles.sectionTitle}>
+        {t(language, 'analytics.overview')}
+      </Text>
+
+      <View style={styles.overviewBody}>
+        <OverviewChart chartParts={overview.chartParts} />
+
+        <View style={styles.overviewMetrics}>
+          <OverviewMetric
+            amount={formatOverviewAmount({
+              amount: overview.incomeAmount,
+              currency,
+              sign: '+',
+            })}
+            label={t(language, 'analytics.income')}
+            tone="income"
+          />
+          <OverviewMetric
+            amount={formatOverviewAmount({
+              amount: overview.expensesAmount,
+              currency,
+              sign: '-',
+            })}
+            label={t(language, 'analytics.expenses')}
+            tone="expense"
+          />
+          <OverviewMetric
+            amount={formatOverviewAmount({
+              amount: overview.leaksAmount,
+              currency,
+              sign: '-',
+            })}
+            label={t(language, 'analytics.leaks')}
+            tone="leak"
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 type EmptyIllustrationProps = {
   testID?: string;
 };
@@ -1556,6 +1896,27 @@ export function AnalyticsScreen() {
     () => groupAnalyticsLedgerItems(ledgerItems, language),
     [ledgerItems, language],
   );
+  const overview = useMemo(
+    () =>
+      calculateAnalyticsOverview({
+        balanceEntries,
+        customDate,
+        customPeriodType,
+        customRangeEnd,
+        customRangeStart,
+        period: selectedPeriod,
+        transactions,
+      }),
+    [
+      balanceEntries,
+      customDate,
+      customPeriodType,
+      customRangeEnd,
+      customRangeStart,
+      selectedPeriod,
+      transactions,
+    ],
+  );
   const filterLabel = getFilterLabel({
     balanceTypeOptions,
     categories,
@@ -1835,38 +2196,6 @@ export function AnalyticsScreen() {
             {t(language, 'tabs.analyticsTitle')}
           </Text>
 
-          <View style={styles.operationHeader}>
-            <Text style={styles.operationLabel}>
-              {getOperationLabel(filter.operation, language)}
-            </Text>
-
-            <Pressable
-              accessibilityLabel={t(language, 'analytics.filterOpen')}
-              accessibilityRole="button"
-              onPress={handleOpenFilter}
-              style={styles.filterButton}
-              testID="analytics-filter-button"
-            >
-              <FilterGlyph isActive={isFilterActive} />
-            </Pressable>
-          </View>
-
-          {filterLabel ? (
-            <View style={styles.filteredByRow}>
-              <Text style={styles.filteredByLabel}>
-                {t(language, 'analytics.filteredBy')}
-              </Text>
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleClearFilter}
-                testID="analytics-clear-filter"
-              >
-                <Text style={styles.filteredByValue}>{filterLabel} ×</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           <AnalyticsSegmentedControl
             language={language}
             onSelectPeriod={handleSelectPeriod}
@@ -2048,29 +2377,71 @@ export function AnalyticsScreen() {
             </View>
           ) : null}
 
-          {ledgerGroups.length > 0 ? (
-            <View style={styles.feed}>
-              {ledgerGroups.map((group) => (
-                <View key={group.dateKey} style={styles.feedGroup}>
-                  <Text style={styles.dateLabel}>{group.label}</Text>
+          <AnalyticsOverviewSection
+            currency={currency}
+            language={language}
+            overview={overview}
+          />
 
-                  <View style={styles.ledgerRows}>
-                    {group.items.map((item) => (
-                      <LedgerRow
-                        balanceTypeOptions={balanceTypeOptions}
-                        balanceTypes={balanceTypes}
-                        categories={categories}
-                        currency={currency}
-                        item={item}
-                        language={language}
-                        key={item.id}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))}
+          <View style={styles.transactionsSection}>
+            <View style={styles.transactionsHeader}>
+              <Text style={styles.sectionTitle}>
+                {t(language, 'analytics.transactions')}
+              </Text>
+
+              <Pressable
+                accessibilityLabel={t(language, 'analytics.filterOpen')}
+                accessibilityRole="button"
+                onPress={handleOpenFilter}
+                style={styles.filterButton}
+                testID="analytics-filter-button"
+              >
+                <FilterGlyph isActive={isFilterActive} />
+              </Pressable>
             </View>
-          ) : null}
+
+            {isFilterActive ? (
+              <View style={styles.filteredByRow}>
+                <Text style={styles.filteredByLabel}>
+                  {getOperationLabel(filter.operation, language)}
+                </Text>
+
+                {filterLabel ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleClearFilter}
+                    testID="analytics-clear-filter"
+                  >
+                    <Text style={styles.filteredByValue}>{filterLabel} ×</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {ledgerGroups.length > 0 ? (
+              <View style={styles.feed}>
+                {ledgerGroups.map((group) => (
+                  <View key={group.dateKey} style={styles.feedGroup}>
+                    <Text style={styles.dateLabel}>{group.label}</Text>
+
+                    <View style={styles.ledgerRows}>
+                      {group.items.map((item) => (
+                        <LedgerRow
+                          balanceTypeOptions={balanceTypeOptions}
+                          balanceTypes={balanceTypes}
+                          categories={categories}
+                          currency={currency}
+                          item={item}
+                          language={language}
+                          key={item.id}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
 
           {shouldShowEmptyState ? (
             <EmptyState
@@ -2134,7 +2505,7 @@ const styles = StyleSheet.create({
   contentColumn: {
     width: '100%',
     maxWidth: 360,
-    gap: 18,
+    gap: 24,
   },
   pageTitle: {
     fontFamily: TITLE_FONT_FAMILY,
@@ -2143,19 +2514,64 @@ const styles = StyleSheet.create({
     lineHeight: 41,
     color: '#100f10',
   },
-  operationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  operationLabel: {
-    flex: 1,
+  sectionTitle: {
     fontFamily: TITLE_FONT_FAMILY,
     fontSize: 24,
     fontWeight: TITLE_FONT_WEIGHT,
     lineHeight: 30,
     color: '#100f10',
+  },
+  overviewSection: {
+    width: '100%',
+    gap: 16,
+  },
+  overviewBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 32,
+  },
+  overviewChart: {
+    width: 160,
+    height: 160,
+  },
+  overviewMetrics: {
+    flex: 1,
+    minWidth: 0,
+    gap: 16,
+  },
+  overviewMetric: {
+    gap: 8,
+  },
+  overviewMetricLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 21,
+    color: '#100f10',
+  },
+  overviewMetricAmount: {
+    maxWidth: '100%',
+    fontSize: 24,
+    fontWeight: '500',
+    lineHeight: 29,
+  },
+  overviewMetricIncome: {
+    color: '#2bbd50',
+  },
+  overviewMetricExpense: {
+    color: '#100f10',
+  },
+  overviewMetricLeak: {
+    color: '#ff3b30',
+  },
+  transactionsSection: {
+    width: '100%',
+    gap: 16,
+  },
+  transactionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
   },
   filterButton: {
     width: 28,

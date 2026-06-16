@@ -3321,3 +3321,41 @@ Manual QA:
 - Applying remote Language refreshes runtime i18n UI; applying remote Currency refreshes money labels without app restart where hooks are mounted or focused.
 - Transaction CSV v1, transaction/balance/category contracts, bottom tabs, and root stack routes remain unchanged.
 - No raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload is rendered or logged.
+
+## ML-91 Analytics Overview Enhancements
+
+### 63. Overview totals, chart, and ledger regressions
+
+**Preconditions**
+
+- Use local data with balance additions, normal expense transactions, leak expense transactions, custom category names, custom balance type names, and notes.
+- Test at least one empty install or cleared local data state.
+- Test currency and language switching after data exists.
+
+**Steps**
+
+1. Open `Analytics & Leaks` and confirm the first viewport matches the ML-91 Figma structure: title, top period segmented control, `Overview`, chart graphic, Income/Expenses/Leaks values, then `Transactions`.
+2. On empty data, confirm Overview shows safe zero values and the chart does not render broken, NaN, or Infinity output.
+3. Add only a balance addition in the selected period and confirm Overview Income increases while Expenses and Leaks remain zero.
+4. Add a normal expense in the selected period and confirm Overview Expenses increases while Leaks remains zero.
+5. Add a leak expense in the selected period and confirm Overview Expenses and Leaks both include that amount.
+6. Use mixed income, normal expenses, and leak expenses and confirm all three Overview values match the selected period.
+7. Switch `Today`, `Week`, `Month`, and each Custom period mode; confirm Overview totals update safely and do not mutate Home period state.
+8. Apply Analytics filters for Added, Spent, balance type, normal/leak, leak reason, and category; confirm filters still affect only the Transactions ledger as before.
+9. Switch Settings Currency and confirm Overview money labels update to the selected currency symbol without FX conversion.
+10. Switch Settings Language and confirm Overview, Income, Expenses, Leaks, Transactions, and other system labels update.
+11. Confirm custom category names, custom balance type names, transaction notes, and other user-generated values are not translated.
+12. Confirm the bottom tab bar does not overlap the Overview or Transactions content while scrolling.
+13. Export/import Transaction CSV v1 and confirm the header remains `id,amount,category,isLeak,leakReason,note,createdAt`.
+14. Run backup, restore, manual sync, foreground sync, and auth regression checks where available.
+
+**Expected result**
+
+- Overview totals are scoped to the selected Analytics period.
+- Income uses active balance entries; Expenses uses active expense transactions; Leaks uses active transactions where `isLeak === true`.
+- Balance additions remain a separate domain and are not encoded as Transactions.
+- Analytics remains a read-only ledger/feed, not the old statistics dashboard.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
+- Transaction CSV v1, sync/backup/restore DTOs, Supabase schemas, and currency/language data contracts remain unchanged.
+- No forbidden UI dependency, service-role/admin mobile usage, raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.
