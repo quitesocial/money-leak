@@ -1,0 +1,2606 @@
+Money Leak — Detailed Summary of Epics 81–90
+Combined handoff file generated from individual epic handoff notes.
+Included source files:
+- Epic 81: ML_81_HANDOFF.txt
+- Epic 81.5: ML_81.5_HANDOFF.txt
+- Epic 82: ML_82_HANDOFF.txt
+- Epic 82.5: ML_82.5_HANDOFF.txt
+- Epic 83: ML_83_HANDOFF.txt
+- Epic 84: ML_84_BALANCE_EDIT_HANDOFF.txt
+- Epic 85: ML_85_HANDOFF.txt
+- Epic 86: ML_86_HANDOFF.txt
+- Epic 87: ML_87_HANDOFF.txt
+- Epic 88: ML_88_HANDOFF.txt
+- Epic 89: ML_89_HANDOFF.txt
+- Epic 90: ML_90_HANDOFF.txt
+
+================================================================================
+
+EPIC 81 — SOURCE: ML_81_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-81 Add Transaction Wizard - Agent Handoff
+Date: 2026-05-28
+Project: Money Leak
+Stack: Expo / React Native / TypeScript / Expo Router
+Version after ML-81: 1.19.0
+
+Status
+ML-81 implementation is complete.
+Owner manual QA has been completed and passed.
+The working tree was clean before this handoff file was added.
+
+What ML-81 Changed
+- Add Transaction is now an Add-only route-local wizard at /add-transaction.
+- The route remains a pushed root Stack screen, not a bottom tab.
+- The native Add Transaction Stack header is hidden so the screen renders the Figma-style in-flow header.
+- Edit Transaction remains on the existing shared TransactionForm and was not converted to the wizard.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Shame Card remains a pushed root Stack screen.
+
+Wizard Flow
+- Details step:
+  - Custom header with back button and title "Add Transaction".
+  - Amount input autofocus.
+  - Decimal numeric keyboard.
+  - Amount validation requires a value greater than 0.
+  - Supports dot decimals like 12.50 and a single comma decimal like 12,50.
+  - Date row uses the existing LocalDatePicker.
+  - Type chips: Normal and Leak.
+  - Normal proceeds to Category.
+  - Leak proceeds to Leak Reason.
+- Leak Reason step:
+  - Same Add Transaction header.
+  - Shows amount, date, and type.
+  - Reason chips: Stress, Boredom, Impulse, Habit, Social, Craving.
+  - Reason is required before continuing.
+  - Switching Leak to Normal clears leakReason and moves to Category.
+- Category step:
+  - Shows compact summary: amount, date, Normal or Leak / selected reason.
+  - Shows only active non-archived categories from the existing local category store.
+  - Stores Transaction.category as the stable category ID, not the display name.
+  - Category is required before save.
+  - Save uses useTransactionsStore.addTransaction.
+  - Save payload includes amount, category ID, isLeak, conditional leakReason, note: null, and selected date saved as createdAt epoch milliseconds.
+  - After save, behavior is preserved: router.back() when possible, otherwise router.replace('/(tabs)').
+
+Add Category From Add Transaction
+- Implemented inside the Add Transaction route as a sub-flow.
+- Header title is "Add Category".
+- Name input autofocus.
+- Save Category uses existing category creation logic/store.
+- Validation uses existing validateCategoryName behavior, including empty and duplicate-name errors.
+- After successful creation, the flow returns to Category.
+- Newly created category is auto-selected when safely found by normalized name.
+
+Explicitly Out Of Scope / Not Changed
+- No category icon persistence.
+- No icon field added to category model/types.
+- No SQLite migrations for category icons.
+- No CSV, backup, sync, remote schema, or category data contract changes for icons.
+- No fake icon picker UI.
+- Add Category in ML-81 is name-only.
+- No auth, sync, backup, restore, delete-account, Supabase migration, RLS, remote schema, app icon, splash, or release workflow changes.
+- No new dependency was added.
+- No @expo/ui, @expo/ui-swift-ui, BlurView, expo-blur, Liquid Glass, or glass styling was added.
+
+Visual Corrections Made After First Implementation
+- Title typography was adjusted to better match the Figma New York title weight.
+- Leak chip icon was changed to the same SF Symbol used by the Analytics & Leaks tab: drop.halffull.
+- Bottom CTA/actions were moved into a sticky footer so Next / Save stays at the bottom of the screen.
+- The stray small iOS "Next" control was removed by not using returnKeyType="next" on the amount input.
+
+Tests Added
+- src/features/add-transaction/__tests__/add-transaction-screen.test.tsx
+- Uses react-test-renderer with mocked router, stores, and date picker.
+- Avoids real SQLite, Supabase, or network calls.
+- Covers:
+  - Normal transaction creation through Details -> Category.
+  - Leak transaction cannot continue/save without a reason.
+  - Switching Leak -> Normal clears leakReason.
+  - Category is required before save.
+  - Add Category uses existing validation for empty and duplicate names.
+  - Created category appears, is auto-selected, and can be used for transaction creation.
+
+Docs / Project Guidance Updated
+- docs/mvp-qa-checklist.md includes an ML-81 manual QA section.
+- AGENTS.md includes this durable rule:
+  Keep category data contracts name-only unless a task explicitly introduces category icons; do not add category icon fields, persistence, schema, sync, backup, or CSV changes from Figma-only icon visuals.
+
+Versioning
+- package.json version source of truth was bumped from 1.18.5 to 1.19.0.
+- package-lock.json root version fields were updated consistently.
+- app.config.js was not changed because it already reads package.json.version.
+
+Validation Run During Implementation
+- npm run release:preflight: passed
+- npm test -- --runInBand: passed
+- npm run typecheck: passed
+- npm run lint: passed
+- npm run format:check: passed
+- npx expo config --json: passed and resolved version 1.19.0
+- git diff --check: passed
+- Focused Add Transaction tests passed after visual corrections.
+
+Manual QA Completed By Owner
+- Normal add flow: passed.
+- Leak add flow: passed.
+- Reason required: passed.
+- Switching Leak -> Normal clears reason: passed.
+- Date saved/displayed: passed.
+- Category required: passed.
+- Add Category from Add Transaction: passed.
+- Newly created category can be selected/used: passed.
+- Add Category is name-only; no icon persistence/icon grid: passed.
+- Back behavior between wizard steps: passed.
+- Root/header back exits safely: passed.
+- Edit Transaction regression: passed.
+- Home/Analytics refresh behavior: passed.
+- Bottom tabs unchanged: passed.
+- CSV/auth/sync/backup unchanged: passed.
+
+Files Of Interest For Future Agents
+- app/_layout.tsx
+- app/add-transaction.tsx
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/add-transaction/__tests__/add-transaction-screen.test.tsx
+- src/features/transaction-form/transaction-form.tsx
+- src/features/edit-transaction/edit-transaction-screen.tsx
+- src/store/transactions-store.ts
+- src/store/categories-store.ts
+- src/lib/category-utils.ts
+- src/components/local-date-picker.tsx
+- docs/mvp-qa-checklist.md
+- AGENTS.md
+
+Planning Notes
+- Future work should not treat the Figma icon picker visuals as implemented behavior unless a new task explicitly introduces category icons and updates all data contracts intentionally.
+- If future Add Transaction UI work touches the wizard footer, preserve the sticky bottom action behavior.
+- If future work touches category selection, continue filtering to active categories only for new transaction creation.
+- Existing transactions with archived categories must remain display-safe elsewhere.
+- Edit Transaction should continue using the shared TransactionForm unless a future task explicitly asks to redesign it.
+
+================================================================================
+
+EPIC 81.5 — SOURCE: ML_81.5_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-81.5 Category Icons Picker Handoff
+Date: 2026-05-28
+Project: Money Leak
+App version after task: 1.20.0
+
+Status
+------
+ML-81.5 is implemented and manually QA-tested by the user.
+
+The task added persisted local category icons, category icon picking in Add
+Transaction, the same create/edit icon flow in Settings > Manage Categories,
+and transaction category icons in Home History.
+
+High-level outcomes
+-------------------
+- Category icons are now a persisted local Category property: iconName.
+- Transaction.category still stores only the stable category ID.
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Category icons were not added to remote Supabase sync/backup schema.
+- No Supabase remote migration was added.
+- No auth, backup, restore, sync, delete-account, bottom-tab, or root-stack
+  behavior was intentionally changed.
+- No new icon dependency was added. Existing expo-symbols / SymbolView is used.
+- package.json and package-lock.json were bumped from 1.19.0 to 1.20.0.
+
+User-visible UI implemented
+---------------------------
+Add Transaction:
+- Category step shows each category chip with an inline icon before the name.
+- The extra inner circular icon container on category chips was removed to match
+  the Figma direction.
+- Add Category sub-flow keeps the name input.
+- Under "Icon (optional)", the initial state is a single circular plus button.
+- Tapping the plus expands an animated icon picker.
+- Expanded icon picker uses five icon buttons per row.
+- Icon buttons are circular.
+- Selected icon state is black circle with white symbol.
+- Saving a new category persists the selected iconName.
+- If no icon is explicitly selected, fallback icon "tag" is used.
+- Newly created category returns to Category step, appears with its icon, and is
+  auto-selected.
+- Normal and leak transaction creation continue to work.
+
+Settings > Manage Categories:
+- The same collapsed-plus / expanded-grid icon picker is now available when
+  creating a category from Settings.
+- The same picker is available when editing an existing category.
+- Category create from Settings saves the selected iconName.
+- Category edit from Settings can change iconName.
+- Icon-only edits are kept local-only: the DB update changes icon_name but does
+  not touch updated_at/source_device_id sync metadata.
+- Category name edits still touch sync metadata, preserving the prior remote
+  name-sync behavior.
+
+Home History:
+- Transaction rows now render the transaction category icon before the category
+  name, using the transaction.category ID to resolve the current category icon.
+- Unknown or legacy categories fall back safely to the default "tag" icon.
+
+Data model and persistence
+--------------------------
+Main local Category type:
+- src/types/category.ts now includes iconName on CategoryInput/Category.
+
+Central icon registry:
+- src/lib/category-icons.ts defines allowed stable icon IDs, labels,
+  SF Symbol names, fallback text, default category mappings, and fallback icon.
+- Fallback icon is "tag".
+- Default category icons:
+  - food -> takeoutbag.and.cup.and.straw
+  - transport -> bus
+  - alcohol -> wineglass
+  - shopping -> cart
+  - subscriptions -> rectangle.stack
+  - other -> bag
+
+SQLite:
+- categories table now has icon_name TEXT NOT NULL DEFAULT 'tag'.
+- Migration 003_add_category_icons adds icon_name if missing.
+- Migration backfills default categories with their default icons.
+- Migration keeps custom/legacy categories on safe fallback.
+- Legacy category rows without icon_name read safely through fallback/default
+  resolution.
+- Archived categories are preserved.
+
+Store / DB APIs:
+- Category create accepts { name, iconName? }.
+- Category update accepts { name, iconName? }.
+- updateCategoryName supports optional iconName.
+- updateCategoryName supports touchSyncMetadata=false for local-only icon edits.
+
+Remote sync / backup / CSV contracts
+------------------------------------
+- RemoteCategory has no iconName field.
+- mapLocalCategoryToRemote does not upload iconName.
+- mapRemoteCategoryToLocalInput inserts fallback iconName locally.
+- Sync/backup tests were updated only where local Category type needed iconName.
+- No real remote icon sync behavior was added.
+- Supabase migrations were not changed.
+- Transaction CSV v1 was not changed.
+
+Navigation constraints preserved
+--------------------------------
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction remains a pushed root Stack screen, not a tab.
+- Shame Card remains a pushed root Stack screen, not a tab.
+- Edit Transaction still uses the shared TransactionForm and was not converted
+  to the Add Transaction wizard.
+
+Important files
+---------------
+New files:
+- src/lib/category-icons.ts
+- src/lib/category-display.ts
+- src/components/category-icon-picker.tsx
+- src/features/categories/__tests__/categories-screen.test.tsx
+- src/store/__tests__/categories-store.test.ts
+- src/lib/__tests__/category-display.test.ts
+
+Key modified files:
+- src/types/category.ts
+- src/lib/category-utils.ts
+- src/store/categories-store.ts
+- src/db/database.native.ts
+- src/db/migrations.native.ts
+- src/db/categories.native.ts
+- src/db/categories.ts
+- src/db/categories.web.ts
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/home/home-screen.tsx
+- src/features/categories/categories-screen.tsx
+- src/lib/sync/sync-mappers.ts
+- docs/mvp-qa-checklist.md
+- AGENTS.md
+- package.json
+- package-lock.json
+
+Tests added/updated
+-------------------
+Add Transaction tests cover:
+- category options render icons;
+- normal transaction stores category ID only;
+- leak transaction stores category ID plus leak reason;
+- Add Category validates name;
+- icon picker collapsed-plus and five-column row behavior;
+- selected icon state;
+- created category saves selected iconName;
+- created category appears with selected icon and auto-selects;
+- legacy categories without iconName use fallback safely;
+- transaction payload has no icon field.
+
+Settings Categories tests cover:
+- create category with selected icon through Settings picker;
+- create category with no explicit icon uses fallback "tag";
+- edit category icon through Settings picker.
+
+Category DB/store tests cover:
+- create persists icon_name;
+- update persists icon_name;
+- update without icon input preserves icon_name;
+- icon-only update can avoid touching sync metadata;
+- legacy row without icon_name reads safely;
+- store passes touchSyncMetadata=false for icon-only edits and true for name
+  edits.
+
+Validation that passed
+----------------------
+All commands were run with Node 20.19.4.
+
+Passed:
+- npm run release:preflight
+- npm test -- --runInBand
+  - 42 test suites passed
+  - 343 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved app version: 1.20.0
+- git diff --check
+
+Targeted regression checks passed:
+- CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Transaction.category still stores category ID only.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction and Shame Card are not bottom tabs.
+- No @expo/ui, expo-blur, BlurView, Liquid Glass, glass styling, or new UI
+  dependency was added.
+- No Supabase remote migration for category icons.
+- No raw env/secrets/tokens were introduced in the diff.
+
+Manual QA
+---------
+The user manually tested the finished implementation and confirmed everything
+was OK.
+
+Manual QA items covered:
+- existing categories show icons;
+- Add Transaction category chips match the corrected Figma direction;
+- Add Category initially shows a plus button;
+- plus expands the icon picker;
+- picker uses five icons per row;
+- selected icon state is visible;
+- new category persists selected icon;
+- new category appears and auto-selects;
+- Home History shows transaction category icon;
+- Settings create category uses same icon flow;
+- Settings edit category uses same icon flow;
+- normal/leak save works;
+- persistence after restart works;
+- legacy fallback is safe;
+- no CSV/auth/sync regression observed.
+
+AGENTS.md update
+----------------
+Old durable rule:
+Keep category data contracts name-only unless a task explicitly introduces
+category icons; do not add category icon fields, persistence, schema, sync,
+backup, or CSV changes from Figma-only icon visuals.
+
+New durable rule:
+Category icons are now a persisted local category property. Keep
+Transaction.category storing the stable category ID only. Do not add category
+icons to the transaction CSV v1 format or remote sync/backup schema unless a
+future task explicitly scopes a data-contract migration.
+
+This belongs in AGENTS.md because it is now a long-lived category data-contract
+rule, not an ML-81.5-only detail.
+
+Notes for future planning
+-------------------------
+- Category icons are local-first. A future task must explicitly scope any remote
+  data-contract migration before icons are synced/backed up remotely.
+- If future work adds category icon sync, update RemoteCategory,
+  Supabase remote tables/migrations, row mappers, backup/restore tests, sync
+  conflict behavior, and docs together.
+- The shared picker lives in src/components/category-icon-picker.tsx. Prefer
+  reusing it instead of creating a second picker implementation.
+- The allowed icon list lives in src/lib/category-icons.ts. Prefer adding new
+  icons there with stable IDs instead of storing raw glyphs or arbitrary symbol
+  names directly from UI code.
+- Keep transaction exports/imports on CSV v1 unless a future task explicitly
+  scopes a CSV migration.
+
+================================================================================
+
+EPIC 82 — SOURCE: ML_82_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-82 Add Balance Handoff
+Date: 2026-05-29
+Project: Money Leak
+App version after task: 1.21.0
+
+Status
+------
+ML-82 is implemented, automated validation passed, and the user manually
+QA-tested the flow successfully.
+
+The task added a separate local Balance domain, a new Add Balance flow, and a
+current balance display on Home. Balance additions are intentionally not
+Transactions.
+
+High-level outcomes
+-------------------
+- Home now shows current balance above Today summary.
+- Current balance is calculated as:
+  sum(active balance entries) - sum(active/non-deleted expense transactions)
+- Balance can be negative when expenses exceed added balance.
+- Add opens the new Add Balance flow at /add-balance.
+- Spend opens the existing Add Transaction flow at /add-transaction.
+- Home History remains transaction-only.
+- Balance entries are stored locally in SQLite and managed through a separate
+  Zustand store.
+- Transaction.category still stores only the stable category ID.
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No Supabase remote migration was added.
+- No remote sync/backup schema was changed for balance.
+- Bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, and Shame Card are pushed root Stack screens,
+  not bottom tabs.
+- No new dependency was added.
+- package.json and package-lock.json were bumped from 1.20.0 to 1.21.0.
+
+User-visible UI implemented
+---------------------------
+Home:
+- Keeps the NewYork-style "Home" title.
+- Shows a large centered current balance under the title.
+- Shows two pill buttons:
+  - outlined "Add" with down-left arrow, routes to /add-balance;
+  - filled black "Spend" with up-right arrow, routes to /add-transaction.
+- Keeps Today summary below the balance actions.
+- Keeps History below Today summary.
+- Keeps the History period selector: Today, Yesterday, This week.
+- Keeps transaction category icons in History.
+- Keeps existing swipe edit/delete behavior.
+- Keeps More routing to Analytics.
+- Scroll content still has enough bottom padding for the floating tab bar.
+
+Add Balance:
+- New route: app/add-balance.tsx.
+- Registered in root Stack with native header hidden.
+- Screen implementation: src/features/add-balance/add-balance-screen.tsx.
+- Uses the same custom in-flow header style as Add Transaction:
+  - circular back button;
+  - NewYork-style title.
+- Uses a footer CTA, "Save Balance", matching the Add Transaction pattern.
+- Amount field:
+  - autofocuses on mount where supported;
+  - decimal keyboard/input mode;
+  - validates required;
+  - validates amount > 0;
+  - accepts dot decimals like 100.00;
+  - accepts a single comma decimal like 100,00.
+- Date field:
+  - uses the existing LocalDatePicker;
+  - saves createdAt as epoch milliseconds.
+- Type field:
+  - shows active balance type chips;
+  - default chips are Salary, Investment, Regalo;
+  - type is required before save.
+- Custom type flow:
+  - inline expanded state from the Type row Add button;
+  - validates required name;
+  - trims and collapses whitespace;
+  - prevents duplicate active names case-insensitively;
+  - auto-selects the created type when found.
+- Save creates a BalanceEntry and exits with router.back() when possible, or
+  router.replace('/(tabs)') as fallback.
+
+Data model and persistence
+--------------------------
+New local types:
+- src/types/balance.ts
+
+BalanceEntry:
+- id: string
+- amount: number
+- typeId: string
+- createdAt: number
+
+BalanceType:
+- id: string
+- name: string
+- createdAt: number
+- updatedAt: number
+- isDefault: boolean
+- isArchived: boolean
+- sortOrder: number
+
+Default balance types:
+- salary -> Salary
+- investment -> Investment
+- regalo -> Regalo
+
+SQLite:
+- balance_entries table:
+  - id TEXT PRIMARY KEY NOT NULL
+  - amount REAL NOT NULL
+  - type_id TEXT NOT NULL
+  - created_at INTEGER NOT NULL
+- balance_types table:
+  - id TEXT PRIMARY KEY NOT NULL
+  - name TEXT NOT NULL
+  - created_at INTEGER NOT NULL
+  - updated_at INTEGER NOT NULL
+  - is_default INTEGER NOT NULL CHECK (is_default IN (0, 1))
+  - is_archived INTEGER NOT NULL CHECK (is_archived IN (0, 1))
+  - sort_order INTEGER NOT NULL
+- balance_types has a unique active-name index on LOWER(name) where
+  is_archived = 0.
+- Default balance types are seeded through INSERT OR IGNORE in database init.
+
+DB boundaries:
+- src/db/balance.ts selects native or web implementation by Platform.OS.
+- src/db/balance.native.ts implements native SQLite persistence.
+- src/db/balance.web.ts keeps the same native-only stub style as transactions
+  and categories.
+
+DB actions:
+- getBalanceEntries()
+- createBalanceEntry()
+- getBalanceTypes()
+- createBalanceType()
+
+No edit/delete/archive UI or DB action for balance entries was added in ML-82.
+Balance type archive/update was also intentionally not added because it was not
+needed for this scope.
+
+Store and helpers
+-----------------
+New store:
+- src/store/balance-store.ts
+
+Store state/actions:
+- balanceEntries
+- balanceTypes
+- activeBalanceTypes
+- isLoading
+- isInitialized
+- error
+- loadBalance()
+- addBalanceEntry()
+- addBalanceType()
+- clearError()
+
+Balance type helpers:
+- src/lib/balance-utils.ts
+- normalizeBalanceTypeName()
+- sortBalanceTypes()
+- getActiveBalanceTypes()
+- validateBalanceTypeName()
+- createBalanceTypeFromName()
+
+Refresh hook:
+- src/lib/use-balance-refresh.ts
+- Same focus/mount refresh pattern as transaction/category refresh hooks.
+
+Current balance helper:
+- src/features/home/calculate-current-balance.ts
+- calculateCurrentBalance({ balanceEntries, transactions })
+- Ignores non-finite balance and transaction amounts safely.
+- Ignores transactions whose deletedAt is not null.
+- Always returns a finite number.
+
+Remote sync / backup / CSV contracts
+------------------------------------
+- Balance entries are local-only in ML-82.
+- Balance entries are not encoded as Transactions.
+- Balance entries are not exported in Transaction CSV v1.
+- Balance types are not exported in Transaction CSV v1.
+- Transaction CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Supabase migrations were not changed.
+- Supabase remote sync/backup/restore mappers were not changed.
+- No balance table/schema was added to Supabase.
+- No auth, account delete, backup, restore, or sync behavior was intentionally
+  changed.
+
+Navigation constraints preserved
+--------------------------------
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction remains a pushed root Stack screen, not a tab.
+- Add Balance is a pushed root Stack screen, not a tab.
+- Shame Card remains a pushed root Stack screen, not a tab.
+- Edit Transaction still uses the shared TransactionForm.
+
+Important files
+---------------
+New files:
+- app/add-balance.tsx
+- src/types/balance.ts
+- src/lib/balance-utils.ts
+- src/lib/use-balance-refresh.ts
+- src/db/balance.ts
+- src/db/balance.native.ts
+- src/db/balance.web.ts
+- src/store/balance-store.ts
+- src/features/add-balance/add-balance-screen.tsx
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx
+- src/features/home/calculate-current-balance.ts
+- src/features/home/__tests__/calculate-current-balance.test.ts
+- src/features/home/__tests__/home-screen.test.tsx
+- src/db/__tests__/balance.native.test.ts
+- src/store/__tests__/balance-store.test.ts
+
+Key modified files:
+- app/_layout.tsx
+- src/db/database.native.ts
+- src/features/home/home-screen.tsx
+- docs/mvp-qa-checklist.md
+- AGENTS.md
+- package.json
+- package-lock.json
+
+Tests added
+-----------
+calculateCurrentBalance tests cover:
+- empty state;
+- only balance entries;
+- balance entries minus transactions;
+- deleted/tombstone transactions do not reduce balance;
+- invalid/non-finite amounts are handled safely.
+
+Add Balance screen tests cover:
+- amount required;
+- amount > 0;
+- comma decimal accepted;
+- date is saved as createdAt;
+- type required;
+- default type selected/saved;
+- custom type empty-name validation;
+- custom type duplicate active-name validation;
+- custom type auto-selects and can be used;
+- successful save routes back;
+- no-back-stack fallback routes to /(tabs).
+
+Home tests cover:
+- current balance renders;
+- Add routes to /add-balance;
+- Spend routes to /add-transaction;
+- balance decreases after mocked transaction total;
+- Today summary remains transaction-only, not balance summary.
+
+Balance DB/store tests cover:
+- native balance entry create/read ordering;
+- native balance type create/read sorting;
+- balance store load;
+- addBalanceEntry refreshes entries;
+- addBalanceType trims and creates custom types;
+- duplicate active balance type names are rejected.
+
+Validation that passed
+----------------------
+All commands were run with Node 20.19.4.
+
+Passed:
+- npm run release:preflight
+- npm test -- --runInBand
+  - 47 test suites passed
+  - 368 tests passed
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+  - resolved app version: 1.21.0
+- git diff --check
+- npm run start
+  - smoke-started without immediate errors, then stopped
+- npm run web
+  - smoke-started without immediate errors, then stopped
+
+Targeted checks passed:
+- CSV header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, and Shame Card are root Stack screens, not
+  bottom tabs.
+- No @expo/ui, @expo/ui-swift-ui, expo-blur, BlurView, Liquid Glass,
+  glass-styles, or new UI dependency was added.
+- No Supabase remote migration was added.
+- No raw env/secrets/tokens were introduced in new code files.
+
+Manual QA
+---------
+The user reported after implementation:
+- all manual steps they needed to do were completed;
+- manual testing was successful;
+- everything was OK.
+
+AGENTS.md update
+----------------
+AGENTS.md was updated because the Balance-vs-Transaction separation is now a
+durable architecture rule:
+
+- Balance entries are a separate local domain from expense Transactions. Do not
+  encode balance additions as Transactions, and do not add balance entries to
+  Transaction CSV v1 or remote sync/backup schema unless a future task
+  explicitly scopes a data-contract migration.
+
+AGENTS.md also now lists:
+- app/add-balance.tsx: pushed root Stack Add Balance route.
+
+Known follow-up considerations
+------------------------------
+- ML-82 did not add edit/delete UI for balance entries.
+- ML-82 did not add archive/update UI for balance types.
+- ML-82 did not add balance to remote sync, backup, restore, import, export, or
+  Supabase.
+- If a future task scopes any of those, treat it as a data-contract migration
+  and update CSV/sync/backup docs and tests deliberately.
+
+================================================================================
+
+EPIC 82.5 — SOURCE: ML_82.5_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-82.5 Agent Planning Context
+
+Purpose
+This file summarizes what was completed for ML-82.5 so a future AI agent can
+plan follow-up work without rediscovering the completed scope.
+
+Final status
+- ML-82.5 implementation is complete.
+- Automated validation passed.
+- Manual Supabase work was completed by the user.
+- Manual QA was completed by the user and reported as OK.
+- No known ML-82.5 implementation work remains.
+
+Product and architecture outcome
+- Balance is now a first-class backup/restore/manual-sync domain.
+- Balance additions are still not Transactions.
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Current balance remains:
+  sum(active balance entries) - sum(active/non-deleted expense transactions)
+- Home History now displays balance additions and expense transactions together
+  in one chronological feed.
+- No balance edit/delete UI was added.
+- No new sync trigger was added.
+
+Remote Supabase changes
+- Added migration:
+  supabase/migrations/20260529000000_create_remote_balance_tables.sql
+- New remote tables:
+  public.remote_balance_types
+  public.remote_balance_entries
+- Both tables use:
+  user_id uuid references auth.users(id) on delete cascade
+  primary key (user_id, id)
+  schema_version integer
+  source_device_id text nullable
+  created_at / updated_at timestamptz
+  deleted_at timestamptz nullable
+- remote_balance_entries.amount uses double precision.
+- RLS is enabled.
+- public/anon access is revoked.
+- authenticated users get own-row CRUD policies only.
+- The mobile app still uses only the Supabase anon client.
+- Delete-account Edge Function cleanup now deletes remote balance entries, then
+  remote balance types, before existing app-owned rows.
+
+Local Balance changes
+- Balance types and entries now include sync metadata:
+  ownerId
+  updatedAt
+  deletedAt
+  schemaVersion
+  sourceDeviceId
+- Added native migration:
+  004_add_balance_sync_ready_local_fields
+- Migration preserves existing rows and backfills owner/device/timestamp/schema
+  metadata.
+- Migration is idempotent.
+- Normal list reads hide deleted_at rows.
+- Backup/sync-specific reads can include tombstones.
+- New balance rows get owner/sync metadata.
+- Web balance stubs were kept aligned with the native API shape.
+- Account linking now includes balance rows.
+
+Backup behavior completed
+- Backup payload schema was bumped to version 2.
+- Backup payload now includes:
+  balanceTypes
+  balanceEntries
+  includesBalance: true
+- Backup uploads balance tombstones when local tombstones exist.
+- Supabase backup upsert order:
+  categories
+  balance types
+  transactions
+  balance entries
+- Balance upserts use onConflict: user_id,id.
+- Repeated backup does not duplicate balance rows.
+- Guest mode does not invoke remote backup writes.
+- Backup UI copy remains aggregate-only and safe.
+
+Restore behavior completed
+- Restore is authenticated-only, manual-only, merge-only, and non-destructive.
+- Restore does not replace local data with cloud data.
+- Restore applies balance types before balance entries.
+- Active remote balance rows use insert-ignore style local merge.
+- Repeated restore does not duplicate balance rows.
+- Remote balance tombstones soft-delete matching local rows by stable id.
+- Orphan remote tombstones do not create visible local rows.
+- Settings refreshes transactions, categories, and balance after successful
+  restore.
+- Restore UI copy remains aggregate-only and safe.
+
+Manual and foreground sync behavior completed
+- Existing manual sync pipeline now includes balance pull/apply/push.
+- Existing foreground auto-sync hook is preserved and uses the shared sync
+  pipeline, now including balance.
+- No sync was added on app start, login, session restore, sign out, background,
+  or mutations.
+- Balance conflict handling follows the existing deterministic LWW style.
+- Sync applies balance types before balance entries.
+- Sync summaries include aggregate balance counts.
+- Old persisted sync summaries with missing balance counts parse as zero.
+- Settings refreshes transactions, categories, and balance after successful
+  manual sync and successful existing foreground sync.
+- Guest mode does not invoke remote sync writes.
+
+Home History behavior completed
+- Home History now builds a union feed, not a Transaction list.
+- Transaction feed items:
+  show category icon/name
+  show negative signed amount, for example -20 €
+  preserve existing swipe edit/delete behavior
+- Balance feed items:
+  show balance type name
+  use safe fallback name "Balance addition" when type is missing
+  show positive signed amount, for example +100 €
+  are not swipeable
+- Feed items are filtered by the selected period for both transactions and
+  balance entries.
+- Feed items are sorted newest-first by createdAt.
+- Today summary remains transaction-only.
+- Add routes to /add-balance.
+- Spend routes to /add-transaction.
+
+Settings and safety changes
+- Settings backup/restore copy includes aggregate balance counts.
+- Settings sync copy remains aggregate-only.
+- Settings no longer logs raw caught errors for relevant operations.
+- Startup/onboarding raw caught error logs were also tightened to generic
+  operation messages.
+- UI/logs should not expose raw backend errors, env values, user ids, owner ids,
+  localOwnerIds, deviceIds, tokens, or row payloads.
+
+Docs and version
+- package.json version: 1.22.0
+- package-lock.json root/top-level versions: 1.22.0
+- app.config.js was intentionally left unchanged.
+- docs/mvp-qa-checklist.md was updated with ML-82.5 QA.
+- docs/handoffs/ML_82_5_HANDOFF.txt was added with implementation, migration,
+  validation, manual QA, and non-goal notes.
+- AGENTS.md was updated with the durable Balance rule:
+  Balance entries are a separate domain from expense Transactions. Balance
+  backup/restore/manual sync uses dedicated balance tables and sync DTOs. Do
+  not encode balance additions as Transactions, and keep Transaction CSV v1
+  unchanged unless a future task explicitly scopes a CSV migration.
+
+Automated validation passed
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+- Targeted searches for:
+  Transaction CSV v1 header
+  no service-role/admin Supabase usage in mobile app
+  no raw secret/id/error exposure in UI/logs
+  bottom tab/root stack shape
+  forbidden UI dependencies
+  no Balance in Transaction CSV export code
+
+Manual validation
+- The user applied the required manual Supabase work.
+- The user completed manual testing and reported that everything was OK.
+
+Important files and areas for future agents
+- AGENTS.md
+- docs/handoffs/ML_82_5_HANDOFF.txt
+- docs/mvp-qa-checklist.md
+- supabase/migrations/20260529000000_create_remote_balance_tables.sql
+- supabase/functions/delete-account/handler.ts
+- src/types/balance.ts
+- src/db/balance.native.ts
+- src/db/migrations.native.ts
+- src/db/database.native.ts
+- src/db/account-linking.native.ts
+- src/db/sync-status.native.ts
+- src/lib/sync/sync-types.ts
+- src/lib/sync/sync-mappers.ts
+- src/lib/sync/supabase-remote-row-mappers.ts
+- src/lib/sync/backup-service.ts
+- src/lib/sync/restore-service.ts
+- src/lib/sync/sync-service.ts
+- src/lib/sync/local-backup-data-source.ts
+- src/lib/sync/local-restore-data-target.ts
+- src/lib/sync/local-sync-data-source.ts
+- src/lib/sync/local-sync-data-target.ts
+- src/lib/sync/supabase-remote-backup-adapter.ts
+- src/lib/sync/supabase-remote-restore-adapter.ts
+- src/lib/sync/supabase-remote-sync-adapter.ts
+- src/lib/sync/use-foreground-auto-sync.ts
+- src/features/home/home-screen.tsx
+- src/features/home/calculate-current-balance.ts
+- src/features/settings/settings-screen.tsx
+- src/lib/period-scope.ts
+
+Non-goals preserved
+- Do not encode balance additions as Transactions.
+- Do not add balance entries to Transaction CSV v1.
+- Do not change Transaction CSV v1.
+- Do not add auto-sync on startup/login/session restore/sign-out/background or
+  mutation events.
+- Do not add a login wall.
+- Do not remove guest/local mode.
+- Do not use service-role/admin Supabase credentials in the mobile app.
+- Do not change bottom tabs/navigation.
+- Do not add balance edit/delete UI unless a future task explicitly scopes it.
+- Do not add category icon sync or CSV changes as part of Balance follow-up
+  planning unless explicitly scoped.
+
+Suggested planning notes
+- Future balance work should treat local DB, remote DTOs, backup/restore, and
+  incremental sync as one data-contract surface.
+- Any future CSV change is a separate explicit migration and must not be folded
+  into Balance sync work casually.
+- Any future automatic sync expansion must respect the existing feature flag,
+  sync service boundary, safe summaries, and AGENTS.md constraints.
+
+================================================================================
+
+EPIC 83 — SOURCE: ML_83_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-83 Agent Planning Context
+
+Purpose
+This file summarizes what was completed for ML-83 so a future AI agent can
+plan follow-up work without rediscovering the completed scope.
+
+Final status
+- ML-83 implementation is complete.
+- Automated validation passed.
+- Manual QA was completed by the user and reported as OK.
+- No known ML-83 implementation work remains.
+
+Task summary
+- Updated Home screen to match Figma node 132:2083.
+- Preserved existing business logic and data contracts.
+- Treated the work as Home visual/layout polish over the existing ML-82.5
+  balance/history capability.
+- Bumped app/package version from 1.22.0 to 1.22.1.
+
+Product and architecture outcome
+- Home now uses a Figma-style iPhone-width layout:
+  centered 360px max-width content column
+  #f7f7f5 background
+  NewYork-style "Home" title
+  large centered current balance
+  equal-width Add and Spend pill buttons
+  table-style Today summary
+  simplified History header and rows
+- The native status bar and existing floating bottom tab bar remain outside
+  Home; no Figma chrome was recreated inside the screen.
+- Current balance remains:
+  sum(active balance entries) - sum(active/non-deleted expense transactions)
+- Today summary remains transaction-only and does not include balance additions.
+- Home History remains a union feed of expense transactions and balance
+  additions, filtered by the selected Home period and sorted newest-first.
+- Home History period selector remains limited to:
+  Today
+  Yesterday
+  This week
+- Choose date does not appear on Home.
+
+Navigation behavior preserved
+- Add routes to /add-balance.
+- Spend routes to /add-transaction.
+- More routes to Analytics.
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction, Add Balance, and Shame Card remain root Stack screens, not
+  bottom tabs.
+
+History row behavior completed
+- Transaction rows:
+  show category icon/name
+  show time/date
+  show one detail line using leak reason first, then note when present
+  show signed negative expense amount
+  preserve existing PanResponder/Animated swipe behavior
+  preserve one-open-row behavior
+  preserve edit route and delete confirmation
+- Balance rows:
+  show a simple non-swipe icon slot
+  show balance type name
+  use safe fallback "Balance addition" when the type is missing
+  show signed positive addition amount
+  are not swipeable
+  do not expose edit/delete actions
+- Home visual badges such as Leak, Normal, and Added were removed from History
+  rows to match the Figma list style.
+
+Safety and contract outcome
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Balance additions were not encoded as Transactions.
+- Balance additions were not added to Transaction CSV import/export.
+- No Transaction, BalanceEntry, BalanceType, sync DTO, remote schema, store, or
+  route contract changes were made.
+- No new dependencies were added.
+- No @expo/ui, @expo/ui-swift-ui, expo-blur, BlurView, Liquid Glass, or
+  glass-styles usage was added.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- Home no longer renders raw store error strings; it uses generic safe copy.
+- No raw backend errors, env values, user IDs, owner IDs, localOwnerIds,
+  device IDs, tokens, secrets, or row payloads should be exposed by the ML-83
+  Home changes.
+
+Files changed for ML-83
+- src/features/home/home-screen.tsx
+- src/components/period-selector.tsx
+- src/features/home/__tests__/home-screen.test.tsx
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+Docs and version
+- docs/mvp-qa-checklist.md now includes an ML-83 manual QA section covering:
+  Figma visual QA
+  Add/Spend navigation
+  More navigation
+  Today summary transaction-only behavior
+  History union feed
+  period filters
+  transaction swipe behavior
+  balance non-swipe behavior
+  floating tab bar overlap
+  CSV/auth/sync regressions
+- package.json version is 1.22.1.
+- package-lock.json top-level and root package versions are 1.22.1.
+- app.config.js was intentionally left unchanged.
+- AGENTS.md was intentionally left unchanged because the durable rules needed
+  for ML-83 were already present.
+
+Automated validation passed
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Automated validation details
+- release:preflight passed with 9 passed, 0 failed.
+- Full Jest suite passed:
+  48 test suites
+  388 tests
+- Expo config resolved version 1.22.1.
+
+Targeted checks passed
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Transaction CSV import/export files contain no balance references.
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, and Shame Card remain root Stack screens.
+- No forbidden UI dependencies or APIs were found.
+- No service-role/admin Supabase usage was found in mobile app code/config.
+- Home UI does not render raw store errors or sensitive identifiers.
+
+Manual validation
+- The user completed manual testing after implementation.
+- The user reported that all manual testing was OK.
+
+Important files and areas for future agents
+- AGENTS.md
+- docs/handoffs/ML_83_HANDOFF.txt
+- docs/mvp-qa-checklist.md
+- src/features/home/home-screen.tsx
+- src/components/period-selector.tsx
+- src/features/home/__tests__/home-screen.test.tsx
+- src/features/home/calculate-current-balance.ts
+- src/features/home/calculate-daily-review-summary.ts
+- src/lib/period-scope.ts
+- src/store/transactions-store.ts
+- src/store/balance-store.ts
+- src/features/export/transactions-csv-format.ts
+- app/_layout.tsx
+- app/(tabs)/_layout.tsx
+
+Non-goals preserved
+- Do not encode balance additions as Transactions.
+- Do not add balance entries to Transaction CSV v1.
+- Do not change Transaction CSV v1 unless a future task explicitly scopes a CSV
+  migration.
+- Do not add balance edit/delete UI unless a future task explicitly scopes it.
+- Do not change Add Balance flow.
+- Do not change Add Transaction wizard flow.
+- Do not change bottom tabs/navigation.
+- Do not reintroduce Add Transaction or Shame Card as bottom tabs.
+- Do not add auth, backend, cloud sync, bank integrations, or new sync triggers
+  as part of Home visual work.
+- Do not add forbidden UI dependencies or glass/blur wrappers.
+- Do not expose raw backend errors or sensitive identifiers in UI/logs/tests/docs.
+
+Suggested planning notes
+- Future Home work can assume ML-83 visual structure and ML-82.5 union History
+  behavior are the current baseline.
+- Future balance changes must continue treating Balance as a separate domain
+  from expense Transactions.
+- Future transaction export/import changes must be planned as an explicit CSV
+  data-contract migration, not as incidental Home or Balance UI work.
+- Future visual tweaks should preserve the existing route ownership model:
+  app/ stays route-focused, screen implementations stay in src/features/*.
+
+================================================================================
+
+EPIC 84 — SOURCE: ML_84_BALANCE_EDIT_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-84 / Balance Edit Handoff
+Created: 2026-06-01
+
+Purpose
+This handoff summarizes the implementation completed in this thread so a future
+AI agent can plan from the current state without re-discovering the work.
+
+Manual QA
+- The user manually tested the implemented flows and confirmed everything is OK.
+
+Implemented Scope
+
+1. ML-84 Add Transaction one-page redesign
+- /add-transaction was changed from the old route-local wizard into one main
+  one-page Add Transaction screen.
+- Native header remains hidden for Add Transaction; the screen uses its custom
+  in-flow header.
+- Layout matches the intended Figma direction:
+  - #f7f7f5 background.
+  - Centered narrow content.
+  - Amount, Date, Type, conditional Reason, Category, Add Category, and sticky
+    bottom CTA.
+- The bottom CTA label is Save, not Next.
+- Save submits directly; it no longer advances through details/leakReason/category
+  wizard steps.
+- No initial transaction Type is selected by default, preserving validation.
+- Reason is hidden until Leak is selected.
+- Category is also hidden until the user has selected the needed prior fields:
+  - Amount + Normal => Category appears and the screen scrolls to Category.
+  - Amount + Leak => Reason appears and the screen scrolls to Reason.
+  - Selecting a Leak reason => Category appears and the screen scrolls to Category.
+- The reason-to-category scroll issue was fixed.
+- Selecting Normal clears any previously selected leak reason.
+- Category chips render active, non-archived categories only.
+- Category chips show the persisted category icon plus display name.
+- Save requires a valid selected active category ID.
+- Add Category remains an in-screen sub-flow with existing validation,
+  CategoryIconPicker behavior, fallback icon, and safe auto-select by normalized
+  created name.
+- Amount parsing behavior remains:
+  - required,
+  - must be > 0,
+  - dot decimals or one comma decimal accepted.
+- LocalDatePicker is used; confirmed date is saved as
+  createdAt: selectedDate.getTime().
+- Transaction save payload uses useTransactionsStore.addTransaction with:
+  - category as stable category ID only,
+  - leakReason only for leaks,
+  - note: null,
+  - generated transaction ID.
+- After successful save, navigation goes router.back() when possible, otherwise
+  router.replace('/(tabs)').
+
+2. Version and QA docs
+- package.json and package-lock.json were bumped from 1.22.1 to 1.23.0.
+- A follow-up patch bump was applied from 1.23.0 to 1.23.1 to retrigger the
+  GitHub Actions release/build flow and upload a fresh App Store build.
+- Final package/app version for this handoff: 1.23.1.
+- app.config.js and eas.json were intentionally not changed.
+- docs/mvp-qa-checklist.md received an ML-84 manual QA section.
+
+3. Balance additions / income can now be edited and deleted
+- The user noticed income/balance additions were not editable/deletable while
+  expense transactions were.
+- Balance entries remain a separate domain from expense Transactions.
+- Balance additions were not encoded as Transactions.
+- Transaction CSV v1 remains unchanged.
+- New native balance persistence methods were added:
+  - updateBalanceEntry(entry)
+  - deleteBalanceEntry(id)
+- deleteBalanceEntry performs a soft delete by setting deleted_at and updated_at
+  on balance_entries.
+- updateBalanceEntry updates amount, type_id, created_at, updated_at, and
+  source_device_id for non-deleted balance_entries rows.
+- Web balance persistence stubs were updated with matching native-only methods.
+- The platform balance barrel exports the new update/delete methods.
+- useBalanceStore now exposes:
+  - updateBalanceEntry(entry)
+  - removeBalanceEntry(id)
+- Both methods refresh balanceEntries after persistence and use generic store
+  errors.
+
+4. Edit Balance route/screen
+- Added route: app/balance/[id]/edit.tsx.
+- Added screen: src/features/edit-balance/edit-balance-screen.tsx.
+- Added root Stack route registration for balance/[id]/edit with native header
+  hidden.
+- Edit Balance loads balance entries if needed, handles invalid/missing IDs, and
+  routes back to /(tabs) from the missing-state action.
+- Edit Balance reuses AddBalanceScreen with:
+  - initialEntry,
+  - title="Edit Balance",
+  - submitLabel="Save Changes",
+  - onSubmit wired to useBalanceStore.updateBalanceEntry.
+- AddBalanceScreen was generalized to accept optional props:
+  - initialEntry,
+  - onSubmit,
+  - submitLabel,
+  - title.
+- AddBalanceScreen edit mode keeps the existing balance entry ID stable.
+- Add Balance behavior remains the default when no props are passed.
+
+5. Home history balance row actions
+- Balance history rows now expose swipe edit/delete affordances, matching expense
+  transaction rows.
+- Edit balance action pushes /balance/{id}/edit.
+- Delete balance action shows confirmation:
+  - title: Delete balance addition?
+  - message: This will remove this income entry from your balance history.
+- Confirming delete calls useBalanceStore.removeBalanceEntry(id).
+- Swipe state now tracks open/deleting state for both transaction rows and balance
+  entry rows.
+- Transaction rows keep their previous edit/delete behavior.
+- docs/mvp-qa-checklist.md was updated so Home QA no longer expects balance rows
+  to be non-swipeable.
+
+6. Home history amount color
+- Balance additions / income rows with + amounts are green.
+- Expense rows with - amounts remain black.
+- Current implemented colors:
+  - + amount: #34c759
+  - - amount: #050505
+
+Regression / Contract Notes
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance
+  remain root Stack routes, not bottom tabs.
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Transaction CSV import/export remains transaction-only and has no balance
+  references.
+- Balance additions remain outside Transaction CSV v1 and are not encoded as
+  Transactions.
+- No app.config.js or eas.json changes were made.
+- No Supabase schema, auth, backup contract, remote sync contract, or service-role
+  mobile usage changes were introduced.
+- No AGENTS.md update was needed.
+
+Key Files
+- app/_layout.tsx
+- app/add-transaction.tsx
+- app/add-balance.tsx
+- app/balance/[id]/edit.tsx
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/add-transaction/__tests__/add-transaction-screen.test.tsx
+- src/features/add-balance/add-balance-screen.tsx
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx
+- src/features/edit-balance/edit-balance-screen.tsx
+- src/features/home/home-screen.tsx
+- src/features/home/__tests__/home-screen.test.tsx
+- src/db/balance.native.ts
+- src/db/balance.web.ts
+- src/db/balance.ts
+- src/db/__tests__/balance.native.test.ts
+- src/store/balance-store.ts
+- src/store/__tests__/balance-store.test.ts
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+
+Automated Validation Already Run
+All commands below were run with Node 20.19.4:
+
+source /Users/quitesocial/.nvm/nvm.sh
+nvm use 20.19.4
+
+npm run release:preflight
+npm test -- --runInBand
+npm run typecheck
+npm run lint
+npm run format:check
+npx expo config --json
+git diff --check
+
+Full Jest result observed during this work:
+- 48 test suites passed.
+- 397 tests passed.
+
+Targeted Home test after the final green-income amount change:
+- src/features/home/__tests__/home-screen.test.tsx passed.
+- 15 tests passed.
+
+Recommended Next-Agent Starting Point
+- Treat ML-84 add-transaction redesign as implemented and manually accepted.
+- Treat balance entry edit/delete as implemented and manually accepted.
+- Treat green income amount styling as implemented and manually accepted.
+- Do not rework balance additions into Transactions.
+- Do not change Transaction CSV v1 unless a future task explicitly scopes a data
+  contract migration.
+- If planning next work, focus on new product scope rather than revalidating the
+  completed basics, unless touching Home, Add Transaction, Add Balance, balance
+  persistence, or CSV/export code.
+
+================================================================================
+
+EPIC 85 — SOURCE: ML_85_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-85 / Add Type To Add Balance Handoff
+Created: 2026-06-03
+
+Purpose
+This handoff summarizes the implementation completed in this thread so a future
+AI agent can plan from the current state without re-discovering the work.
+
+Design Source
+- Original Figma file access was blocked for the connected account
+  asrazdorskiy@gmail.com.
+- The accepted source of truth for this task was the rendered PDF fallback:
+  /Users/quitesocial/Downloads/new home screen + add balance.pdf
+- Scope was explicitly limited to ML-85 Add Balance -> Add Type.
+- The broader Home redesign shown in the PDF was not part of this task.
+
+Manual QA
+- The user manually completed the needed app-side/manual testing after
+  implementation.
+- User-confirmed result: everything is OK.
+
+Implemented Scope
+
+1. Add Type is now a true Add Balance sub-screen state
+- In src/features/add-balance/add-balance-screen.tsx, tapping + Add in the Type
+  section switches from Add Balance to an Add Type state.
+- Add Type state now shows:
+  - the shared custom back header,
+  - title: Add Type,
+  - Name field,
+  - sticky footer CTA: Save Type.
+- Add Type state hides:
+  - Amount,
+  - Date,
+  - Type chips,
+  - Save Balance CTA.
+- Pressing the header back button while in Add Type returns to Add Balance
+  instead of navigating away.
+- Returning from Add Type preserves the in-progress Add Balance draft, including
+  amount, date, and selected type.
+- The previous inline Add Type panel pattern was removed.
+
+2. Type name handling
+- AddBalanceScreen now normalizes the type name before calling
+  useBalanceStore.addBalanceType.
+- Existing normalization behavior remains:
+  - trims surrounding whitespace,
+  - collapses repeated internal whitespace,
+  - blocks empty names,
+  - blocks duplicate active type names case-insensitively.
+- After successful type creation, the newly created type is auto-selected.
+- Save Balance then uses the selected/newly created typeId for the BalanceEntry.
+
+3. Preserved behavior and contracts
+- Existing balance type selection still works.
+- Edit Balance still reuses AddBalanceScreen and preserves the existing balance
+  entry ID.
+- BalanceEntry and BalanceType remain separate from Transactions.
+- Balance additions were not encoded as Transactions.
+- Transaction CSV v1 was not changed.
+- No store API, DB schema, remote sync/backup contract, Supabase schema, route,
+  tab, package version, app config, or EAS config changes were made.
+- No new UI dependencies were added.
+- AGENTS.md was not updated because this task did not add a durable project rule.
+
+Docs
+- docs/mvp-qa-checklist.md received a new ML-85 section covering:
+  - Add Balance existing type save,
+  - Add Type sub-screen state,
+  - Add Type back behavior,
+  - empty and duplicate name validation,
+  - whitespace normalization,
+  - auto-selecting the new type,
+  - saving with the new type,
+  - Edit Balance regression,
+  - Home History and CSV regressions.
+
+Key Files Changed
+- src/features/add-balance/add-balance-screen.tsx
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx
+- docs/mvp-qa-checklist.md
+
+Tests Added / Updated
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx now covers:
+  - Add Type rendering as its own screen state,
+  - Add Type hiding Add Balance fields and Save Balance,
+  - returning from Add Type without losing the Add Balance draft,
+  - empty type name validation,
+  - duplicate active type validation,
+  - trim/collapse normalization before save,
+  - created type auto-selection,
+  - Save Balance using the created typeId,
+  - existing default type save,
+  - Edit Balance preserving stable ID/type behavior.
+
+Automated Validation Already Run
+All commands below were run with Node 20.19.4:
+
+source /Users/quitesocial/.nvm/nvm.sh
+nvm use 20.19.4
+
+npm run release:preflight
+npm test -- --runInBand
+npm run typecheck
+npm run lint
+npm run format:check
+npx expo config --json
+git diff --check
+
+Full Jest result observed during this work:
+- 48 test suites passed.
+- 400 tests passed.
+
+Additional Targeted Checks Already Confirmed
+- package.json and package-lock.json versions stayed at 1.23.1.
+- app.config.js and eas.json were unchanged.
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Transaction CSV import/export has no balance references.
+- Bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance
+  remain root Stack routes.
+- No @expo/ui, expo-blur, BlurView, Liquid Glass, or glass styling dependency
+  was added.
+- No raw env/secrets/tokens/user IDs/owner IDs/localOwnerIds/device IDs/backend
+  row payloads were added to UI or docs.
+
+Current Working Tree Notes
+- At handoff creation time, git status showed only this handoff file as
+  untracked in the current working tree.
+- The ML-85 implementation files to know about are:
+  - docs/handoffs/ML_85_HANDOFF.txt
+  - docs/mvp-qa-checklist.md
+  - src/features/add-balance/__tests__/add-balance-screen.test.tsx
+  - src/features/add-balance/add-balance-screen.tsx
+
+Recommended Next-Agent Starting Point
+- Treat ML-85 as implemented, automated-validation-clean, and manually accepted.
+- Do not re-plan the Add Type sub-screen unless a future design explicitly
+  changes it.
+- Do not add balance additions to Transaction CSV v1.
+- Do not change package version, app config, EAS config, tabs, routes, sync,
+  backup, or remote schemas unless a future task explicitly scopes that work.
+- If planning follow-up work, start from the current Add Balance/Add Type
+  behavior and focus only on new product scope or regressions introduced by
+  later changes.
+
+================================================================================
+
+EPIC 86 — SOURCE: ML_86_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-86 / Analytics & Leaks Ledger Handoff
+Created: 2026-06-04
+
+Purpose
+This handoff summarizes the Analytics & Leaks work completed in this thread so a
+future AI agent can plan from the current state without re-discovering or
+re-questioning the already accepted implementation.
+
+Current Status
+- ML-86 is implemented.
+- The user completed manual testing and confirmed everything is OK.
+- Current app/package version is 1.23.2.
+- The version bump to 1.23.2 was explicitly requested after the original ML-86
+  plan. The original plan said not to change version metadata, but this was
+  intentionally overridden by the later user request.
+- At the time this handoff was prepared, the repository was clean before adding
+  this handoff file.
+- Current HEAD observed before adding this handoff:
+  86b963c ML-86 Add analytics ledger helpers with tests (#105)
+
+Design Sources
+- Main source of truth was the Money Leak Figma file and the ML-86 nodes shared
+  throughout the implementation.
+- Several final visual details were driven by user screenshots from Figma.
+- The empty Analytics illustration was taken from the user-provided asset:
+  /Users/quitesocial/Downloads/3fd8efc87dc8156d261a2809ed4b2687502a699f.png
+- The app now stores the corresponding committed asset at:
+  assets/images/analytics-empty.png
+
+Implemented Scope
+
+1. Analytics & Leaks is now a read-only ledger
+- src/features/analytics/analytics-screen.tsx was redesigned from the old
+  statistics dashboard into a feed/ledger.
+- The old totals cards, leak percentage card, insight cards, Alternative Reality
+  section, and Shame Card CTA were removed from the Analytics tab UI.
+- The /shame-card route itself was preserved.
+- The screen uses the Figma-style layout:
+  - background #f7f7f5,
+  - centered narrow content column,
+  - large Analytics & Leaks title,
+  - operation header All / Added / Spent,
+  - period segmented control,
+  - enough bottom padding so the existing floating tab bar does not cover rows.
+- The screen does not recreate the iOS status bar or the app tab bar.
+
+2. Analytics ledger helpers were added
+- New internal helper module:
+  src/features/analytics/analytics-ledger.ts
+- It defines internal Analytics types for:
+  - period state,
+  - custom period type,
+  - filter state,
+  - balance/transaction union ledger rows,
+  - grouped ledger sections.
+- It supports:
+  - Today, Week, Month, and Custom ranges,
+  - Monday-start local weeks,
+  - local calendar month/year ranges,
+  - Custom Day / Month / Year / Custom dates,
+  - ascending normalization for custom date ranges,
+  - deleted row exclusion,
+  - newest-first sorting,
+  - deterministic tie-break by ledger item id,
+  - local date grouping such as 23 April 2026,
+  - signed euro labels such as +1 000.00 EUR style with the euro symbol in app
+    UI,
+  - local time formatting,
+  - filter normalization.
+
+3. Data sources and errors
+- Analytics uses existing local stores and refresh hooks:
+  - transactions,
+  - balance entries and balance types,
+  - categories.
+- No backend, sync, backup, restore, auth, schema, or CSV behavior was added or
+  changed for Analytics.
+- User-facing load/refresh failures use generic safe copy only.
+- Raw store/backend errors, raw payloads, IDs, secrets, tokens, owner ids,
+  localOwnerIds, and device ids are not rendered in Analytics UI.
+
+4. Ledger rows
+- Balance rows render as positive additions:
+  - balance type name,
+  - local time,
+  - green positive amount,
+  - no visible icon, matching the final Figma/user feedback,
+  - left indentation is preserved so balance rows align with transaction rows.
+- Transaction rows render as expenses:
+  - category display name,
+  - category icon aligned to the first text row rather than vertically centered
+    against the whole block,
+  - no gray circular icon background,
+  - black negative amount,
+  - Normal or Leak label,
+  - leak reason label when present.
+- Normal / Leak labels use the same visual icon language accepted in the final
+  UI:
+  - Normal uses the thumbs-up style symbol.
+  - Leak uses the app droplet/leak icon style.
+- Leak reason chips/labels also use reason icons where available.
+
+5. Empty states
+- Empty Analytics now uses the Figma box/ladder illustration asset from
+  assets/images/analytics-empty.png.
+- Empty title is No Transactions.
+- Copy changes based on whether the empty result is date-only or filter-driven.
+- Empty states include the Add Transaction CTA.
+- The Add Transaction CTA routes to /add-transaction.
+
+6. Period and custom controls
+- Analytics has its own local period state. It does not mutate the shared Home
+  period state.
+- Period tabs remain Today, Week, Month, Custom.
+- Custom initially shows only Type.
+- Selecting Day, Month, Year, or Custom dates reveals the Date control.
+- Select labels are outside the select fields, matching Figma.
+- Select fields use rounded Figma-style shapes rather than square boxes.
+- Day date selection is now an inline calendar under the Date select:
+  - no modal header,
+  - no Cancel / Done footer,
+  - selecting a day closes the inline picker,
+  - selected date styling matches the accepted Figma direction.
+- Month and Year selection are inline vertical scrolling pickers under the Date
+  select:
+  - no modal header,
+  - no footer buttons,
+  - scroll gestures are captured by the picker rather than the page.
+- Custom dates selection is an inline range calendar under the Date select:
+  - no modal header,
+  - no footer buttons,
+  - the user can select From and To in one picker,
+  - selected range styling matches the single-day picker,
+  - the stored range is normalized to ascending order.
+- The shared LocalDatePicker components were extended to support date, month,
+  year, and range modes where needed, but Analytics currently uses its inline
+  Figma-style picker controls for the custom period UI.
+
+7. Filter by flow
+- Filter by is implemented as an in-screen React Native Modal so it covers the
+  existing tab bar without adding a route.
+- The filter screen now has:
+  - safe-area-aware top spacing,
+  - a back button in the header,
+  - large Filter by title,
+  - Added / Spent operation chips,
+  - sticky Apply button at the bottom.
+- The modal no longer places an awkward close control at the very top edge of
+  the screen.
+- Filter chip sizing was adjusted to be thinner and closer to Figma.
+- Filter chips include icons for Normal, Leak, categories, balance types, and
+  leak reasons where available.
+- Filter changes are staged in draft state and only applied after tapping Apply.
+
+8. Filter semantics
+- Default filter is All.
+- Added shows balance entries.
+- Added plus a balance type filters by BalanceEntry.typeId.
+- Spent shows transactions.
+- Spent plus Normal filters non-leak transactions.
+- Spent plus Leak filters leak transactions.
+- Category filters by transaction category id.
+- Leak reason filters by Transaction.leakReason and implies Leak.
+- The main header label is All, Added, or Spent.
+- Active filters show the secondary "Filtered by ..." line.
+- Tapping the clear affordance resets filters back to All.
+- The filter button has no filled background when no filter is active and shows
+  the active filled style when a filter is selected, matching the final Figma
+  feedback.
+
+9. Documentation and versioning
+- docs/mvp-qa-checklist.md was updated with ML-86 manual QA coverage.
+- package.json and package-lock.json were bumped from 1.23.1 to 1.23.2 after
+  the user explicitly requested a version bump.
+- app.config.js was not changed; it continues to derive Expo version from
+  package.json.
+- app.json and eas.json were not changed.
+
+Key Files Changed
+- assets/images/analytics-empty.png
+- docs/mvp-qa-checklist.md
+- package.json
+- package-lock.json
+- src/components/local-date-picker.native.tsx
+- src/components/local-date-picker.tsx
+- src/features/analytics/analytics-ledger.ts
+- src/features/analytics/analytics-screen.tsx
+- src/features/analytics/__tests__/analytics-ledger.test.ts
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+
+Tests Added / Updated
+- src/features/analytics/__tests__/analytics-ledger.test.ts covers the internal
+  ledger helper behavior:
+  - period ranges,
+  - custom day/month/year/custom dates,
+  - local grouping,
+  - newest-first deterministic sorting,
+  - balance and transaction inclusion,
+  - filters,
+  - amount/time labels.
+- src/features/analytics/__tests__/analytics-screen.test.tsx covers the screen:
+  - title and default All state,
+  - period labels,
+  - custom controls,
+  - empty states,
+  - Add Transaction CTA,
+  - balance positive rows,
+  - transaction negative rows,
+  - normal/leak labels,
+  - filter modal open/apply/clear,
+  - Added, Spent, balance type, category, leak reason filters.
+
+Automated Validation Already Run
+The validation commands below were run during this work with Node 20.19.4 and
+were observed green:
+
+source /Users/quitesocial/.nvm/nvm.sh
+nvm use 20.19.4
+
+npm run release:preflight
+npm test -- --runInBand
+npm run typecheck
+npm run lint
+npm run format:check
+npx expo config --json
+git diff --check
+
+After the final 1.23.2 version bump, these checks were rerun and passed:
+- npm run release:preflight
+- git diff --check
+
+Manual QA
+- The user manually tested the final implementation after the visual/UI fixes.
+- User-confirmed result: everything is OK.
+
+Preserved Contracts / Guardrails
+- Bottom tabs remain Home, Analytics & Leaks, Settings.
+- Add Transaction, Add Balance, Shame Card, Edit Transaction, and Edit Balance
+  remain non-tab root Stack routes.
+- Analytics rows remain read-only.
+- Balance additions remain separate from expense Transactions.
+- Balance additions are not encoded as Transactions.
+- Transaction CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Balance additions were not added to Transaction CSV import/export.
+- No DB schema, Supabase schema, sync, backup, restore, auth, delete-account, or
+  remote contract changes were made.
+- No forbidden UI dependency was added.
+- No raw backend errors, secrets, tokens, env values, owner identifiers,
+  localOwnerIds, device IDs, or backend row payloads were added to UI or docs.
+- AGENTS.md was not changed.
+
+Recommended Next-Agent Starting Point
+- Treat ML-86 as implemented, manually accepted, and ready for follow-up
+  planning.
+- Do not reintroduce the old Analytics statistics dashboard unless a future task
+  explicitly asks for it.
+- Do not replace the inline Analytics custom date/month/year/range pickers with
+  the generic modal picker; the inline behavior was explicitly requested and
+  accepted.
+- Do not add a Filter by route; the full-screen in-screen modal is intentional.
+- Preserve the empty-state image asset and Add Transaction CTA.
+- Preserve balance row indentation even though balance rows intentionally have
+  no visible icon.
+- Preserve top alignment and no-background styling for transaction category
+  icons.
+- Preserve Normal, Leak, and leak reason icons in list rows and filter chips.
+- If future Analytics planning touches data contracts, keep balance additions
+  outside Transaction CSV v1 and outside the Transaction domain.
+- If future release planning depends on version metadata, start from version
+  1.23.2.
+
+================================================================================
+
+EPIC 87 — SOURCE: ML_87_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-87 Settings Section Rework - Completed Work Handoff
+Date: 2026-06-09
+Project: Money Leak
+
+Status
+------
+ML-87 Settings rework was implemented and manually tested by the user.
+The user confirmed manual testing is OK after the final category swipe fix.
+
+After manual QA passed, the app/package version was intentionally bumped as a
+minor release from `1.23.2` to `1.24.0`.
+
+
+What Was Implemented
+--------------------
+1. Settings layout was rebuilt to match Figma nodes:
+   - 203:7919
+   - 203:7972
+   - 203:8047
+
+2. Settings screen now uses:
+   - `#f7f7f5` screen background.
+   - Centered max-width 360 content column.
+   - NewYork-style title and section typography.
+   - Row-based iOS-style sections.
+   - Bottom padding that leaves space for the existing floating tab bar.
+
+3. Settings-local reusable UI patterns were added:
+   - Title/subtitle rows for reminder, sync, account, delete account.
+   - Action/value rows for currency, language, import/export, backup/restore,
+     privacy/support.
+   - In-screen white bottom option sheet with 38px top corners, grabber,
+     circular xmark/checkmark buttons, staged selection, cancel/apply behavior.
+
+4. Local Settings preferences were added under `src/lib/settings-preferences.ts`:
+   - Language preference, default `English`.
+   - Currency preference, default `Euro`.
+   - Foreground auto-sync preference, default enabled only when incremental sync
+     is feature-enabled.
+
+5. Foreground auto-sync was wired to the new local preference:
+   - Only affects `useForegroundAutoSync`.
+   - Still requires authenticated user context.
+   - Still respects existing throttle metadata.
+   - Still routes through the existing sync service boundary.
+   - Still uses `source: 'foreground'`.
+
+6. Category management was moved into Settings as the primary category UI:
+   - Uses `useCategoriesStore`.
+   - Uses `useCategoriesRefresh`.
+   - Uses `CategoryIconPicker`.
+   - Uses existing `validateCategoryName`.
+   - Uses existing `getArchiveCategoryError`.
+   - Add/edit inline state preserves existing validation and icon picker
+     behavior.
+   - Delete remains archive-only with existing confirmation and existing
+     `Other`/last-category protections.
+   - The existing `/categories` route may remain, but Settings no longer
+     depends on it for primary category management.
+
+7. Category swipe behavior was corrected after manual Figma review:
+   - Figma reference: node `203:7937` inside `203:7919`.
+   - At rest, category rows are not white; they sit on the Settings background.
+   - On swipe, the row content becomes white.
+   - Swipe right reveals the red delete action on the left.
+   - Swipe left reveals the green edit action on the right.
+   - The content does not translate left/right like transaction history cards.
+     Instead, it shrinks from 360px to about 300px, revealing a 52px action
+     plus 8px gap.
+   - On right/delete reveal, only the left content corners are rounded.
+   - On left/edit reveal, only the right content corners are rounded.
+   - This behavior intentionally differs from transaction row translation,
+     because the Settings Figma category state shows shrink/reveal behavior.
+
+8. General rows preserve existing behavior:
+   - Sign out calls only the auth store `signOut`.
+   - Delete account keeps existing confirmation/service behavior.
+   - Import/export/backup/restore/manual sync keep existing service calls,
+     loading states, success summaries, and generic safe failures.
+   - Privacy/support links use centralized `APP_LINKS` and generic link
+     failure copy.
+
+9. Route and chrome ownership were preserved:
+   - Settings does not recreate status bar.
+   - Settings does not recreate the tab bar.
+   - Bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+   - Existing pushed root routes remain root Stack routes.
+
+10. Version metadata was updated for release:
+   - `package.json` version is now `1.24.0`.
+   - Root `package-lock.json` version entries are now `1.24.0`.
+   - `app.config.js` still resolves Expo `version` from `package.json`.
+   - No dependency versions were changed.
+
+
+Important Contracts Preserved
+-----------------------------
+No intentional changes were made to:
+ - Transaction DTOs.
+ - Balance DTOs.
+ - Category backup/restore/sync DTOs.
+ - Remote schemas.
+ - CSV header or CSV schema.
+ - Expo config.
+ - Dependencies.
+ - FX conversion.
+ - App-wide i18n.
+
+Specific contract notes:
+ - `Transaction.category` remains the stable category ID only.
+ - Category icons remain category properties only.
+ - Currency preference is display-only in Settings for ML-87.
+ - Existing euro formatters and historical amount rendering were not changed.
+ - Transaction CSV v1 remains exactly:
+   `id,amount,category,isLeak,leakReason,note,createdAt`
+ - Balance additions remain outside Transaction CSV v1 and are not encoded as
+   Transactions.
+ - No service-role/admin Supabase usage was added to mobile code/config.
+ - No forbidden UI dependency was added.
+
+
+Key Files Touched During ML-87
+------------------------------
+Primary implementation:
+ - `src/features/settings/settings-screen.tsx`
+ - `src/lib/settings-preferences.ts`
+ - `src/lib/sync/use-foreground-auto-sync.ts`
+ - `package.json`
+ - `package-lock.json`
+
+Tests:
+ - `src/features/settings/__tests__/settings-screen.test.ts`
+ - `src/lib/sync/__tests__/use-foreground-auto-sync.test.tsx`
+ - `src/lib/__tests__/project-contracts.test.ts`
+
+Docs:
+ - `docs/mvp-qa-checklist.md`
+
+
+Test Coverage Added/Updated
+---------------------------
+Settings tests cover:
+ - Settings title and Account/Category/General sections.
+ - Row labels/subtitles.
+ - Guest and authenticated account copy.
+ - Reminder toggle permission/storage/schedule/cancel behavior.
+ - Synchronization toggle persistence and no guest-mode sync trigger.
+ - Currency and Language sheets:
+   - open
+   - stage selection
+   - cancel without applying
+   - apply and update visible value
+ - Category icon/name rendering.
+ - Category add/edit/delete calls existing category store methods with validated
+   names and icon names.
+ - Archive confirmation behavior.
+ - Category rows are shrinkable swipe foreground pills, not translated cards.
+ - Import/export/backup/restore/manual sync/sign out/delete account preserve
+   service calls and safe copy.
+ - Forbidden raw backend/env/token/user/device/row values are not rendered or
+   logged through Settings paths.
+
+Project contract tests cover:
+ - CSV header remains exactly
+   `id,amount,category,isLeak,leakReason,note,createdAt`.
+ - Bottom tabs remain exactly Home, Analytics & Leaks, Settings.
+ - Required pushed root routes remain root Stack routes.
+ - Forbidden UI dependencies remain absent.
+ - ML-87 package/app version metadata is aligned at `1.24.0`.
+
+
+Validation Already Run
+----------------------
+All commands below were run with Node `20.19.4`.
+
+Passed:
+ - `npm run release:preflight`
+ - `npm test -- --runInBand`
+ - `npm run typecheck`
+ - `npm run lint`
+ - `npm run format:check`
+ - `npx expo config --json`
+ - `git diff --check`
+
+Targeted checks were also run for:
+ - CSV header.
+ - Route shape.
+ - Forbidden UI dependencies.
+ - Service-role/admin Supabase usage.
+ - Raw diagnostic strings in production Settings/new preference/sync paths.
+ - Package/config version metadata alignment at `1.24.0`.
+
+
+Manual QA
+---------
+The user manually tested the final result and confirmed everything is OK.
+
+Manual correction that was explicitly verified:
+ - Category swipe behavior in Settings now matches the Figma interaction state:
+   not white at rest, white only while swiped, one-sided rounded corners, and
+   shrink-to-reveal action behavior.
+
+
+Notes For Future Planning
+-------------------------
+1. Currency and language are still local Settings preferences only. Do not plan
+   FX conversion or app-wide i18n as part of ML-87 unless a new task explicitly
+   scopes it.
+
+2. Settings category UI is now the primary category management surface. The old
+   `/categories` route can remain unless a future task explicitly removes or
+   repurposes it.
+
+3. Foreground auto-sync must remain gated by:
+   - `featureFlags.incrementalSyncEnabled`
+   - authenticated user context
+   - existing throttle metadata
+   - existing sync service boundary
+   - `source: 'foreground'`
+
+4. Do not move sync calls directly into screen code or bypass manual sync /
+   metadata service boundaries.
+
+5. Do not change CSV, backup/restore/sync schemas, app config, or dependencies
+   when building on top of this work. The ML-87 version bump has already been
+   applied as `1.24.0`; do not bump it again unless a future release task
+   explicitly scopes another version change.
+
+================================================================================
+
+EPIC 88 — SOURCE: ML_88_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-88 Handoff
+Date: 2026-06-10
+
+Purpose
+-------
+This handoff summarizes the completed ML-88 currency preference work plus the
+dead route/code cleanup that happened during the same thread. It is intended for
+the next AI agent so they know what is already done and what product/data
+contracts must remain intact.
+
+Completed ML-88 Scope
+---------------------
+- Settings currency is now a display-only app preference.
+- No FX conversion was added.
+- No amount mutation was added.
+- No per-transaction currency or per-balance currency was added.
+- No Transaction CSV v1 schema change was added.
+- No sync, backup, restore, remote DTO, or Supabase schema migration was added.
+- The ML-87 Settings layout and staged currency sheet behavior were preserved.
+- No separate ML-88 Figma link/node was found in the supplied task.
+
+Currency Formatting Behavior
+----------------------------
+- Currency display is centralized in src/lib/display-formatters.ts.
+- Currency metadata lives in src/lib/settings-preferences.ts.
+- Added getCurrencySymbol(currency).
+- Added formatMoneyAmount({ amount, currency, sign, useGrouping,
+  spaceBeforeCurrency }).
+- formatEuro remains as a backward-compatible Euro wrapper.
+- Euro remains the default.
+- Every supported currency renders with two decimals, including JPY.
+- Invalid or non-finite numeric values format safely as 0.00.
+- Signed labels use the provided + or - sign without double-signing.
+- Analytics-style grouped money labels keep spaced thousands when useGrouping is
+  true.
+- Currency symbols are suffix-style after the amount, preserving the existing
+  Euro style.
+- Symbol map used:
+  Euro -> EUR suffix symbol
+  US Dollar -> $
+  Canadian Dollar -> C$
+  Australian Dollar -> A$
+  Russian Ruble -> RUB suffix symbol
+  Indian Rupee -> INR suffix symbol
+  Chinese Yuan -> CN¥
+  British Pound -> GBP suffix symbol
+  Japanese Yen -> JPY suffix symbol
+
+Runtime Currency Wiring
+-----------------------
+- Added a small useSettingsCurrency hook in src/lib.
+- The hook reads getSettingsCurrency() on mount and screen focus.
+- The hook safely falls back to Euro on read failure.
+- Selected currency is wired into:
+  - Home current balance
+  - Home Today summary
+  - Home History balance addition labels
+  - Home History expense labels
+  - Analytics ledger Added/Spent labels
+  - Analytics filtered rows and all period modes
+  - Add Transaction amount suffix
+  - Add Balance amount suffix
+  - Edit Balance amount suffix
+- Edit Transaction currently has no money preview/suffix in the UI, so it was
+  intentionally left visually unchanged.
+
+Tests Added Or Updated
+----------------------
+- Formatter coverage for every currency option.
+- Euro default and formatEuro backward compatibility coverage.
+- Signed positive/negative money label coverage.
+- Grouped Analytics-style output coverage.
+- Invalid/non-finite safety coverage.
+- Home tests keep Euro defaults and cover selected-currency balance plus History
+  addition/expense labels.
+- Analytics ledger/helper tests cover currency-aware Added/Spent labels,
+  filtered rows, and period modes.
+- Settings currency sheet tests continue covering open, stage, cancel, apply,
+  and visible value behavior.
+- Add Transaction and Add Balance tests cover selected-currency suffixes.
+- Project contract tests expect version 1.24.1 and assert removed routes stay out
+  of root/tab layouts.
+
+Version And Docs
+----------------
+- package.json was bumped from 1.24.0 to 1.24.1.
+- package-lock.json top-level and root package versions were bumped to 1.24.1.
+- app.config.js and eas.json were intentionally left unchanged.
+- docs/mvp-qa-checklist.md has an ML-88 section covering:
+  - all currencies
+  - Home
+  - History
+  - Analytics & Leaks
+  - Add/Edit flows
+  - restart persistence
+  - CSV v1 regression
+  - backup/restore/sync schema regression
+  - no-FX expectations
+- AGENTS.md now has a durable currency rule:
+  Settings currency preference is formatting-only. Do not add FX conversion,
+  per-entry currency fields, Transaction CSV currency columns, or sync/backup
+  schema changes unless a future task explicitly scopes a data-contract
+  migration.
+
+Dead Route And Code Cleanup
+---------------------------
+During review, the user noticed Shame Card was not visible anywhere in the
+current app. Route inventory confirmed it was registered as a root Stack route
+but had no reachable UI entry point.
+
+Removed dead runtime surface:
+- app/shame-card.tsx
+- root Stack registration for shame-card in app/_layout.tsx
+- src/features/shame-card/shame-card-screen.tsx
+- src/features/shame-card/generate-shame-card.ts
+- src/features/shame-card tests
+- src/features/alternative-reality/calculate-alternative-reality.ts, which was
+  only used by Shame Card
+
+Additional route cleanup:
+- app/categories.tsx was removed.
+- root Stack registration for categories was removed.
+- src/features/categories/categories-screen.tsx and its tests were removed.
+- Categories themselves were not removed: the category store, DB, sync/backup
+  logic, helpers, and Settings inline Manage Categories UI remain active and are
+  still used by current app flows.
+
+Additional retired Home cleanup:
+- Removed unused Home UI components:
+  - DailyReviewCard
+  - LoggingStreakCard
+  - LeakRiskCard
+- calculateDailyReviewSummary remains because current Home uses it directly.
+- Removed calculateLoggingStreak and calculateLeakRisk plus their tests because
+  they were only supporting retired UI and were no longer used by runtime app
+  code.
+- Updated demo data comments and QA docs so they no longer reference removed
+  retired helpers.
+
+Current Route Inventory After Cleanup
+-------------------------------------
+Routes left in app/:
+- app/index.tsx
+- app/onboarding.tsx
+- app/(tabs)/index.tsx
+- app/(tabs)/analytics.tsx
+- app/(tabs)/settings.tsx
+- app/add-transaction.tsx
+- app/add-balance.tsx
+- app/transaction/[id]/edit.tsx
+- app/balance/[id]/edit.tsx
+
+Known reachable route entry points:
+- app/index.tsx redirects to onboarding or tabs.
+- Home routes to add-balance, add-transaction, analytics,
+  transaction/[id]/edit, and balance/[id]/edit.
+- Analytics routes to add-transaction.
+- Onboarding routes to tabs after completion.
+- Edit/Add flows route back to tabs or back navigation.
+
+Explicit Non-Changes
+--------------------
+- Transaction CSV v1 remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Balance additions remain separate from expense Transactions.
+- No balance additions were encoded as Transactions.
+- No sync/backup/restore schema or DTO changes were introduced for currency.
+- No new backend, auth, bank integration, API, AI, or FX dependency was added.
+- No new UI dependency was added.
+- app.config.js and eas.json were not changed for ML-88.
+
+Validation Completed
+--------------------
+Automated validation was run with Node 20.19.4 and passed:
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Observed final automated test result during the cleanup run:
+- 48 test suites passed
+- 406 tests passed
+
+Manual QA
+---------
+The user completed the required manual testing after the implementation and
+cleanup and reported that everything was OK.
+
+Important Guidance For Future Planning
+--------------------------------------
+- Treat Settings currency as display-only unless a future task explicitly scopes
+  a data-contract migration.
+- Do not reintroduce Shame Card unless a future task explicitly designs and
+  scopes a reachable screen/route.
+- Do not reintroduce the separate /categories route unless a future task
+  explicitly moves category management out of Settings again.
+- Keep category domain logic, category persistence, category icons, and Settings
+  inline Manage Categories behavior intact.
+- Keep Transaction CSV v1 unchanged unless a future task explicitly scopes a CSV
+  migration.
+- Keep balance entries separate from expense Transactions.
+- If future work touches money labels, prefer formatMoneyAmount and
+  getCurrencySymbol from src/lib/display-formatters.ts rather than ad hoc
+  formatting.
+
+================================================================================
+
+EPIC 89 — SOURCE: ML_89_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+Money Leak ML-89 Handoff
+Date: 2026-06-11
+Status: implemented, manually QA'd, and post-review cleanup completed.
+
+Purpose
+-------
+This handoff summarizes the completed ML-89 runtime language switch work plus
+follow-up fixes, validation, and cleanup so a future AI agent can plan from the
+actual current state instead of re-discovering what was already done.
+
+High-Level Result
+-----------------
+- Settings Language now controls runtime UI language across the app.
+- The implementation is dependency-free and local to the existing Expo/React
+  Native app.
+- English remains the default and safe fallback.
+- The existing persisted Settings value "Indian" is preserved and maps to Hindi
+  runtime UI copy.
+- User-generated values and persisted data contracts were intentionally not
+  translated or changed.
+- Manual QA was completed by the product owner after implementation and fixes;
+  the reported result was OK.
+
+Implemented Scope
+-----------------
+- Added a dependency-free runtime i18n layer in src/lib/i18n.
+- Added useSettingsLanguage with safe English fallback and an in-memory runtime
+  notification path for immediate updates after Settings Apply.
+- Kept all existing Settings language options selectable.
+- Kept the persisted Indian option string and mapped it to Hindi UI locale/copy.
+- Wired selected language into:
+  - Onboarding.
+  - Bottom tab labels and titles.
+  - Home.
+  - Analytics & Leaks, including filters and ledger display.
+  - Settings and option sheets.
+  - Add Transaction and Edit Transaction.
+  - Add Balance and Edit Balance.
+  - Empty, loading, error, success, and confirmation states touched by ML-89.
+- Made period/date/month/weekday display language-aware without changing local
+  calendar date filtering or period logic.
+- Localized system-defined default category and balance type display names.
+- Preserved custom category names, custom balance type names, notes, account
+  values, profile/account data, IDs, CSV fields, backup/restore DTOs, and sync
+  DTOs.
+- Updated app/package version from 1.24.1 to 1.25.0.
+- Updated docs/mvp-qa-checklist.md with ML-89 manual QA coverage.
+- Added a stable AGENTS.md rule for future i18n work:
+  route runtime system UI strings through the local i18n layer, and do not
+  translate user-generated values or add language fields to persisted models,
+  CSV, backup/restore, or sync contracts unless a future task explicitly scopes
+  a data-contract migration.
+
+Supported Languages
+-------------------
+- English: en-GB, default/fallback.
+- German: de.
+- French: fr.
+- Spanish: es.
+- Portuguese: pt.
+- Italian: it.
+- Chinese: zh.
+- Russian: ru.
+- Indian: hi runtime UI, persisted option remains Indian.
+
+Post-Implementation Fixes
+-------------------------
+- The initial runtime language wiring translated too little visible UI in some
+  screens. This was corrected by expanding runtime coverage and translation
+  dictionaries so supported languages are useful across the main app surfaces,
+  not limited to a small set of buttons.
+- Non-English dictionaries were completed for German, French, Spanish,
+  Portuguese, Italian, Chinese, Russian, and Hindi/Indian.
+- Translation dictionaries are now typed as complete dictionaries rather than
+  loose partials, so TypeScript catches missing keys.
+- i18n tests cover completeness and fallback behavior.
+- Existing tests that depended on English UI were adjusted to use the i18n
+  default path or explicit language mocks where appropriate.
+
+Important Files
+---------------
+- src/lib/i18n/languages.ts
+- src/lib/i18n/translations.ts
+- src/lib/i18n/i18n.ts
+- src/lib/use-settings-language.ts
+- src/lib/period-scope.ts
+- src/lib/category-display.ts
+- src/lib/amount-input.ts
+- src/lib/date-utils.ts
+- src/lib/swipe-actions.ts
+- src/test-utils/react-test-renderer.ts
+- app/(tabs)/_layout.tsx
+- src/features/home/home-screen.tsx
+- src/features/analytics/analytics-screen.tsx
+- src/features/analytics/analytics-ledger.ts
+- src/features/settings/settings-screen.tsx
+- src/features/add-transaction/add-transaction-screen.tsx
+- src/features/add-balance/add-balance-screen.tsx
+- src/features/transaction-form/transaction-form.tsx
+- docs/mvp-qa-checklist.md
+- AGENTS.md
+
+Cleanup Completed After Scanner Feedback
+----------------------------------------
+- Removed duplicated Add Balance test setup and React Test Renderer helper
+  fragments by introducing shared test helpers in src/test-utils.
+- Removed duplicated Add Transaction test setup fragments.
+- Removed duplicated Add Balance and Add Transaction amount parsing logic by
+  extracting src/lib/amount-input.ts.
+- Removed duplicated analytics date helper logic by extracting
+  src/lib/date-utils.ts.
+- Removed duplicated analytics test mock helper fragments.
+- Removed duplicated Home test history amount assertions.
+- Removed duplicated Home swipe intent / PanResponder fragments by extracting
+  src/lib/swipe-actions.ts and reusing it from Home and Settings where safe.
+
+Preserved Contracts
+-------------------
+- No new dependencies.
+- No route changes.
+- Transaction CSV v1 header remains:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No language fields were added to transaction, balance, category, CSV, sync,
+  backup, restore, or remote DTOs.
+- No Supabase migrations or remote schema changes.
+- No currency behavior changes and no FX conversion.
+- Default category and balance type display names are translated at display
+  time only; stored IDs remain stable.
+- Custom category/type names and notes remain user-owned data and are not
+  translated.
+
+Validation Performed
+--------------------
+Node version used for validation: 20.19.4.
+
+Automated checks run during the implementation and cleanup:
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Targeted checks run during follow-up cleanup included:
+- src/lib/__tests__/i18n.test.ts
+- src/lib/__tests__/project-contracts.test.ts
+- src/features/home/__tests__/home-screen.test.tsx
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/features/add-transaction/__tests__/add-transaction-screen.test.tsx
+- src/features/add-balance/__tests__/add-balance-screen.test.tsx
+
+Manual QA
+---------
+Manual QA was performed by the product owner after the runtime translation
+coverage fixes and cleanup. The reported result was that everything needed for
+the current task was checked manually and was OK.
+
+Manual QA areas covered or expected for ML-89:
+- Settings Language open, staged select, cancel, apply, and restart
+  persistence.
+- Home, Analytics & Leaks, Settings, Add Transaction, Edit Transaction, Add
+  Balance, and Edit Balance in each supported language.
+- Bottom tab labels update after language apply.
+- Default categories and default balance types are translated.
+- Custom category/type names and transaction notes are not translated.
+- Transaction save still stores stable category ID only.
+- Balance save still stores stable typeId only.
+- Transaction CSV v1 header remains unchanged.
+- Backup/restore/sync schemas remain unchanged.
+- ML-88 route cleanup remains preserved.
+
+Known Follow-Up Guidance For Future Agents
+------------------------------------------
+- Use src/lib/i18n/i18n.ts and translation keys for runtime system labels.
+- Do not translate user-generated data.
+- Do not add language to persisted data contracts unless a future task
+  explicitly scopes a data-contract migration.
+- If adding new UI strings, add English source copy and complete entries for
+  every supported language in src/lib/i18n/translations.ts.
+- If adding new default category or balance type labels, keep stable stored IDs
+  and translate only display labels.
+- Prefer existing shared helpers extracted during cleanup before adding new
+  local duplicates:
+  - src/lib/amount-input.ts
+  - src/lib/date-utils.ts
+  - src/lib/swipe-actions.ts
+  - src/test-utils/react-test-renderer.ts
+
+Non-Goals
+---------
+- No new i18n dependency.
+- No backend, auth, cloud, bank, API, or AI work.
+- No language fields in local models, CSV, sync, backup, restore, or remote DTOs.
+- No Supabase migration or remote schema change.
+- No currency behavior or FX conversion change.
+- No route structure change.
+
+================================================================================
+
+EPIC 90 — SOURCE: ML_90_HANDOFF.txt
+--------------------------------------------------------------------------------
+
+ML-90 Currency/Language Sync Handoff
+
+Status
+- Implementation complete.
+- Supabase migration was applied manually by the user.
+- Manual QA was completed by the user and passed.
+- Automated validation passed before handoff.
+- AGENTS.md was reviewed and intentionally left unchanged because the durable rules for this task were already covered there.
+
+Summary
+- ML-90 added account-level backend sync for Settings currency and language.
+- Currency and language remain local-first and continue working in permanent guest/local mode.
+- Authenticated manual backup, restore, manual sync now, and existing foreground sync now include settings through the existing sync service boundaries.
+- Settings UI stayed on the existing ML-87 design. No Figma/UI redesign was added.
+- Settings screen still does not call Supabase adapters directly.
+
+Remote Contract
+- Added migration:
+  supabase/migrations/20260615000000_create_remote_settings.sql
+- New table:
+  public.remote_settings
+- Columns:
+  user_id uuid references auth.users(id) on delete cascade
+  key text not null
+  value text not null
+  updated_at timestamptz not null
+  schema_version integer not null default 1
+  source_device_id text null
+- Primary key:
+  (user_id, key)
+- Allowed keys:
+  currency
+  language
+- RLS enabled.
+- public/anon access revoked.
+- authenticated users can select/insert/update/delete only their own rows.
+- Sync adapters upsert settings with onConflict user_id,key, so repeated backup/sync does not duplicate rows.
+
+Local Preference Contract
+- Main file:
+  src/lib/settings-preferences.ts
+- Existing AsyncStorage keys were preserved:
+  money-leak:settings-language
+  money-leak:settings-currency
+- Backward compatibility was preserved for old plain string values.
+- New stored preference envelope:
+  { key, value, updatedAt, schemaVersion, sourceDeviceId }
+- setSettingsCurrency and setSettingsLanguage update updatedAt.
+- Remote values are validated against existing supported options.
+- Invalid remote values are ignored/skipped safely and do not crash the app.
+- sourceDeviceId for settings remains null; no new device identity abstraction was added.
+
+Sync Implementation
+- Settings were added as a dedicated sync domain, separate from transactions, categories, and balances.
+- Main sync files touched:
+  src/lib/sync/sync-types.ts
+  src/lib/sync/sync-mappers.ts
+  src/lib/sync/sync-service.ts
+  src/lib/sync/backup-service.ts
+  src/lib/sync/restore-service.ts
+  src/lib/sync/local-backup-data-source.ts
+  src/lib/sync/local-restore-data-target.ts
+  src/lib/sync/local-sync-data-source.ts
+  src/lib/sync/local-sync-data-target.ts
+  src/lib/sync/supabase-remote-row-mappers.ts
+  src/lib/sync/supabase-remote-backup-adapter.ts
+  src/lib/sync/supabase-remote-restore-adapter.ts
+  src/lib/sync/supabase-remote-sync-adapter.ts
+- Added RemoteSetting and settings arrays/counts to backup, restore, sync changes, push results, and summaries.
+- Conflict strategy is deterministic last-write-wins per key.
+- Currency and language resolve independently, so one does not overwrite the other as a settings blob.
+- Guest mode still skips remote backup/restore/sync before any remote settings reads or writes.
+- Existing foreground sync behavior was preserved: no sync on app start/login/session restore/sign out/mutation/background was added.
+
+UI Refresh Behavior
+- Main files:
+  src/features/settings/settings-screen.tsx
+  src/lib/use-settings-currency.ts
+  src/lib/use-settings-language.ts
+- Language already had a runtime notification path.
+- Currency now has a matching lightweight notification path.
+- Remote restore/sync application notifies currency and language hooks after settings are applied locally.
+- Manual restore/sync refreshes Settings screen local currency/language state after the service call.
+- UI summaries show safe aggregate settings counts only.
+- Raw backend errors, IDs, row payloads, owner IDs, localOwnerIds, device IDs, env values, tokens, and secrets are not rendered.
+
+Delete Account
+- Main files:
+  supabase/functions/delete-account/handler.ts
+  supabase/functions/delete-account/__tests__/handler.test.ts
+- Delete account cleanup now deletes remote_settings before profiles/Auth user deletion.
+- Service-role/admin behavior remains server-side inside the Edge Function only.
+- No service-role/admin client/key was added to mobile app code/config.
+
+Version And Docs
+- Version bumped from 1.25.0 to 1.26.0.
+- Updated:
+  package.json
+  package-lock.json
+  docs/sync-data-contract.md
+  docs/mvp-qa-checklist.md
+  src/lib/__tests__/project-contracts.test.ts
+- app.config.js was not edited; it continues reading version from package.json.
+
+Tests Added Or Updated
+- Added:
+  src/lib/__tests__/settings-preferences.test.ts
+- Updated sync/unit coverage for:
+  settings-preferences backward compatibility
+  metadata updatedAt writes
+  valid/invalid remote settings handling
+  backup payload settings inclusion
+  restore settings application and ignored invalid settings
+  incremental sync per-key LWW
+  repeated sync/upsert duplicate prevention
+  Supabase remote row mapping/adapters
+  delete-account remote_settings cleanup
+  Settings UI aggregate messages
+  project version and data-contract guards
+
+Validation Passed
+- npm run release:preflight
+  Result: 9 passed, 0 failed.
+- npm test -- --runInBand
+  Result: 50 suites passed, 417 tests passed.
+- npm run typecheck
+  Result: passed.
+- npm run lint
+  Result: passed.
+- npm run format:check
+  Result: passed.
+- npx expo config --json
+  Result: passed; Expo version resolved to 1.26.0.
+- git diff --check
+  Result: passed.
+- Targeted searches were run for:
+  CSV header unchanged
+  no service-role/admin usage in production mobile app code/config
+  no forbidden UI dependencies
+  bottom tab/root stack shape unchanged
+
+Manual QA Completed By User
+- Supabase migration applied manually.
+- Guest local currency/language behavior checked.
+- Authenticated settings sync behavior checked.
+- Manual QA passed.
+
+Important Non-goals Preserved
+- No backend sync in guest mode.
+- No login wall.
+- No new sync triggers on app start/login/session restore/sign out/mutation/background.
+- No direct Supabase calls from Settings UI.
+- No Transaction CSV v1 change.
+- CSV remains:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No language fields in transactions, balances, categories, CSV, backup rows, or sync rows outside remote_settings.
+- No translation of custom category names, custom balance type names, notes, account/profile strings, or other user-generated values.
+- No bottom tab/navigation changes.
+- No new UI dependencies.
+- No app.config.js/eas.json changes.
+
+Notes For Next Agent
+- Treat ML-90 as complete unless new bugs are reported.
+- If planning a future settings-sync task, use remote_settings as the existing account-level settings contract.
+- If adding new synced settings later, extend the allowed key validation, local preference validation, DTO tests, Supabase migration, and per-key conflict handling explicitly.
+- Do not convert remote_settings into a generic blob without a scoped migration and tests; ML-90 intentionally used per-key rows for independent LWW.
