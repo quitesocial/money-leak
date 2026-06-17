@@ -3359,3 +3359,39 @@ Manual QA:
 - Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
 - Transaction CSV v1, sync/backup/restore DTOs, Supabase schemas, and currency/language data contracts remain unchanged.
 - No forbidden UI dependency, service-role/admin mobile usage, raw backend error, env value, token, user ID, owner ID, localOwnerId, device ID, secret, or row payload exposure is added.
+
+## ML-92 Home enhancements
+
+### 64. Home balance and transactions update
+
+**Preconditions**
+
+- Local data includes expense transactions and balance additions for Today, Yesterday, and This week.
+- Include at least one leak transaction with a leak reason, one transaction with a note, and one balance entry.
+- Test against Figma node `272:4270` on a native iPhone-width device or simulator.
+
+**Steps**
+
+1. Open `Home` and compare the title, Balance section, Add/Spend buttons, segmented control, Transactions header, rows, and bottom spacing against Figma.
+2. Confirm the balance amount is left-aligned under the `Balance` subheader.
+3. Confirm Add and Spend are equal-width pill buttons with visible icon-to-label spacing.
+4. Confirm `Today summary`, `Total`, `Leak`, and `Leak %` are not visible on Home.
+5. Tap `Add`, then return to Home and tap `Spend`.
+6. Tap `More` in the Transactions header.
+7. Switch Transactions between `Today`, `Yesterday`, and `This week`.
+8. Swipe expense transaction rows and balance rows left/right.
+9. Review bottom navigation and pushed root Stack screens.
+
+**Expected result**
+
+- Home visually matches the ML-92 Figma direction without recreating the status bar or bottom tab bar inside the screen.
+- Current balance equals active balance entries minus active/non-deleted expense transactions.
+- `Add` opens `/add-balance`; `Spend` opens `/add-transaction`; `More` opens `Analytics & Leaks`.
+- Transactions is a newest-first union feed of expense transactions and balance additions.
+- The Transactions header sits below the Home Transactions segmented control.
+- Home Transactions segmented control shows only `Today`, `Yesterday`, and `This week`; `Choose date` is not visible on Home.
+- Expense transaction rows and balance rows preserve existing filtering, signed amounts, currency display, and swipe edit/delete behavior.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction, Add Balance, and Shame Card remain pushed root Stack screens, not bottom tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No new dependencies, forbidden UI libraries, auth/session changes, sync triggers, Supabase schema changes, service-role/admin mobile usage, raw backend errors, secrets, tokens, owner IDs, localOwnerIds, device IDs, or row payloads are exposed.

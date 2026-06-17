@@ -51,8 +51,8 @@ describe('i18n', () => {
     const coreKeys: TranslationKey[] = [
       'tabs.analyticsTitle',
       'tabs.settings',
-      'home.todaySummary',
-      'home.history',
+      'home.balance',
+      'home.refreshingTransactions',
       'analytics.filterTitle',
       'settings.title',
       'settings.language',

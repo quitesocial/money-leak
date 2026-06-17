@@ -183,14 +183,14 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     width: '100%',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '400',
     textAlign: 'center',
     color: '#111111',
   },
   segmentTextSelected: {
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#111111',
   },
 });

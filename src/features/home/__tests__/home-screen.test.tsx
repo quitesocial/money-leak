@@ -436,8 +436,15 @@ describe('HomeScreen', () => {
     ];
 
     const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
 
-    expect(getNodeText(renderer.root)).toContain('1234.56 €');
+    expect(screenText).toContain('Balance');
+    expect(screenText).toContain('1234.56 €');
+    expect(screenText).toContain('Transactions');
+    expect(screenText.indexOf('Today')).toBeLessThan(
+      screenText.indexOf('Transactions'),
+    );
+    expect(screenText).not.toContain('History');
   });
 
   it('opens Add Balance from the Add button', async () => {
@@ -492,7 +499,7 @@ describe('HomeScreen', () => {
     expect(getNodeText(renderer.root)).toContain('60.00 €');
   });
 
-  it('keeps Today summary based on transactions only', async () => {
+  it('does not render the removed Today summary section', async () => {
     mockBalanceStoreState.balanceEntries = [
       createBalanceEntry({
         id: 'balance-1',
@@ -512,9 +519,10 @@ describe('HomeScreen', () => {
     const screenText = getNodeText(renderer.root);
 
     expect(screenText).toContain('90.00 €');
-    expect(screenText).toContain('Today summary');
-    expect(screenText).toContain('10.00 €');
-    expect(screenText).toContain('100%');
+    expect(screenText).not.toContain('Today summary');
+    expect(screenText).not.toContain('Total');
+    expect(screenText).not.toContain('Leak %');
+    expect(screenText).not.toContain('100%');
     expect(screenText).not.toContain('100.00 €');
   });
 
@@ -523,10 +531,12 @@ describe('HomeScreen', () => {
     const screenText = getNodeText(renderer.root);
 
     expect(screenText).toContain('0.00 €');
-    expect(screenText).toContain('0%');
     expect(screenText).not.toContain('NaN');
     expect(screenText).not.toContain('Infinity');
     expect(screenText).not.toContain('Choose date');
+    expect(screenText).toContain('Today');
+    expect(screenText).toContain('Yesterday');
+    expect(screenText).toContain('This week');
   });
 
   it('renders balance additions with plus signs and expenses with minus signs', async () => {
@@ -577,7 +587,7 @@ describe('HomeScreen', () => {
     });
   });
 
-  it('renders the selected currency for balance and history labels', async () => {
+  it('renders the selected currency for balance and transaction labels', async () => {
     const now = new Date().getTime();
     mockSettingsCurrency = 'Canadian dollar';
     mockBalanceStoreState.balanceEntries = [
@@ -606,7 +616,7 @@ describe('HomeScreen', () => {
     expect(screenText).not.toContain('80.00 €');
   });
 
-  it('applies the Today History period filter to additions and expenses', async () => {
+  it('applies the Today Transactions period filter to additions and expenses', async () => {
     const today = new Date();
     const yesterday = getPastDate(1);
 
@@ -642,7 +652,7 @@ describe('HomeScreen', () => {
     });
   });
 
-  it('applies the Yesterday History period filter to additions and expenses', async () => {
+  it('applies the Yesterday Transactions period filter to additions and expenses', async () => {
     const today = new Date();
     const yesterday = getPastDate(1);
 
@@ -678,7 +688,7 @@ describe('HomeScreen', () => {
     });
   });
 
-  it('applies the This week History period filter to additions and expenses', async () => {
+  it('applies the This week Transactions period filter to additions and expenses', async () => {
     const today = new Date();
     const olderThanThisWeek = getPastDate(8);
 

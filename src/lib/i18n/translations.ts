@@ -67,20 +67,29 @@ export const englishTranslations = {
     'Something went wrong while loading Home. Try again.',
   'home.refreshError': "Home couldn't refresh right now. Try again.",
   'home.pageTitle': 'Home',
+  'home.balance': 'Balance',
   'home.spend': 'Spend',
   'home.todaySummary': 'Today summary',
   'home.total': 'Total',
   'home.leak': 'Leak',
   'home.leakPercent': 'Leak %',
   'home.history': 'History',
+  'home.transactions': 'Transactions',
   'home.more': 'More',
   'home.refreshingHistory': 'Refreshing history...',
+  'home.refreshingTransactions': 'Refreshing transactions...',
   'home.noHistoryFor': 'No history for {period}',
+  'home.noTransactionsFor': 'No transactions for {period}',
   'home.noHistoryYet': 'No history yet',
+  'home.noTransactionsYet': 'No transactions yet',
   'home.noHistoryForMessage':
+    'You have saved activity, but none falls in {period}.',
+  'home.noTransactionsForMessage':
     'You have saved activity, but none falls in {period}.',
   'home.noHistoryYetMessage':
     'Add balance or log an expense to start your history.',
+  'home.noTransactionsYetMessage':
+    'Add balance or log an expense to start your transactions.',
   'home.deleteTransactionTitle': 'Delete transaction?',
   'home.deleteTransactionMessage':
     'This will permanently remove this expense from your leak history.',
@@ -336,20 +345,29 @@ const de = {
   'home.refreshError':
     'Startseite konnte gerade nicht aktualisiert werden. Versuche es erneut.',
   'home.pageTitle': 'Start',
+  'home.balance': 'Guthaben',
   'home.spend': 'Ausgeben',
   'home.todaySummary': 'Heute im Überblick',
   'home.total': 'Gesamt',
   'home.leak': 'Leck',
   'home.leakPercent': 'Leck %',
   'home.history': 'Verlauf',
+  'home.transactions': 'Transaktionen',
   'home.more': 'Mehr',
   'home.refreshingHistory': 'Verlauf wird aktualisiert...',
+  'home.refreshingTransactions': 'Transaktionen werden aktualisiert...',
   'home.noHistoryFor': 'Kein Verlauf für {period}',
+  'home.noTransactionsFor': 'Keine Transaktionen für {period}',
   'home.noHistoryYet': 'Noch kein Verlauf',
+  'home.noTransactionsYet': 'Noch keine Transaktionen',
   'home.noHistoryForMessage':
+    'Du hast gespeicherte Aktivität, aber nichts davon liegt in {period}.',
+  'home.noTransactionsForMessage':
     'Du hast gespeicherte Aktivität, aber nichts davon liegt in {period}.',
   'home.noHistoryYetMessage':
     'Füge Guthaben hinzu oder erfasse eine Ausgabe, um den Verlauf zu starten.',
+  'home.noTransactionsYetMessage':
+    'Füge Guthaben hinzu oder erfasse eine Ausgabe, um deine Transaktionen zu starten.',
   'home.deleteTransactionTitle': 'Transaktion löschen?',
   'home.deleteTransactionMessage':
     'Diese Ausgabe wird dauerhaft aus deinem Leck-Verlauf entfernt.',
@@ -610,20 +628,29 @@ const fr = {
   'home.refreshError':
     "Impossible d'actualiser l'accueil maintenant. Réessayez.",
   'home.pageTitle': 'Accueil',
+  'home.balance': 'Solde',
   'home.spend': 'Dépenser',
   'home.todaySummary': "Résumé d'aujourd'hui",
   'home.total': 'Total',
   'home.leak': 'Fuite',
   'home.leakPercent': 'Fuite %',
   'home.history': 'Historique',
+  'home.transactions': 'Transactions',
   'home.more': 'Plus',
   'home.refreshingHistory': "Actualisation de l'historique...",
+  'home.refreshingTransactions': 'Actualisation des transactions...',
   'home.noHistoryFor': 'Aucun historique pour {period}',
+  'home.noTransactionsFor': 'Aucune transaction pour {period}',
   'home.noHistoryYet': "Pas encore d'historique",
+  'home.noTransactionsYet': 'Pas encore de transactions',
   'home.noHistoryForMessage':
+    "Vous avez de l'activité enregistrée, mais aucune ne tombe dans {period}.",
+  'home.noTransactionsForMessage':
     "Vous avez de l'activité enregistrée, mais aucune ne tombe dans {period}.",
   'home.noHistoryYetMessage':
     "Ajoutez un solde ou enregistrez une dépense pour commencer l'historique.",
+  'home.noTransactionsYetMessage':
+    'Ajoutez un solde ou enregistrez une dépense pour commencer vos transactions.',
   'home.deleteTransactionTitle': 'Supprimer la transaction ?',
   'home.deleteTransactionMessage':
     'Cette dépense sera supprimée définitivement de votre historique de fuites.',
@@ -881,20 +908,29 @@ const es = {
   'home.refreshError':
     'No se pudo actualizar Inicio ahora. Inténtalo de nuevo.',
   'home.pageTitle': 'Inicio',
+  'home.balance': 'Saldo',
   'home.spend': 'Gastar',
   'home.todaySummary': 'Resumen de hoy',
   'home.total': 'Total',
   'home.leak': 'Fuga',
   'home.leakPercent': 'Fuga %',
   'home.history': 'Historial',
+  'home.transactions': 'Transacciones',
   'home.more': 'Más',
   'home.refreshingHistory': 'Actualizando historial...',
+  'home.refreshingTransactions': 'Actualizando transacciones...',
   'home.noHistoryFor': 'Sin historial para {period}',
+  'home.noTransactionsFor': 'Sin transacciones para {period}',
   'home.noHistoryYet': 'Aún no hay historial',
+  'home.noTransactionsYet': 'Aún no hay transacciones',
   'home.noHistoryForMessage':
+    'Tienes actividad guardada, pero ninguna entra en {period}.',
+  'home.noTransactionsForMessage':
     'Tienes actividad guardada, pero ninguna entra en {period}.',
   'home.noHistoryYetMessage':
     'Añade saldo o registra un gasto para iniciar tu historial.',
+  'home.noTransactionsYetMessage':
+    'Añade saldo o registra un gasto para iniciar tus transacciones.',
   'home.deleteTransactionTitle': '¿Eliminar transacción?',
   'home.deleteTransactionMessage':
     'Este gasto se eliminará permanentemente de tu historial de fugas.',
@@ -1151,20 +1187,29 @@ const pt = {
   'home.refreshError':
     'Não foi possível atualizar o Início agora. Tente novamente.',
   'home.pageTitle': 'Início',
+  'home.balance': 'Saldo',
   'home.spend': 'Gastar',
   'home.todaySummary': 'Resumo de hoje',
   'home.total': 'Total',
   'home.leak': 'Vazamento',
   'home.leakPercent': 'Vazamento %',
   'home.history': 'Histórico',
+  'home.transactions': 'Transações',
   'home.more': 'Mais',
   'home.refreshingHistory': 'Atualizando histórico...',
+  'home.refreshingTransactions': 'Atualizando transações...',
   'home.noHistoryFor': 'Sem histórico para {period}',
+  'home.noTransactionsFor': 'Sem transações para {period}',
   'home.noHistoryYet': 'Ainda sem histórico',
+  'home.noTransactionsYet': 'Ainda sem transações',
   'home.noHistoryForMessage':
+    'Você tem atividade salva, mas nenhuma cai em {period}.',
+  'home.noTransactionsForMessage':
     'Você tem atividade salva, mas nenhuma cai em {period}.',
   'home.noHistoryYetMessage':
     'Adicione saldo ou registre um gasto para iniciar o histórico.',
+  'home.noTransactionsYetMessage':
+    'Adicione saldo ou registre um gasto para iniciar suas transações.',
   'home.deleteTransactionTitle': 'Excluir transação?',
   'home.deleteTransactionMessage':
     'Este gasto será removido permanentemente do histórico de vazamentos.',
@@ -1422,20 +1467,29 @@ const it = {
     'Qualcosa è andato storto durante il caricamento della Home. Riprova.',
   'home.refreshError': 'Non è stato possibile aggiornare la Home ora. Riprova.',
   'home.pageTitle': 'Home',
+  'home.balance': 'Saldo',
   'home.spend': 'Spese',
   'home.todaySummary': 'Riepilogo di oggi',
   'home.total': 'Totale',
   'home.leak': 'Perdita',
   'home.leakPercent': 'Perdite %',
   'home.history': 'Cronologia',
+  'home.transactions': 'Transazioni',
   'home.more': 'Altro',
   'home.refreshingHistory': 'Aggiornamento cronologia...',
+  'home.refreshingTransactions': 'Aggiornamento transazioni...',
   'home.noHistoryFor': 'Nessuna cronologia per {period}',
+  'home.noTransactionsFor': 'Nessuna transazione per {period}',
   'home.noHistoryYet': 'Ancora nessuna cronologia',
+  'home.noTransactionsYet': 'Ancora nessuna transazione',
   'home.noHistoryForMessage':
+    'Hai attività salvate, ma nessuna rientra in {period}.',
+  'home.noTransactionsForMessage':
     'Hai attività salvate, ma nessuna rientra in {period}.',
   'home.noHistoryYetMessage':
     'Aggiungi saldo o registra una spesa per iniziare la cronologia.',
+  'home.noTransactionsYetMessage':
+    'Aggiungi saldo o registra una spesa per iniziare le transazioni.',
   'home.deleteTransactionTitle': 'Eliminare la transazione?',
   'home.deleteTransactionMessage':
     'Questa spesa verrà rimossa definitivamente dalla cronologia delle perdite.',
@@ -1687,18 +1741,26 @@ const zh = {
   'home.loadErrorMessage': '加载首页时出了问题。请重试。',
   'home.refreshError': '现在无法刷新首页。请重试。',
   'home.pageTitle': '首页',
+  'home.balance': '余额',
   'home.spend': '支出',
   'home.todaySummary': '今日汇总',
   'home.total': '总计',
   'home.leak': '漏洞',
   'home.leakPercent': '漏洞 %',
   'home.history': '历史',
+  'home.transactions': '交易',
   'home.more': '更多',
   'home.refreshingHistory': '正在刷新历史...',
+  'home.refreshingTransactions': '正在刷新交易...',
   'home.noHistoryFor': '{period}没有历史记录',
+  'home.noTransactionsFor': '{period}没有交易',
   'home.noHistoryYet': '还没有历史记录',
+  'home.noTransactionsYet': '还没有交易',
   'home.noHistoryForMessage': '你已有保存的活动，但没有任何一项落在 {period}。',
+  'home.noTransactionsForMessage':
+    '你已有保存的活动，但没有任何一项落在 {period}。',
   'home.noHistoryYetMessage': '添加余额或记录支出后开始你的历史。',
+  'home.noTransactionsYetMessage': '添加余额或记录支出后开始你的交易。',
   'home.deleteTransactionTitle': '删除交易？',
   'home.deleteTransactionMessage': '这笔支出将从你的漏洞历史中永久删除。',
   'home.deleteBalanceTitle': '删除余额添加？',
@@ -1935,20 +1997,29 @@ const ru = {
   'home.refreshError':
     'Сейчас не удалось обновить главную. Попробуйте еще раз.',
   'home.pageTitle': 'Главная',
+  'home.balance': 'Баланс',
   'home.spend': 'Потратить',
   'home.todaySummary': 'Итоги сегодня',
   'home.total': 'Всего',
   'home.leak': 'Утечка',
   'home.leakPercent': 'Утечки %',
   'home.history': 'История',
+  'home.transactions': 'Операции',
   'home.more': 'Еще',
   'home.refreshingHistory': 'Обновляем историю...',
+  'home.refreshingTransactions': 'Обновляем операции...',
   'home.noHistoryFor': 'Нет истории за {period}',
+  'home.noTransactionsFor': 'Нет операций за {period}',
   'home.noHistoryYet': 'Истории пока нет',
+  'home.noTransactionsYet': 'Операций пока нет',
   'home.noHistoryForMessage':
+    'У вас уже есть сохраненные операции, но ни одна не попадает в период {period}.',
+  'home.noTransactionsForMessage':
     'У вас уже есть сохраненные операции, но ни одна не попадает в период {period}.',
   'home.noHistoryYetMessage':
     'Добавьте баланс или расход, чтобы начать историю.',
+  'home.noTransactionsYetMessage':
+    'Добавьте баланс или расход, чтобы начать операции.',
   'home.deleteTransactionTitle': 'Удалить расход?',
   'home.deleteTransactionMessage':
     'Этот расход будет навсегда удален из истории утечек.',
@@ -2201,20 +2272,29 @@ const hi = {
   'home.loadErrorMessage': 'होम लोड करते समय कुछ गलत हुआ। फिर कोशिश करें।',
   'home.refreshError': 'होम अभी रिफ्रेश नहीं हो सका। फिर कोशिश करें।',
   'home.pageTitle': 'होम',
+  'home.balance': 'बैलेंस',
   'home.spend': 'खर्च',
   'home.todaySummary': 'आज का सारांश',
   'home.total': 'कुल',
   'home.leak': 'लीक',
   'home.leakPercent': 'लीक %',
   'home.history': 'इतिहास',
+  'home.transactions': 'लेन-देन',
   'home.more': 'और',
   'home.refreshingHistory': 'इतिहास रिफ्रेश हो रहा है...',
+  'home.refreshingTransactions': 'लेन-देन रिफ्रेश हो रहे हैं...',
   'home.noHistoryFor': '{period} के लिए कोई इतिहास नहीं',
+  'home.noTransactionsFor': '{period} के लिए कोई लेन-देन नहीं',
   'home.noHistoryYet': 'अभी कोई इतिहास नहीं',
+  'home.noTransactionsYet': 'अभी कोई लेन-देन नहीं',
   'home.noHistoryForMessage':
+    'आपके पास सेव गतिविधि है, लेकिन कोई भी {period} में नहीं आती।',
+  'home.noTransactionsForMessage':
     'आपके पास सेव गतिविधि है, लेकिन कोई भी {period} में नहीं आती।',
   'home.noHistoryYetMessage':
     'इतिहास शुरू करने के लिए बैलेंस जोड़ें या खर्च दर्ज करें।',
+  'home.noTransactionsYetMessage':
+    'लेन-देन शुरू करने के लिए बैलेंस जोड़ें या खर्च दर्ज करें।',
   'home.deleteTransactionTitle': 'लेन-देन हटाएं?',
   'home.deleteTransactionMessage':
     'यह खर्च आपके लीक इतिहास से स्थायी रूप से हट जाएगा।',
