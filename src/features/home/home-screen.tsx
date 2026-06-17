@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PeriodSelector } from '@/components/period-selector';
 import { calculateCurrentBalance } from '@/features/home/calculate-current-balance';
-import { calculateDailyReviewSummary } from '@/features/home/calculate-daily-review-summary';
 import {
   getCategoryDisplayIconName,
   getCategoryDisplayName,
@@ -25,7 +24,7 @@ import {
   type CategoryIconDefinition,
 } from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
-import { formatMoneyAmount, formatPercentage } from '@/lib/display-formatters';
+import { formatMoneyAmount } from '@/lib/display-formatters';
 import {
   formatLanguageDate,
   getDefaultBalanceTypeName,
@@ -62,7 +61,7 @@ const TITLE_FONT_FAMILY = Platform.select({
 });
 
 const TITLE_FONT_WEIGHT = Platform.select({
-  ios: '700' as const,
+  ios: '500' as const,
   default: '800' as const,
 });
 
@@ -123,11 +122,6 @@ function getBalanceTypeDisplayName({
   );
 }
 
-type SummaryRowProps = {
-  label: string;
-  value: string;
-};
-
 type BalanceActionButtonProps = {
   label: string;
   onPress: () => void;
@@ -135,15 +129,6 @@ type BalanceActionButtonProps = {
   symbolName: SFSymbol;
   variant: 'outlined' | 'filled';
 };
-
-function SummaryRow({ label, value }: SummaryRowProps) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summaryValue}>{value}</Text>
-    </View>
-  );
-}
 
 function BalanceActionButton({
   label,
@@ -757,7 +742,6 @@ export function HomeScreen() {
     balanceEntries,
     transactions,
   });
-  const todaySummary = calculateDailyReviewSummary({ transactions });
   const hasHistoryItems = historyItems.length > 0;
   const hasAnyHistoryItems =
     transactions.length > 0 || balanceEntries.length > 0;
@@ -1053,9 +1037,15 @@ export function HomeScreen() {
         <Text style={styles.pageTitle}>{t(language, 'home.pageTitle')}</Text>
 
         <View style={styles.balanceHero}>
-          <Text style={styles.balanceAmount}>
-            {formatMoneyAmount({ amount: currentBalance, currency })}
-          </Text>
+          <View style={styles.balanceCopy}>
+            <Text style={styles.sectionTitle}>
+              {t(language, 'home.balance')}
+            </Text>
+
+            <Text style={styles.balanceAmount}>
+              {formatMoneyAmount({ amount: currentBalance, currency })}
+            </Text>
+          </View>
 
           <View style={styles.balanceActions}>
             <BalanceActionButton
@@ -1077,61 +1067,6 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {t(language, 'home.todaySummary')}
-          </Text>
-
-          <View style={styles.summaryRows}>
-            <SummaryRow
-              label={t(language, 'home.total')}
-              value={formatMoneyAmount({
-                amount: todaySummary.totalSpent,
-                currency,
-              })}
-            />
-
-            <SummaryRow
-              label={t(language, 'home.leak')}
-              value={formatMoneyAmount({
-                amount: todaySummary.totalLeaks,
-                currency,
-              })}
-            />
-
-            <SummaryRow
-              label={t(language, 'home.leakPercent')}
-              value={formatPercentage(todaySummary.leakPercentage)}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.sectionTitle}>
-              {t(language, 'home.history')}
-            </Text>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleMorePress}
-              style={styles.moreButton}
-            >
-              <Text style={styles.moreButtonText}>
-                {t(language, 'home.more')}
-              </Text>
-
-              <SymbolView
-                fallback={<Text style={styles.moreButtonText}>{'>'}</Text>}
-                name="arrow.up.right"
-                resizeMode="scaleAspectFit"
-                size={14}
-                tintColor="#0088ff"
-                type="monochrome"
-                weight="semibold"
-              />
-            </Pressable>
-          </View>
-
           <PeriodSelector
             periods={HOME_PERIOD_OPTIONS}
             selectedPeriod={homeSelectedPeriod}
@@ -1141,113 +1076,141 @@ export function HomeScreen() {
             language={language}
           />
 
-          {isHistoryRefreshing ? (
-            <Text style={styles.refreshingText}>
-              {t(language, 'home.refreshingHistory')}
-            </Text>
-          ) : null}
-
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>
-                {t(language, 'home.refreshError')}
+          <View style={styles.transactionsGroup}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.sectionTitle}>
+                {t(language, 'home.transactions')}
               </Text>
-            </View>
-          ) : null}
 
-          {hasHistoryItems ? (
-            <View style={styles.transactionList}>
-              {historyItems.map((item) => {
-                if (item.kind === 'balance') {
-                  const isDeletingThisBalanceEntry =
-                    deletingBalanceEntryId === item.entry.id;
-                  const isBalanceActionDisabled =
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleMorePress}
+                style={styles.moreButton}
+              >
+                <Text style={styles.moreButtonText}>
+                  {t(language, 'home.more')}
+                </Text>
+
+                <SymbolView
+                  fallback={<Text style={styles.moreButtonText}>{'>'}</Text>}
+                  name="arrow.up.right"
+                  resizeMode="scaleAspectFit"
+                  size={14}
+                  tintColor="#0088ff"
+                  type="monochrome"
+                  weight="semibold"
+                />
+              </Pressable>
+            </View>
+
+            {isHistoryRefreshing ? (
+              <Text style={styles.refreshingText}>
+                {t(language, 'home.refreshingTransactions')}
+              </Text>
+            ) : null}
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>
+                  {t(language, 'home.refreshError')}
+                </Text>
+              </View>
+            ) : null}
+
+            {hasHistoryItems ? (
+              <View style={styles.transactionList}>
+                {historyItems.map((item) => {
+                  if (item.kind === 'balance') {
+                    const isDeletingThisBalanceEntry =
+                      deletingBalanceEntryId === item.entry.id;
+                    const isBalanceActionDisabled =
+                      isLoading ||
+                      isBalanceLoading ||
+                      deletingTransactionId !== null ||
+                      deletingBalanceEntryId !== null;
+
+                    return (
+                      <HistoryBalanceItem
+                        amountLabel={formatMoneyAmount({
+                          amount: item.entry.amount,
+                          currency,
+                          sign: '+',
+                        })}
+                        entry={item.entry}
+                        isDeleting={isDeletingThisBalanceEntry}
+                        isDisabled={isBalanceActionDisabled}
+                        isOpen={openSwipeBalanceEntryId === item.entry.id}
+                        key={item.id}
+                        onDelete={handleDeleteBalanceEntry}
+                        onEdit={handleEditBalanceEntry}
+                        onSwipeClose={handleBalanceSwipeClose}
+                        onSwipeInteractionStart={
+                          handleBalanceSwipeInteractionStart
+                        }
+                        onSwipeOpen={handleBalanceSwipeOpen}
+                        typeName={getBalanceTypeDisplayName({
+                          balanceTypes,
+                          language,
+                          typeId: item.entry.typeId,
+                        })}
+                        language={language}
+                      />
+                    );
+                  }
+
+                  const { transaction } = item;
+                  const isDeletingThisTransaction =
+                    deletingTransactionId === transaction.id;
+
+                  const isTransactionActionDisabled =
                     isLoading ||
                     isBalanceLoading ||
                     deletingTransactionId !== null ||
                     deletingBalanceEntryId !== null;
 
                   return (
-                    <HistoryBalanceItem
+                    <HistoryTransactionItem
+                      categories={categories}
                       amountLabel={formatMoneyAmount({
-                        amount: item.entry.amount,
+                        amount: transaction.amount,
                         currency,
-                        sign: '+',
+                        sign: '-',
                       })}
-                      entry={item.entry}
-                      isDeleting={isDeletingThisBalanceEntry}
-                      isDisabled={isBalanceActionDisabled}
-                      isOpen={openSwipeBalanceEntryId === item.entry.id}
+                      isDeleting={isDeletingThisTransaction}
+                      isDisabled={isTransactionActionDisabled}
+                      isOpen={openSwipeTransactionId === transaction.id}
                       key={item.id}
-                      onDelete={handleDeleteBalanceEntry}
-                      onEdit={handleEditBalanceEntry}
-                      onSwipeClose={handleBalanceSwipeClose}
-                      onSwipeInteractionStart={
-                        handleBalanceSwipeInteractionStart
-                      }
-                      onSwipeOpen={handleBalanceSwipeOpen}
-                      typeName={getBalanceTypeDisplayName({
-                        balanceTypes,
-                        language,
-                        typeId: item.entry.typeId,
-                      })}
+                      onDelete={handleDeleteTransaction}
+                      onEdit={handleEditTransaction}
+                      onSwipeClose={handleSwipeClose}
+                      onSwipeInteractionStart={handleSwipeInteractionStart}
+                      onSwipeOpen={handleSwipeOpen}
+                      transaction={transaction}
                       language={language}
                     />
                   );
-                }
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>
+                  {hasAnyHistoryItems
+                    ? t(language, 'home.noTransactionsFor', {
+                        period: selectedPeriodLabel,
+                      })
+                    : t(language, 'home.noTransactionsYet')}
+                </Text>
 
-                const { transaction } = item;
-                const isDeletingThisTransaction =
-                  deletingTransactionId === transaction.id;
-
-                const isTransactionActionDisabled =
-                  isLoading ||
-                  isBalanceLoading ||
-                  deletingTransactionId !== null ||
-                  deletingBalanceEntryId !== null;
-
-                return (
-                  <HistoryTransactionItem
-                    categories={categories}
-                    amountLabel={formatMoneyAmount({
-                      amount: transaction.amount,
-                      currency,
-                      sign: '-',
-                    })}
-                    isDeleting={isDeletingThisTransaction}
-                    isDisabled={isTransactionActionDisabled}
-                    isOpen={openSwipeTransactionId === transaction.id}
-                    key={item.id}
-                    onDelete={handleDeleteTransaction}
-                    onEdit={handleEditTransaction}
-                    onSwipeClose={handleSwipeClose}
-                    onSwipeInteractionStart={handleSwipeInteractionStart}
-                    onSwipeOpen={handleSwipeOpen}
-                    transaction={transaction}
-                    language={language}
-                  />
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>
-                {hasAnyHistoryItems
-                  ? t(language, 'home.noHistoryFor', {
-                      period: selectedPeriodLabel,
-                    })
-                  : t(language, 'home.noHistoryYet')}
-              </Text>
-
-              <Text style={styles.emptyMessage}>
-                {hasAnyHistoryItems
-                  ? t(language, 'home.noHistoryForMessage', {
-                      period: selectedPeriodLabel.toLocaleLowerCase(),
-                    })
-                  : t(language, 'home.noHistoryYetMessage')}
-              </Text>
-            </View>
-          )}
+                <Text style={styles.emptyMessage}>
+                  {hasAnyHistoryItems
+                    ? t(language, 'home.noTransactionsForMessage', {
+                        period: selectedPeriodLabel.toLocaleLowerCase(),
+                      })
+                    : t(language, 'home.noTransactionsYetMessage')}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -1264,7 +1227,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 21,
     paddingTop: 0,
     paddingBottom: 168,
-    gap: 48,
+    gap: 32,
   },
   stateContent: {
     flexGrow: 1,
@@ -1290,13 +1253,18 @@ const styles = StyleSheet.create({
   balanceHero: {
     width: '100%',
     maxWidth: 360,
-    gap: 48,
+    gap: 24,
+  },
+  balanceCopy: {
+    width: '100%',
+    alignItems: 'flex-start',
+    gap: 16,
   },
   balanceAmount: {
     fontSize: 40,
     lineHeight: 48,
     fontWeight: '500',
-    textAlign: 'center',
+    textAlign: 'left',
     color: '#000000',
   },
   balanceActions: {
@@ -1309,7 +1277,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 8,
     borderWidth: 1,
     borderColor: '#100f10',
     borderRadius: 999,
@@ -1344,6 +1312,9 @@ const styles = StyleSheet.create({
     fontWeight: TITLE_FONT_WEIGHT,
     color: '#0f0f0f',
   },
+  transactionsGroup: {
+    gap: 8,
+  },
   historyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1359,7 +1330,7 @@ const styles = StyleSheet.create({
   moreButtonText: {
     fontSize: 15,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#0088ff',
   },
   stateTitle: {
@@ -1378,30 +1349,6 @@ const styles = StyleSheet.create({
   refreshingText: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  summaryRows: {
-    gap: 0,
-  },
-  summaryRow: {
-    minHeight: 49,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-  },
-  summaryLabel: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 21,
-    color: '#111111',
-  },
-  summaryValue: {
-    fontSize: 20,
-    lineHeight: 25,
-    fontWeight: '700',
-    color: '#050505',
   },
   errorBox: {
     borderWidth: 1,
@@ -1470,7 +1417,7 @@ const styles = StyleSheet.create({
   },
   transactionCard: {
     minHeight: 100,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     borderRadius: 24,
     paddingHorizontal: 8,
     paddingVertical: 16,
@@ -1524,14 +1471,14 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 16,
     lineHeight: 21,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#111111',
   },
   amountText: {
     flexShrink: 0,
     fontSize: 20,
     lineHeight: 25,
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'right',
     color: '#050505',
   },
