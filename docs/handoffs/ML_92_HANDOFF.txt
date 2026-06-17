@@ -1,0 +1,166 @@
+ML-92 [DEV] Home enhancements handoff
+Date: 2026-06-17
+Project: Money Leak
+Version after task: 1.27.1
+
+Summary
+
+ML-92 is implemented and manually tested. Home was updated to match Figma node
+272:4270 more closely: the balance block is left-aligned with a Balance
+subheader, Add/Spend buttons were tightened, Today Summary was removed, and the
+Home feed heading is now Transactions.
+
+Manual QA status
+
+User completed manual testing after the final visual spacing tweaks and reported
+everything OK.
+
+Key product behavior implemented
+
+- Home title remains at the top.
+- Balance section now has a localized Balance subheader.
+- Current balance remains calculated from existing business logic:
+  active balance entries minus active/non-deleted expense transactions.
+- Balance amount is left-aligned and still uses formatMoneyAmount with the
+  selected Settings currency.
+- Add and Spend remain equal-width pill buttons in one row.
+- Add routes to /add-balance.
+- Spend routes to /add-transaction.
+- Buttons use expo-symbols SymbolView with arrow.down.left and arrow.up.right.
+- Today Summary no longer renders on Home.
+- Home no longer calls calculateDailyReviewSummary just for UI.
+- Visible Home feed heading was renamed from History to Transactions.
+- Transactions heading sits below the Home period segmented control, matching
+  the final visual review.
+- More remains in the Transactions header and routes to Analytics & Leaks.
+- Home period selector remains Today, Yesterday, and This week only.
+- Choose date is not exposed on Home.
+- Home feed remains the existing newest-first union feed of expense transactions
+  and balance additions.
+- Feed filtering and sorting semantics were preserved.
+- Expense transaction swipe edit/delete behavior was preserved.
+- Balance row swipe edit/delete behavior was preserved as it existed before this
+  task.
+- Bottom tabs remain Home, Analytics & Leaks, and Settings.
+
+Important visual tweaks made during review
+
+- Rechecked Figma node 272:4270 and the user-provided side-by-side screenshots.
+- Changed Home section typography to better match Figma:
+  New York headings use iOS weight 500 instead of 700.
+- Segment control typography was adjusted to 15/20 with regular 400 labels and
+  selected 600 labels.
+- Transaction row category and amount weights were reduced from 700 to 600.
+- More text weight was reduced to 400.
+- Transactions heading was moved below the period selector.
+- Gap between Transactions heading and the transaction list was reduced by
+  grouping the Transactions header and list in transactionsGroup with gap 8.
+- Transaction cards now use justifyContent: flex-start so rows with only two
+  text lines do not look vertically pushed down inside the 100px row.
+
+Key implementation files
+
+- src/features/home/home-screen.tsx
+  Main Home layout update, Today Summary removal, Balance section, Transactions
+  group, button styling, typography tweaks, and preserved feed behavior.
+
+- src/components/period-selector.tsx
+  Shared period selector text size/weight updated to match the Home Figma
+  direction. At the time of this task, Home is the only caller of this shared
+  component.
+
+- src/lib/i18n/translations.ts
+  Added localized Home keys across supported languages:
+  home.balance, home.transactions, home.refreshingTransactions,
+  home.noTransactionsFor, home.noTransactionsYet,
+  home.noTransactionsForMessage, home.noTransactionsYetMessage.
+  Existing historical home.history / Today Summary keys were not removed because
+  other tests/docs may still reference historical surfaces.
+
+- src/features/home/__tests__/home-screen.test.tsx
+  Updated Home tests for Balance subheader, Transactions heading, Today Summary
+  removal, Add/Spend/More navigation, period selector options, feed currency,
+  and union feed filtering. Added ordering coverage so Today appears before
+  Transactions.
+
+- src/lib/__tests__/i18n.test.ts
+  Updated core non-English runtime surface coverage to use current Home keys.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated expected package version to 1.27.1 while keeping Expo metadata
+  alignment assertions.
+
+- docs/mvp-qa-checklist.md
+  Added ML-92 manual QA section, including final requirement that Transactions
+  sits below the Home Transactions segmented control.
+
+- package.json / package-lock.json
+  Version bumped to 1.27.1.
+
+Figma reference used
+
+- Home frame: https://www.figma.com/design/h0QVqyKT70KlwgNfgRbrjm/Money-Leak?node-id=272-4270&m=dev
+
+Validation commands run successfully
+
+- npm run release:preflight
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- npx expo config --json
+- git diff --check
+
+Final targeted checks also passed after the last visual spacing tweaks:
+
+- npm test -- --runInBand
+- npm run typecheck
+- npm run lint
+- npm run format:check
+- git diff --check
+
+Targeted contract checks verified
+
+- Expo config resolves version 1.27.1.
+- Transaction CSV v1 header remains:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly Home, Analytics & Leaks, and Settings.
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- No forbidden UI dependencies were added.
+- No service-role/admin mobile code was added.
+- No raw env/token/user/backend identifiers were added in changed runtime/package
+  files.
+
+Things not changed
+
+- No backend.
+- No auth changes.
+- No cloud sync behavior changes.
+- No Supabase migrations.
+- No sync/backup/restore DTO or schema changes.
+- No Transaction CSV v1 change.
+- No balance additions encoded as Transactions.
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No bottom tab/navigation structure changes.
+- No app.config.js or eas.json changes.
+- No new dependencies.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles.
+- AGENTS.md was not changed; the relevant durable rules already existed.
+
+Notes for future agents
+
+- The visual target for Home is Figma node 272:4270 plus the final user-reviewed
+  screenshot state.
+- Keep Transactions below the Home period selector.
+- Keep the compact Transactions header-to-list spacing; transactionsGroup gap is
+  currently 8.
+- Keep transaction card content top-aligned unless a future visual task changes
+  row composition.
+- Do not reintroduce Today Summary on Home unless explicitly scoped.
+- Do not call calculateDailyReviewSummary from Home unless a future task brings
+  back a Home summary UI.
+- Keep currency display-only and use existing formatters.
+- Keep the Home feed as a union of expense transactions and balance additions.
