@@ -13,22 +13,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LedgerTransactionRow } from '@/components/ledger-transaction-row';
 import { PeriodSelector } from '@/components/period-selector';
 import { calculateCurrentBalance } from '@/features/home/calculate-current-balance';
-import {
-  getCategoryDisplayIconName,
-  getCategoryDisplayName,
-} from '@/lib/category-display';
-import {
-  getCategoryIcon,
-  type CategoryIconDefinition,
-} from '@/lib/category-icons';
 import { getValidDate } from '@/lib/date-utils';
 import { formatMoneyAmount } from '@/lib/display-formatters';
 import {
   formatLanguageDate,
   getDefaultBalanceTypeName,
-  getLeakReasonLabel,
   t,
 } from '@/lib/i18n/i18n';
 import type { SupportedLanguage } from '@/lib/i18n/languages';
@@ -180,33 +172,6 @@ type SwipeActionIconProps = {
   name: SFSymbol;
 };
 
-function TransactionCategoryIcon({
-  icon,
-  transactionId,
-}: {
-  icon: CategoryIconDefinition;
-  transactionId: string;
-}) {
-  return (
-    <View style={styles.transactionIconSlot}>
-      <SymbolView
-        fallback={
-          <Text style={styles.transactionIconFallback}>
-            {icon.fallbackSymbol}
-          </Text>
-        }
-        name={icon.symbolName}
-        resizeMode="scaleAspectFit"
-        size={18}
-        testID={`transaction-category-icon-${transactionId}`}
-        tintColor="#111111"
-        type="monochrome"
-        weight="semibold"
-      />
-    </View>
-  );
-}
-
 function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
   return (
     <SymbolView
@@ -338,22 +303,13 @@ function HistoryTransactionItem({
     animateTo(0);
   }, [animateTo, isOpen]);
 
-  const isLeak = transaction.isLeak;
-  const categoryIcon = getCategoryIcon(
-    getCategoryDisplayIconName(transaction.category, categories),
-  );
-  const detailLabel =
-    isLeak && transaction.leakReason
-      ? getLeakReasonLabel(language, transaction.leakReason)
-      : transaction.note;
-
   const cardBackgroundColor = translateX.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
   });
 
   return (
-    <View style={styles.swipeContainer}>
+    <View style={[styles.swipeContainer, styles.transactionSwipeContainer]}>
       <View style={styles.swipeActionLayer}>
         <Pressable
           accessibilityLabel={t(language, 'home.deleteTransactionA11y')}
@@ -384,58 +340,20 @@ function HistoryTransactionItem({
         </Pressable>
       </View>
 
-      <Animated.View
-        {...panResponder.panHandlers}
+      <LedgerTransactionRow
+        amountLabel={amountLabel}
+        categories={categories}
+        deletingLabel={isDeleting ? t(language, 'home.deleting') : null}
+        gestureHandlers={panResponder.panHandlers}
         onTouchStart={handleTouchStart}
-        style={[
-          styles.transactionCard,
-          isLeak ? styles.transactionCardLeak : styles.transactionCardNormal,
-          {
-            backgroundColor: cardBackgroundColor,
-            transform: [{ translateX }],
-          },
-        ]}
+        style={{
+          backgroundColor: cardBackgroundColor,
+          transform: [{ translateX }],
+        }}
         testID={`transaction-history-row-${transaction.id}`}
-      >
-        <View style={styles.transactionMainRow}>
-          <View style={styles.transactionInfoRow}>
-            <TransactionCategoryIcon
-              icon={categoryIcon}
-              transactionId={transaction.id}
-            />
-
-            <View style={styles.transactionCopy}>
-              <Text numberOfLines={1} style={styles.categoryText}>
-                {getCategoryDisplayName(
-                  transaction.category,
-                  categories,
-                  language,
-                )}
-              </Text>
-
-              <Text style={styles.timestampText}>
-                {formatTransactionTimestamp(transaction.createdAt, language)}
-              </Text>
-
-              {detailLabel ? (
-                <Text numberOfLines={1} style={styles.detailText}>
-                  {detailLabel}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-
-          <Text style={[styles.amountText, styles.amountTextNegative]}>
-            {amountLabel}
-          </Text>
-        </View>
-
-        {isDeleting ? (
-          <Text style={styles.deletingText}>
-            {t(language, 'home.deleting')}
-          </Text>
-        ) : null}
-      </Animated.View>
+        transaction={transaction}
+        language={language}
+      />
     </View>
   );
 }
@@ -1386,6 +1304,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 24,
   },
+  transactionSwipeContainer: {
+    minHeight: 74,
+    borderRadius: 0,
+  },
   swipeActionLayer: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
@@ -1423,12 +1345,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 4,
   },
-  transactionCardNormal: {
-    backgroundColor: '#f7f7f5',
-  },
-  transactionCardLeak: {
-    backgroundColor: '#f7f7f5',
-  },
   transactionMainRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1448,13 +1364,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 1,
-  },
-  transactionIconFallback: {
-    color: '#111111',
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '800',
-    textAlign: 'center',
   },
   balanceIconFallback: {
     color: '#111111',
@@ -1482,9 +1391,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     color: '#050505',
   },
-  amountTextNegative: {
-    color: '#050505',
-  },
   amountTextPositive: {
     color: '#34c759',
   },
@@ -1495,11 +1401,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 21,
     color: '#111111',
-  },
-  detailText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#2d2d2a',
   },
   deletingText: {
     fontSize: 13,

@@ -8,7 +8,12 @@ import {
 } from '@jest/globals';
 import * as React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from 'react-test-renderer';
 
 import { AnalyticsScreen } from '@/features/analytics/analytics-screen';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
@@ -334,6 +339,26 @@ function getOverviewChartCircleStrokes(renderer: ReactTestRenderer) {
   ).map((node) => node.props.stroke as string);
 }
 
+function findStyledTextInNode(node: ReactTestInstance, text: string) {
+  function getStyleColor(candidate: ReactTestInstance) {
+    const flattenedStyle = StyleSheet.flatten(
+      candidate.props.style as { color?: unknown },
+    ) as { color?: unknown };
+
+    return flattenedStyle.color;
+  }
+
+  const textNode = findAllNodes(node, (candidate) => {
+    return getNodeText(candidate) === text && Boolean(candidate.props.style);
+  }).find((candidate) => Boolean(getStyleColor(candidate)));
+
+  if (!textNode) {
+    throw new Error(`Could not find styled text node ${text}.`);
+  }
+
+  return textNode;
+}
+
 async function renderAnalyticsScreen() {
   const renderResult: { renderer: ReactTestRenderer | null } = {
     renderer: null,
@@ -466,6 +491,7 @@ describe('AnalyticsScreen', () => {
         category: 'shopping',
         isLeak: true,
         leakReason: 'impulse',
+        note: 'Late-night cart',
         createdAt: new Date(2026, 3, 23, 10, 0).getTime(),
       }),
       createTransaction({
@@ -493,6 +519,7 @@ describe('AnalyticsScreen', () => {
     expect(screenText).toContain('-10.00 €');
     expect(screenText).toContain('Leak');
     expect(screenText).toContain('Impulse');
+    expect(screenText).toContain('Late-night cart');
     expect(screenText).toContain('Food');
     expect(screenText).toContain('Normal');
     expect(screenText.indexOf('Salary')).toBeLessThan(
@@ -511,14 +538,17 @@ describe('AnalyticsScreen', () => {
       renderer,
       'analytics-transaction-row-txn-shopping',
     );
-    const shoppingAmount = findAllNodes(
-      shoppingRow,
-      (node) => getNodeText(node) === '-10.00 €',
-    )[0];
+    const shoppingAmount = findStyledTextInNode(shoppingRow, '-10.00 €');
 
     expect(StyleSheet.flatten(shoppingAmount.props.style)).toMatchObject({
       color: '#100f10',
     });
+    expect(() =>
+      findNodeByProp(renderer, 'accessibilityLabel', 'Edit transaction'),
+    ).toThrow('Could not find node with accessibilityLabel.');
+    expect(() =>
+      findNodeByProp(renderer, 'accessibilityLabel', 'Delete transaction'),
+    ).toThrow('Could not find node with accessibilityLabel.');
   });
 
   it('uses the selected currency for ledger rows and filtered rows', async () => {

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { LedgerTransactionRow } from '@/components/ledger-transaction-row';
 import {
   LocalDatePicker,
   type LocalDatePickerMode,
@@ -42,10 +43,7 @@ import {
   calculateAnalyticsOverview,
   type AnalyticsOverview,
 } from '@/features/analytics/analytics-overview';
-import {
-  getCategoryDisplayIconName,
-  getCategoryDisplayName,
-} from '@/lib/category-display';
+import { getCategoryDisplayName } from '@/lib/category-display';
 import { getCategoryIcon } from '@/lib/category-icons';
 import { formatMoneyAmount } from '@/lib/display-formatters';
 import {
@@ -73,11 +71,7 @@ import {
   type Category,
   type CategoryInput,
 } from '@/types/category';
-import {
-  LEAK_REASONS,
-  type LeakReason,
-  type Transaction,
-} from '@/types/transaction';
+import { LEAK_REASONS, type LeakReason } from '@/types/transaction';
 
 const TITLE_FONT_FAMILY = Platform.select({
   ios: 'NewYork',
@@ -97,7 +91,6 @@ const CHEVRON_RIGHT_ICON = 'chevron.right' as SFSymbol;
 const CALENDAR_ICON = 'calendar' as SFSymbol;
 const NORMAL_DETAIL_ICON = 'hand.thumbsup' as SFSymbol;
 const LEAK_DETAIL_ICON = 'drop.halffull' as SFSymbol;
-const REASON_DETAIL_ICON = 'bolt' as SFSymbol;
 
 const LEAK_REASON_ICONS: Record<
   LeakReason,
@@ -980,99 +973,6 @@ function CategoryChip({ category, onPress, selected }: CategoryChipProps) {
   );
 }
 
-type LedgerIconProps = {
-  fallback: string;
-  name: SFSymbol;
-};
-
-function LedgerIcon({ fallback, name }: LedgerIconProps) {
-  return (
-    <View style={styles.ledgerIconSlot}>
-      <SymbolView
-        fallback={<Text style={styles.ledgerIconFallback}>{fallback}</Text>}
-        name={name}
-        resizeMode="scaleAspectFit"
-        size={19}
-        tintColor="#100f10"
-        type="monochrome"
-        weight="semibold"
-      />
-    </View>
-  );
-}
-
-type TransactionDetailIconProps = {
-  fallback: string;
-  name: SFSymbol;
-  weight?: 'regular' | 'semibold';
-};
-
-function TransactionDetailIcon({
-  fallback,
-  name,
-  weight = 'regular',
-}: TransactionDetailIconProps) {
-  return (
-    <SymbolView
-      fallback={<Text style={styles.ledgerDetailIconFallback}>{fallback}</Text>}
-      name={name}
-      resizeMode="scaleAspectFit"
-      size={13}
-      tintColor="#100f10"
-      type="monochrome"
-      weight={weight}
-    />
-  );
-}
-
-function TransactionDetailRow({
-  language,
-  transaction,
-}: {
-  language: SupportedLanguage;
-  transaction: Transaction;
-}) {
-  if (transaction.isLeak) {
-    return (
-      <View style={styles.transactionDetailRow}>
-        <View style={styles.transactionDetailItem}>
-          <TransactionDetailIcon
-            fallback="L"
-            name={LEAK_DETAIL_ICON}
-            weight="semibold"
-          />
-
-          <Text numberOfLines={1} style={styles.ledgerDetail}>
-            {t(language, 'home.leak')}
-          </Text>
-        </View>
-
-        {transaction.leakReason ? (
-          <View style={styles.transactionDetailItem}>
-            <TransactionDetailIcon fallback="R" name={REASON_DETAIL_ICON} />
-
-            <Text numberOfLines={1} style={styles.ledgerDetail}>
-              {getLeakReasonLabel(language, transaction.leakReason)}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.transactionDetailRow}>
-      <View style={styles.transactionDetailItem}>
-        <TransactionDetailIcon fallback="N" name={NORMAL_DETAIL_ICON} />
-
-        <Text numberOfLines={1} style={styles.ledgerDetail}>
-          {t(language, 'common.normal')}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 type LedgerRowProps = {
   balanceTypeOptions: BalanceTypeOption[];
   balanceTypes: BalanceType[];
@@ -1127,42 +1027,19 @@ function LedgerRow({
   }
 
   const { transaction } = item;
-  const categoryIcon = getCategoryIcon(
-    getCategoryDisplayIconName(transaction.category, categories),
-  );
 
   return (
-    <View
-      style={styles.ledgerRow}
+    <LedgerTransactionRow
+      amountLabel={formatAnalyticsAmount({
+        amount: transaction.amount,
+        currency,
+        sign: '-',
+      })}
+      categories={categories}
+      language={language}
       testID={`analytics-transaction-row-${transaction.id}`}
-    >
-      <View style={[styles.ledgerInfoRow, styles.ledgerInfoRowTop]}>
-        <LedgerIcon
-          fallback={categoryIcon.fallbackSymbol}
-          name={categoryIcon.symbolName}
-        />
-
-        <View style={styles.ledgerCopy}>
-          <Text numberOfLines={1} style={styles.ledgerTitle}>
-            {getCategoryDisplayName(transaction.category, categories, language)}
-          </Text>
-
-          <TransactionDetailRow language={language} transaction={transaction} />
-
-          <Text style={styles.ledgerTime}>
-            {formatAnalyticsTime(transaction.createdAt, language)}
-          </Text>
-        </View>
-      </View>
-
-      <Text style={[styles.ledgerAmount, styles.ledgerAmountNegative]}>
-        {formatAnalyticsAmount({
-          amount: transaction.amount,
-          currency,
-          sign: '-',
-        })}
-      </Text>
-    </View>
+      transaction={transaction}
+    />
   );
 }
 
@@ -2862,19 +2739,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  ledgerInfoRowTop: {
-    alignItems: 'flex-start',
-  },
   ledgerIconSlot: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  ledgerIconFallback: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#100f10',
   },
   ledgerCopy: {
     flex: 1,
@@ -2886,30 +2755,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 20,
     color: '#100f10',
-  },
-  ledgerDetail: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#100f10',
-  },
-  ledgerDetailIconFallback: {
-    minWidth: 13,
-    fontSize: 10,
-    fontWeight: '700',
-    lineHeight: 13,
-    textAlign: 'center',
-    color: '#100f10',
-  },
-  transactionDetailRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  transactionDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
   },
   ledgerTime: {
     fontSize: 13,
