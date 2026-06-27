@@ -99,7 +99,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-92 version bump and Expo metadata aligned', () => {
+  it('keeps ML-93 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -113,9 +113,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.27.1');
-    expect(packageLock.version).toBe('1.27.1');
-    expect(packageLock.packages[''].version).toBe('1.27.1');
+    expect(packageJson.version).toBe('1.27.2');
+    expect(packageLock.version).toBe('1.27.2');
+    expect(packageLock.packages[''].version).toBe('1.27.2');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

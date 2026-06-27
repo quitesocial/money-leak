@@ -3395,3 +3395,39 @@ Manual QA:
 - Add Transaction, Add Balance, and Shame Card remain pushed root Stack screens, not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - No new dependencies, forbidden UI libraries, auth/session changes, sync triggers, Supabase schema changes, service-role/admin mobile usage, raw backend errors, secrets, tokens, owner IDs, localOwnerIds, device IDs, or row payloads are exposed.
+
+## ML-93 Unified transaction rows
+
+### 65. Home and Analytics transaction row parity
+
+**Preconditions**
+
+- Local data includes at least one normal expense transaction, one leak expense transaction with a leak reason, one transaction note, and one balance addition.
+- Test `Home` with `Today`, `Yesterday`, and `This week`; test `Analytics & Leaks` with at least one period and one filter.
+- Use Analytics Figma node `272:4081` as the visual row reference; do not use the older Home row styling as the transaction row target.
+
+**Steps**
+
+1. Open `Analytics & Leaks` and inspect transaction ledger rows for category icon, category name, amount, time, Normal/Leak state, leak reason, and note.
+2. Open `Home` and confirm expense transaction rows use the same visual row structure and content as Analytics transaction rows.
+3. Confirm category icons display on both Home and Analytics transaction rows.
+4. Confirm normal transactions show `Normal`, leak transactions show `Leak`, leak reasons appear when present, and notes appear when present.
+5. Swipe Home expense transaction rows left and right; confirm edit opens the existing edit transaction screen and delete still shows confirmation before removal.
+6. Confirm Analytics transaction rows remain read-only with no edit/delete swipe or inline action affordances.
+7. Switch Home period selector between `Today`, `Yesterday`, and `This week`; confirm no `Choose date` option appears.
+8. Confirm balance additions still render as separate balance rows in the Home union feed and Analytics ledger.
+9. Verify `More` still opens `Analytics & Leaks`, and Add/Spend still open their existing pushed screens.
+10. Export/import Transaction CSV v1 and run sync/backup regression checks where available.
+
+**Expected result**
+
+- Home and Analytics expense transaction rows are visually aligned while preserving each screen's behavior.
+- Home keeps swipe edit/delete, delete confirmation, existing edit route, one-open-row behavior, and newest-first union feed sorting.
+- Analytics remains read-only and keeps existing period/filter semantics.
+- Balance additions are not encoded as Transactions and do not enter Transaction CSV v1.
+- Home Balance, Add/Spend, Transactions heading, period selector, and `More` behavior remain otherwise unchanged.
+- Analytics Overview, chart, filters, and layout outside rows remain unchanged.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom tabs.
+- Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
+- No CSV/sync/backup schema changes, FX conversion, per-entry currency fields, new dependencies, forbidden UI libraries, service-role/admin mobile usage, or raw env/token/user/backend identifier exposure is added.

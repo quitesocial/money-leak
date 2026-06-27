@@ -31,6 +31,17 @@ const mockUseTransactionsRefresh = jest.fn();
 const mockReact = React;
 const mockView = View;
 const mockAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+const mockSymbolView = jest.fn(
+  ({
+    fallback,
+    name,
+    testID,
+  }: {
+    fallback?: React.ReactNode;
+    name?: string;
+    testID?: string;
+  }) => mockReact.createElement(mockView, { testID }, fallback ?? name),
+);
 let mockSettingsCurrency: SettingsCurrency = 'Euro';
 let mockSettingsLanguage = 'English';
 
@@ -125,7 +136,11 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('expo-symbols', () => ({
-  SymbolView: ({ fallback }: { fallback?: React.ReactNode }) => fallback,
+  SymbolView: (props: {
+    fallback?: React.ReactNode;
+    name?: string;
+    testID?: string;
+  }) => mockSymbolView(props),
 }));
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -330,6 +345,28 @@ function findTextNode(renderer: ReactTestRenderer, text: string) {
   return node;
 }
 
+function findStyledTextNode(renderer: ReactTestRenderer, text: string) {
+  function getStyleColor(node: ReactTestInstance) {
+    const flattenedStyle = StyleSheet.flatten(
+      node.props.style as { color?: unknown },
+    ) as { color?: unknown };
+
+    return flattenedStyle.color;
+  }
+
+  const node = findAllNodes(renderer.root, (candidate) => {
+    return getNodeText(candidate) === text && Boolean(candidate.props.style);
+  }).find((candidate) => {
+    return Boolean(getStyleColor(candidate));
+  });
+
+  if (!node) {
+    throw new Error(`Could not find styled text node ${text}.`);
+  }
+
+  return node;
+}
+
 function getPressHandler(node: ReactTestInstance) {
   const { onPress } = node.props;
 
@@ -338,6 +375,14 @@ function getPressHandler(node: ReactTestInstance) {
   }
 
   return onPress as () => void;
+}
+
+function getLatestSymbolName(testID: string) {
+  const matchingCall = [...mockSymbolView.mock.calls]
+    .reverse()
+    .find(([props]) => props.testID === testID);
+
+  return matchingCall?.[0].name;
 }
 
 function getPastDate(daysAgo: number) {
@@ -539,7 +584,7 @@ describe('HomeScreen', () => {
     expect(screenText).toContain('This week');
   });
 
-  it('renders balance additions with plus signs and expenses with minus signs', async () => {
+  it('renders balance additions separately and expense rows with Analytics ledger content', async () => {
     const now = new Date().getTime();
 
     mockBalanceStoreState.balanceEntries = [
@@ -560,6 +605,15 @@ describe('HomeScreen', () => {
         note: 'Hidden note',
         createdAt: now + 1,
       }),
+      createTransaction({
+        id: 'txn-2',
+        amount: 15,
+        category: 'food',
+        isLeak: false,
+        leakReason: null,
+        note: 'Normal note',
+        createdAt: now - 1,
+      }),
     ];
 
     const renderer = await renderHomeScreen();
@@ -569,10 +623,17 @@ describe('HomeScreen', () => {
     expect(screenText).toContain('+100.00 €');
     expect(screenText).toContain('Food');
     expect(screenText).toContain('-20.00 €');
+    expect(screenText).toContain('-15.00 €');
+    expect(screenText).toContain('Leak');
     expect(screenText).toContain('Impulse');
-    expect(screenText).not.toContain('Hidden note');
+    expect(screenText).toContain('Hidden note');
+    expect(screenText).toContain('Normal');
+    expect(screenText).toContain('Normal note');
     expect(screenText.indexOf('Food')).toBeLessThan(
       screenText.indexOf('Salary'),
+    );
+    expect(getLatestSymbolName('transaction-category-icon-txn-1')).toBe(
+      'takeoutbag.and.cup.and.straw',
     );
 
     expect(
@@ -581,9 +642,9 @@ describe('HomeScreen', () => {
       color: '#34c759',
     });
     expect(
-      StyleSheet.flatten(findTextNode(renderer, '-20.00 €').props.style),
+      StyleSheet.flatten(findStyledTextNode(renderer, '-20.00 €').props.style),
     ).toMatchObject({
-      color: '#050505',
+      color: '#100f10',
     });
   });
 
