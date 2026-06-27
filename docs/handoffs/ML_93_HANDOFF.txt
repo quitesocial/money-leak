@@ -1,0 +1,152 @@
+ML-93 [DEV] Unified transaction rows handoff
+Date: 2026-06-27
+Project: Money Leak
+Version after task: 1.27.2
+
+Summary
+
+ML-93 is implemented, validated, and manually tested. Home expense transaction
+rows now use the same visual transaction row component as the Analytics & Leaks
+ledger while preserving Home-only swipe edit/delete behavior. Analytics
+transaction rows remain read-only.
+
+Manual QA status
+
+User completed manual testing after implementation and reported everything OK.
+
+Primary design reference
+
+- Analytics & Leaks transaction ledger is the source of truth for transaction
+  rows.
+- Figma reference used during planning:
+  https://www.figma.com/design/h0QVqyKT70KlwgNfgRbrjm/Money-Leak?node-id=272-4081&m=dev
+- Home Figma node 272:4270 was checked for layout/swipe context, but its older
+  transaction row styling was not used as the target.
+- Analytics chart node 272:4095 was explicitly not changed.
+
+Key product behavior implemented
+
+- Home expense transaction rows now visually align with Analytics transaction
+  rows.
+- Shared row content includes:
+  category icon, category display name, signed amount, time, Normal/Leak state,
+  leak reason when present, and note when present.
+- Home expense rows still support swipe actions:
+  swipe to edit opens the existing edit transaction route, and swipe to delete
+  still shows confirmation before removal.
+- Home one-open-row swipe behavior is preserved.
+- Analytics transaction rows remain read-only with no edit/delete affordances.
+- Balance additions remain a separate feed/ledger row type and were not encoded
+  as Transactions.
+- Home union feed filtering and newest-first sorting remain unchanged.
+- Home layout outside rows remains unchanged:
+  Balance block, Add/Spend buttons, Transactions heading, More action, and
+  Today / Yesterday / This week period selector are preserved.
+- Analytics layout outside rows remains unchanged:
+  Overview, chart, period/filter semantics, and read-only ledger behavior are
+  preserved.
+
+Key implementation files
+
+- src/components/ledger-transaction-row.tsx
+  New shared presentational component for expense transaction row visuals. It
+  owns only row rendering and accepts prepared screen behavior via props such as
+  gestureHandlers, onTouchStart, style, testID, and deletingLabel.
+
+- src/features/home/home-screen.tsx
+  Replaced the local Home expense transaction row JSX with LedgerTransactionRow
+  inside the existing swipe container. Balance rows remain local and separate.
+
+- src/features/analytics/analytics-screen.tsx
+  Replaced duplicated Analytics transaction row rendering with
+  LedgerTransactionRow. Analytics balance row rendering remains unchanged.
+
+- src/features/home/__tests__/home-screen.test.tsx
+  Updated coverage for Analytics-aligned Home transaction row content, category
+  icon rendering, note visibility, Normal/Leak/reason labels, amount color, and
+  preservation of navigation and swipe affordances.
+
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+  Updated coverage for shared transaction row content, note visibility, amount
+  styling, and read-only Analytics rows.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated the release/version contract to ML-93 and version 1.27.2.
+
+- docs/mvp-qa-checklist.md
+  Added the ML-93 manual QA section covering visual parity, category icons,
+  Normal/Leak/reason/note, Home swipe edit/delete, Analytics read-only rows,
+  Home period selector, balance row regression, and no CSV/sync/navigation
+  regression.
+
+- package.json / package-lock.json
+  Version bumped from 1.27.1 to 1.27.2. app.config.js was not changed and still
+  reads version from package.json.
+
+Validation commands run successfully
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed; Expo config resolves package version 1.27.2.
+
+- npm test -- --runInBand
+  Result: 51 test suites passed, 429 tests passed.
+
+- npm run typecheck
+  Result: passed.
+
+- npm run lint
+  Result: passed.
+
+- npm run format:check
+  Result: passed.
+
+- npx expo config --json
+  Result: passed; resolved version is 1.27.2.
+
+- git diff --check
+  Result: passed.
+
+Targeted contract checks verified
+
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- No forbidden UI dependencies were added:
+  @expo/ui, expo-blur, BlurView, Liquid Glass, or glass-styles.
+- No service-role/admin Supabase code was added to mobile app code/config.
+- Changed runtime/package files do not expose raw env values, tokens, user IDs,
+  owner IDs, localOwnerIds, device IDs, backend IDs, secrets, or row payloads.
+
+Things intentionally not changed
+
+- No backend, auth, cloud sync, or Supabase migration changes.
+- No backup/restore/sync DTO or schema changes.
+- No Transaction CSV v1 migration.
+- No balance additions encoded as Transactions.
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No bottom tab/navigation changes.
+- No app.config.js change.
+- No new dependencies.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles.
+- AGENTS.md was checked and not changed because the durable constraints needed
+  for this task already existed there.
+
+Notes for future agents
+
+- Use LedgerTransactionRow for shared expense transaction row visuals rather
+  than reintroducing separate Home and Analytics row markup.
+- Keep screen-specific behavior outside LedgerTransactionRow. Home owns swipe
+  edit/delete; Analytics owns read-only ledger display.
+- Do not expand LedgerTransactionRow into balance row/domain support unless a
+  future task explicitly scopes that work.
+- If future row visuals change, update the shared component first and then
+  verify both Home and Analytics.
+- Preserve existing data contracts unless a future task explicitly scopes a
+  migration.
