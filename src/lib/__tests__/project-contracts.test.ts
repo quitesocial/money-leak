@@ -56,9 +56,27 @@ describe('project contracts', () => {
     expect(tabsLayout).toContain("t(language, 'tabs.analytics')");
     expect(tabsLayout).toContain("t(language, 'tabs.analyticsTitle')");
     expect(tabsLayout).toContain("t(language, 'tabs.settings')");
+    expect(tabsLayout).toContain('numberOfLines={2}');
+    expect(tabsLayout).toContain('adjustsFontSizeToFit');
     expect(tabsLayout).not.toContain('name="add-transaction"');
     expect(tabsLayout).not.toContain('name="add-balance"');
     expect(tabsLayout).not.toContain('name="shame-card"');
+  });
+
+  it('keeps the Analytics tab label layout-driven without hard line breaks', () => {
+    const translations = readFileSync(
+      join(process.cwd(), 'src/lib/i18n/translations.ts'),
+      'utf8',
+    );
+    const analyticsTabLabels = translations.match(
+      /'tabs\.analytics': '[^']*'/g,
+    );
+
+    expect(analyticsTabLabels).not.toBeNull();
+
+    for (const label of analyticsTabLabels ?? []) {
+      expect(label).not.toContain('\\n');
+    }
   });
 
   it('keeps pushed app routes as root stack screens', () => {
@@ -99,7 +117,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-93 version bump and Expo metadata aligned', () => {
+  it('keeps ML-94 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -113,9 +131,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.27.2');
-    expect(packageLock.version).toBe('1.27.2');
-    expect(packageLock.packages[''].version).toBe('1.27.2');
+    expect(packageJson.version).toBe('1.27.3');
+    expect(packageLock.version).toBe('1.27.3');
+    expect(packageLock.packages[''].version).toBe('1.27.3');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

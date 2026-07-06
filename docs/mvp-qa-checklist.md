@@ -3431,3 +3431,30 @@ Manual QA:
 - Add Transaction and Add Balance remain pushed root Stack screens, not bottom tabs.
 - Transaction CSV v1 remains exactly `id,amount,category,isLeak,leakReason,note,createdAt`.
 - No CSV/sync/backup schema changes, FX conversion, per-entry currency fields, new dependencies, forbidden UI libraries, service-role/admin mobile usage, or raw env/token/user/backend identifier exposure is added.
+
+## ML-94 Analytics tab adaptive label
+
+### 66. Bottom footer Analytics label polish
+
+**Preconditions**
+
+- Test on a device or simulator width representative of the current Figma footer.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+
+**Steps**
+
+1. In English or another short locale, open `Analytics & Leaks` and confirm the active middle tab label renders as one line when it fits.
+2. Open `Home` or `Settings` in the same locale and confirm the inactive middle tab label still renders as one line when it fits.
+3. Switch to a longer locale such as Portuguese and confirm the middle tab label may wrap to two lines instead of crossing the tab/capsule boundaries.
+4. Tap `Home`, `Analytics & Leaks`, and `Settings`; confirm each tab navigates to the existing route.
+5. Confirm the active rounded capsule stays inside the middle tab zone and does not overlap Home or Settings.
+6. Open `Add Transaction` from Home and `Add Balance` from Home; confirm both remain pushed root Stack screens, not bottom tabs.
+
+**Expected result**
+
+- Short Analytics tab labels stay one line in active and inactive footer states when they fit.
+- Long localized Analytics tab labels can wrap to two lines and stay inside their tab/capsule bounds.
+- Home and Settings labels/icons are unchanged.
+- The Analytics icon remains `drop.halffull`.
+- Active blue, inactive near-black, floating footer geometry, and active capsule animation are preserved.
+- Add Transaction and Add Balance are not added to the bottom tabs.
