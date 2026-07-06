@@ -1,0 +1,132 @@
+ML-94 [DEV] Analytics tab adaptive label handoff
+Date: 2026-07-06
+Project: Money Leak
+Version after task: 1.27.3
+
+Summary
+
+ML-94 is implemented, validated, and manually tested. The Analytics & Leaks
+bottom tab label no longer uses hard-coded line breaks. Short localized labels
+stay on one line when they fit; longer localized labels can wrap to two lines
+inside the existing tab/capsule bounds instead of colliding with neighboring
+tabs.
+
+Manual QA status
+
+User completed manual testing after implementation and reported everything OK.
+The final manually accepted behavior is adaptive:
+
+- English / short labels stay one line when they fit.
+- Longer localized labels, such as Portuguese "Analises e vazamentos", may wrap
+  to two lines.
+- The label must remain inside the middle tab/capsule area and must not overlap
+  Home or Settings.
+
+Key product behavior implemented
+
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- The Analytics tab still uses the SF Symbol drop.halffull.
+- Active color remains #0088ff.
+- Inactive color remains #1a1a1a.
+- The floating footer geometry and active rounded capsule animation are
+  preserved.
+- The Analytics tab label is layout-driven:
+  translations do not include forced "\n" line breaks, and React Native decides
+  whether the label occupies one or two lines based on available width.
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+
+Key implementation files
+
+- app/(tabs)/_layout.tsx
+  The custom floating tab bar label now uses numberOfLines={2},
+  adjustsFontSizeToFit, minimumFontScale={0.78}, and a constrained maxWidth.
+  This keeps short labels on one line while allowing long localized labels to
+  wrap safely to two lines.
+
+- src/lib/i18n/translations.ts
+  Removed hard-coded newline characters from every tabs.analytics translation.
+  The tab label text remains localized but no locale forces a manual line
+  break.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated contract coverage for ML-94 and version 1.27.3. The tests assert that
+  the tab label allows up to two lines and that tabs.analytics translations do
+  not contain hard newline characters.
+
+- docs/mvp-qa-checklist.md
+  Added ML-94 manual QA coverage for short one-line labels, long localized
+  two-line fallback, footer navigation, capsule overlap, and Add
+  Transaction/Add Balance staying outside bottom tabs.
+
+- package.json / package-lock.json
+  Version bumped from 1.27.2 to 1.27.3. app.config.js was not changed and still
+  reads version from package.json.
+
+Validation commands run successfully
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed; Expo config resolves package version 1.27.3.
+
+- npm test -- --runInBand
+  Result: 51 test suites passed, 430 tests passed.
+
+- npm run typecheck
+  Result: passed.
+
+- npm run lint
+  Result: passed.
+
+- npm run format:check
+  Result: passed.
+
+- npx expo config --json
+  Result: passed; resolved version is 1.27.3.
+
+- git diff --check
+  Result: passed before this handoff file was added.
+
+Targeted contract checks verified
+
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- Transaction CSV v1 remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No forbidden UI dependencies were added:
+  @expo/ui, expo-blur, BlurView, Liquid Glass, or glass-styles.
+- No raw env values, tokens, user IDs, owner IDs, localOwnerIds, device IDs,
+  backend IDs, secrets, or row payloads were exposed.
+- AGENTS.md was checked and not changed because this was a task-specific UI
+  behavior correction, not a durable new project rule.
+
+Things intentionally not changed
+
+- No Analytics screen content changes.
+- No Home screen content changes.
+- No Settings screen content changes.
+- No route/navigation changes beyond preserving existing tab behavior.
+- No backend, auth, cloud sync, backup, restore, Supabase, schema, migration, or
+  Edge Function changes.
+- No Transaction CSV v1 changes.
+- No app.config.js or eas.json changes.
+- No new dependencies.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles.
+
+Notes for future agents
+
+- Do not reintroduce hard-coded "\n" in tabs.analytics translations. Let layout
+  handle wrapping.
+- Do not force the Analytics tab label to one line for every language; long
+  localized labels are allowed to wrap to two lines when needed.
+- Preserve the three-tab footer: Home, Analytics & Leaks, Settings.
+- Keep Add Transaction and Add Balance as root Stack screens, not bottom tabs.
+- If future footer UI work changes tab geometry, manually test at least English
+  and one longer locale such as Portuguese.
