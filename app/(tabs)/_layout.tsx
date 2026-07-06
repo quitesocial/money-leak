@@ -83,7 +83,14 @@ function TabIcon({
         weight="semibold"
       />
 
-      <Text style={[styles.tabIconLabel, { color }]}>{label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+        numberOfLines={2}
+        style={[styles.tabIconLabel, { color }]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -282,6 +289,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tabIconLabel: {
+    maxWidth: '86%',
     fontSize: 10,
     lineHeight: 12,
     fontWeight: '600',
