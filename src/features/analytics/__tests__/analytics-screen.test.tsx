@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import * as React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import {
   act,
   create,
@@ -37,6 +37,8 @@ const mockRouter = {
 const mockLoadBalance = jest.fn<() => Promise<void>>();
 const mockLoadCategories = jest.fn<() => Promise<void>>();
 const mockLoadTransactions = jest.fn<() => Promise<void>>();
+const mockRemoveBalanceEntry = jest.fn<(_id: string) => Promise<void>>();
+const mockRemoveTransaction = jest.fn<(_id: string) => Promise<void>>();
 const mockUseBalanceRefresh = jest.fn();
 const mockUseCategoriesRefresh = jest.fn();
 const mockUseTransactionsRefresh = jest.fn();
@@ -92,6 +94,7 @@ type MockBalanceStoreState = {
   isInitialized: boolean;
   isLoading: boolean;
   loadBalance: () => Promise<void>;
+  removeBalanceEntry: (id: string) => Promise<void>;
 };
 
 type MockTransactionsStoreState = {
@@ -99,6 +102,7 @@ type MockTransactionsStoreState = {
   isInitialized: boolean;
   isLoading: boolean;
   loadTransactions: () => Promise<void>;
+  removeTransaction: (id: string) => Promise<void>;
   transactions: Transaction[];
 };
 
@@ -118,6 +122,7 @@ const mockBalanceStoreState: MockBalanceStoreState = {
   isInitialized: true,
   isLoading: false,
   loadBalance: mockLoadBalance,
+  removeBalanceEntry: mockRemoveBalanceEntry,
 };
 
 const mockTransactionsStoreState: MockTransactionsStoreState = {
@@ -125,6 +130,7 @@ const mockTransactionsStoreState: MockTransactionsStoreState = {
   isInitialized: true,
   isLoading: false,
   loadTransactions: mockLoadTransactions,
+  removeTransaction: mockRemoveTransaction,
   transactions: [],
 };
 
@@ -390,6 +396,19 @@ async function pressByTestID(renderer: ReactTestRenderer, testID: string) {
   });
 }
 
+async function pressNode(node: ReactTestInstance) {
+  const { onPress } = node.props;
+
+  if (typeof onPress !== 'function') {
+    throw new Error('Expected node to have an onPress handler.');
+  }
+
+  await act(async () => {
+    onPress();
+    await flushPromises();
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   jest
@@ -421,11 +440,13 @@ beforeEach(() => {
   mockBalanceStoreState.error = null;
   mockBalanceStoreState.isInitialized = true;
   mockBalanceStoreState.isLoading = false;
+  mockRemoveBalanceEntry.mockResolvedValue(undefined);
 
   mockTransactionsStoreState.transactions = [];
   mockTransactionsStoreState.error = null;
   mockTransactionsStoreState.isInitialized = true;
   mockTransactionsStoreState.isLoading = false;
+  mockRemoveTransaction.mockResolvedValue(undefined);
 
   mockCategoriesStoreState.categories = [
     createCategory({
@@ -475,7 +496,7 @@ describe('AnalyticsScreen', () => {
     );
   });
 
-  it('renders balance additions and transactions in a read-only ledger', async () => {
+  it('renders balance additions and transactions in the ledger', async () => {
     mockBalanceStoreState.balanceEntries = [
       createBalanceEntry({
         id: 'balance-salary',
@@ -526,8 +547,16 @@ describe('AnalyticsScreen', () => {
       screenText.indexOf('Shopping'),
     );
     expect(getSymbolNames()).toEqual(
-      expect.arrayContaining(['drop.halffull', 'bolt', 'hand.thumbsup']),
+      expect.arrayContaining([
+        'arrow.down.left',
+        'drop.halffull',
+        'bolt',
+        'hand.thumbsup',
+      ]),
     );
+    expect(
+      getLatestSymbolName('analytics-balance-entry-icon-balance-salary'),
+    ).toBe('arrow.down.left');
 
     expect(
       StyleSheet.flatten(findTextNode(renderer, '+1 000.00 €').props.style),
@@ -543,12 +572,100 @@ describe('AnalyticsScreen', () => {
     expect(StyleSheet.flatten(shoppingAmount.props.style)).toMatchObject({
       color: '#100f10',
     });
-    expect(() =>
-      findNodeByProp(renderer, 'accessibilityLabel', 'Edit transaction'),
-    ).toThrow('Could not find node with accessibilityLabel.');
-    expect(() =>
-      findNodeByProp(renderer, 'accessibilityLabel', 'Delete transaction'),
-    ).toThrow('Could not find node with accessibilityLabel.');
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const editAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Edit transaction',
+    );
+    const deleteAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Delete transaction',
+    );
+
+    await pressNode(editAction);
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/transaction/txn-shopping/edit',
+    );
+
+    await pressNode(deleteAction);
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete transaction?',
+      expect.any(String),
+      expect.any(Array),
+    );
+
+    const alertButtons = alertSpy.mock.calls.at(-1)?.[2] as
+      | { onPress?: () => void; text: string }[]
+      | undefined;
+    const confirmDeleteButton = alertButtons?.find((button) => {
+      return button.text === 'Delete';
+    });
+
+    await act(async () => {
+      confirmDeleteButton?.onPress?.();
+      await flushPromises();
+    });
+
+    expect(mockRemoveTransaction).toHaveBeenCalledWith('txn-shopping');
+
+    const balanceRow = findByTestID(
+      renderer,
+      'analytics-balance-row-balance-salary',
+    );
+    const editBalanceAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Edit balance addition',
+    );
+    const deleteBalanceAction = findNodeByProp(
+      renderer,
+      'accessibilityLabel',
+      'Delete balance addition',
+    );
+
+    await pressNode(editBalanceAction);
+
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      '/balance/balance-salary/edit',
+    );
+
+    await pressNode(deleteBalanceAction);
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Delete balance addition?',
+      expect.any(String),
+      expect.any(Array),
+    );
+
+    const balanceAlertButtons = alertSpy.mock.calls.at(-1)?.[2] as
+      | { onPress?: () => void; text: string }[]
+      | undefined;
+    const confirmBalanceDeleteButton = balanceAlertButtons?.find((button) => {
+      return button.text === 'Delete';
+    });
+
+    await act(async () => {
+      confirmBalanceDeleteButton?.onPress?.();
+      await flushPromises();
+    });
+
+    expect(mockRemoveBalanceEntry).toHaveBeenCalledWith('balance-salary');
+    expect(
+      findAllNodes(
+        balanceRow,
+        (node) => node.props.accessibilityLabel === 'Edit transaction',
+      ),
+    ).toHaveLength(0);
+    expect(
+      findAllNodes(
+        balanceRow,
+        (node) => node.props.accessibilityLabel === 'Delete transaction',
+      ),
+    ).toHaveLength(0);
   });
 
   it('uses the selected currency for ledger rows and filtered rows', async () => {
@@ -592,6 +709,56 @@ describe('AnalyticsScreen', () => {
     });
 
     expect(getNodeText(renderer.root)).toContain('+100.00 £');
+  });
+
+  it('disables Analytics transaction actions while deletion is pending', async () => {
+    let resolveRemoveTransaction: (() => void) | null = null;
+    mockRemoveTransaction.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRemoveTransaction = resolve;
+        }),
+    );
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-food',
+        amount: 10,
+        category: 'food',
+      }),
+    ];
+
+    const renderer = await renderAnalyticsScreen();
+    await pressNode(
+      findNodeByProp(renderer, 'accessibilityLabel', 'Delete transaction'),
+    );
+
+    const alertButtons = alertSpy.mock.calls.at(-1)?.[2] as
+      | { onPress?: () => void; text: string }[]
+      | undefined;
+    const confirmDeleteButton = alertButtons?.find((button) => {
+      return button.text === 'Delete';
+    });
+
+    await act(async () => {
+      confirmDeleteButton?.onPress?.();
+      await flushPromises();
+    });
+
+    expect(
+      findNodeByProp(renderer, 'accessibilityLabel', 'Delete transaction').props
+        .disabled,
+    ).toBe(true);
+    expect(
+      findNodeByProp(renderer, 'accessibilityLabel', 'Edit transaction').props
+        .disabled,
+    ).toBe(true);
+    expect(getNodeText(renderer.root)).toContain('Deleting...');
+
+    await act(async () => {
+      resolveRemoveTransaction?.();
+      await flushPromises();
+    });
   });
 
   it('keeps Overview period-scoped and independent from ledger filters', async () => {
