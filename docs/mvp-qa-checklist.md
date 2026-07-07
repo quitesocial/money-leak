@@ -3150,7 +3150,7 @@ Manual QA:
 
 **Expected result**
 
-- Analytics uses the ML-86 read-only ledger layout and does not show the old totals dashboard or insight cards.
+- Analytics uses the ML-86 ledger layout and does not show the old totals dashboard or insight cards.
 - The screen does not recreate the native status bar or floating tab bar inside content.
 - The floating bottom tab bar does not cover the last ledger row.
 - Feed rows are grouped by date like `23 April 2026` and sorted newest-first inside each date.
@@ -3165,7 +3165,7 @@ Manual QA:
 - Active filters with no results show `No Transactions` and `No transactions match your current filters`.
 - Date/periods with no results show `No Transactions` and `No transactions match your date`.
 - Empty Analytics states show the Figma-style box/ladder illustration and an `Add Transaction` CTA that opens Add Transaction.
-- Analytics rows remain read-only; no edit/delete behavior is added to Analytics.
+- Analytics row action behavior follows the current ML-95 transaction and balance edit/delete rules.
 - Home swipe edit/delete behavior does not regress.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack screens, not tabs.
@@ -3354,7 +3354,7 @@ Manual QA:
 - Overview totals are scoped to the selected Analytics period.
 - Income uses active balance entries; Expenses uses active expense transactions; Leaks uses active transactions where `isLeak === true`.
 - Balance additions remain a separate domain and are not encoded as Transactions.
-- Analytics remains a read-only ledger/feed, not the old statistics dashboard.
+- Analytics remains a ledger/feed, not the old statistics dashboard.
 - Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
 - Add Transaction, Add Balance, Edit Transaction, and Edit Balance remain root Stack routes, not tabs.
 - Transaction CSV v1, sync/backup/restore DTOs, Supabase schemas, and currency/language data contracts remain unchanged.
@@ -3413,7 +3413,7 @@ Manual QA:
 3. Confirm category icons display on both Home and Analytics transaction rows.
 4. Confirm normal transactions show `Normal`, leak transactions show `Leak`, leak reasons appear when present, and notes appear when present.
 5. Swipe Home expense transaction rows left and right; confirm edit opens the existing edit transaction screen and delete still shows confirmation before removal.
-6. Confirm Analytics transaction rows remain read-only with no edit/delete swipe or inline action affordances.
+6. Confirm Analytics transaction rows keep the shared visual row structure; current edit/delete action behavior is covered by the ML-95 section below.
 7. Switch Home period selector between `Today`, `Yesterday`, and `This week`; confirm no `Choose date` option appears.
 8. Confirm balance additions still render as separate balance rows in the Home union feed and Analytics ledger.
 9. Verify `More` still opens `Analytics & Leaks`, and Add/Spend still open their existing pushed screens.
@@ -3423,7 +3423,7 @@ Manual QA:
 
 - Home and Analytics expense transaction rows are visually aligned while preserving each screen's behavior.
 - Home keeps swipe edit/delete, delete confirmation, existing edit route, one-open-row behavior, and newest-first union feed sorting.
-- Analytics remains read-only and keeps existing period/filter semantics.
+- Analytics keeps existing period/filter semantics; current transaction edit/delete behavior is covered by the ML-95 section below.
 - Balance additions are not encoded as Transactions and do not enter Transaction CSV v1.
 - Home Balance, Add/Spend, Transactions heading, period selector, and `More` behavior remain otherwise unchanged.
 - Analytics Overview, chart, filters, and layout outside rows remain unchanged.
@@ -3458,3 +3458,37 @@ Manual QA:
 - The Analytics icon remains `drop.halffull`.
 - Active blue, inactive near-black, floating footer geometry, and active capsule animation are preserved.
 - Add Transaction and Add Balance are not added to the bottom tabs.
+
+## ML-95 Analytics transaction swipe edit/delete
+
+### 67. Analytics expense transaction actions
+
+**Preconditions**
+
+- Local data includes at least one normal expense transaction, one leak expense transaction, and one balance addition in the selected Analytics period.
+- Include data that exercises `All`, `Added`, and `Spent` Analytics filters.
+
+**Steps**
+
+1. Open `Analytics & Leaks` and swipe an expense transaction row left and right.
+2. Tap `Edit` and confirm it opens the existing Edit Transaction screen for that transaction.
+3. Return to `Analytics & Leaks`, swipe the same or another expense transaction row, tap `Delete`, and cancel the confirmation.
+4. Swipe again, tap `Delete`, confirm removal, and verify the row closes and disappears without a broken open action state.
+5. Confirm Analytics Overview totals refresh after the delete.
+6. Edit a transaction amount/category/leak state, save, and confirm Analytics ledger and Overview refresh without restarting the app.
+7. Switch `Today`, `Week`, `Month`, and Custom period modes and confirm period semantics are unchanged.
+8. Apply `All`, `Added`, and `Spent` filters and confirm row actions remain available on visible expense transaction rows and visible balance addition rows.
+9. Confirm balance addition rows show the `arrow.down.left` icon and open the existing Edit Balance screen from `Edit`.
+10. Delete a balance addition from Analytics, cancel once, confirm once, and verify Overview and the ledger refresh without a broken open action state.
+11. Open `Home`, swipe expense transaction and balance rows, and confirm existing edit/delete behavior, confirmation, and one-open-row behavior still work.
+12. Export/import Transaction CSV v1 and run sync/backup/manual restore regressions where available.
+
+**Expected result**
+
+- Analytics expense transaction rows visually match the accepted ledger row style and support the same swipe edit/delete actions as Home.
+- Edit opens `/transaction/[id]/edit`; delete shows confirmation before calling the existing transaction removal flow.
+- Analytics ledger, Overview, periods, and filters update from current store state after edit/delete.
+- Analytics balance additions keep their balance icon, open `/balance/[id]/edit`, delete through the existing balance removal flow, and remain outside transaction CRUD.
+- Home swipe behavior is unchanged.
+- Transaction CSV v1, sync/backup/restore DTOs, Supabase schemas, tabs, root Stack routes, app config, EAS config, dependencies, and legal data contracts remain unchanged.
+- No forbidden UI dependency, service-role/admin mobile usage, raw env value, token, user ID, owner ID, localOwnerId, device ID, backend ID, secret, or row payload exposure is added.

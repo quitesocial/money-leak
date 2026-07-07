@@ -1,7 +1,8 @@
 import { useRouter, type Href } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Image,
   Modal,
@@ -15,11 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { LedgerTransactionRow } from '@/components/ledger-transaction-row';
 import {
   LocalDatePicker,
   type LocalDatePickerMode,
 } from '@/components/local-date-picker';
+import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import {
   ANALYTICS_CUSTOM_PERIOD_TYPE_OPTIONS,
   ANALYTICS_PERIOD_OPTIONS,
@@ -57,6 +58,10 @@ import {
 } from '@/lib/i18n/i18n';
 import type { SupportedLanguage } from '@/lib/i18n/languages';
 import type { SettingsCurrency } from '@/lib/settings-preferences';
+import {
+  clampSwipeTranslation,
+  createHorizontalSwipePanResponder,
+} from '@/lib/swipe-actions';
 import { useBalanceRefresh } from '@/lib/use-balance-refresh';
 import { useCategoriesRefresh } from '@/lib/use-categories-refresh';
 import { useSettingsCurrency } from '@/lib/use-settings-currency';
@@ -65,7 +70,11 @@ import { useTransactionsRefresh } from '@/lib/use-transactions-refresh';
 import { useBalanceStore } from '@/store/balance-store';
 import { useCategoriesStore } from '@/store/categories-store';
 import { useTransactionsStore } from '@/store/transactions-store';
-import { DEFAULT_BALANCE_TYPES, type BalanceType } from '@/types/balance';
+import {
+  DEFAULT_BALANCE_TYPES,
+  type BalanceEntry,
+  type BalanceType,
+} from '@/types/balance';
 import {
   DEFAULT_CATEGORIES,
   type Category,
@@ -91,6 +100,12 @@ const CHEVRON_RIGHT_ICON = 'chevron.right' as SFSymbol;
 const CALENDAR_ICON = 'calendar' as SFSymbol;
 const NORMAL_DETAIL_ICON = 'hand.thumbsup' as SFSymbol;
 const LEAK_DETAIL_ICON = 'drop.halffull' as SFSymbol;
+const BALANCE_ENTRY_ICON = 'arrow.down.left' as SFSymbol;
+const SWIPE_ACTION_WIDTH = 88;
+
+function clampSwipeProgress(value: number) {
+  return Math.max(-1, Math.min(1, value));
+}
 
 const LEAK_REASON_ICONS: Record<
   LeakReason,
@@ -973,13 +988,308 @@ function CategoryChip({ category, onPress, selected }: CategoryChipProps) {
   );
 }
 
+type SwipeActionIconProps = {
+  fallbackLabel: string;
+  name: SFSymbol;
+};
+
+function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
+  return (
+    <SymbolView
+      fallback={<Text style={styles.swipeActionFallback}>{fallbackLabel}</Text>}
+      name={name}
+      resizeMode="scaleAspectFit"
+      size={26}
+      tintColor="#ffffff"
+      type="monochrome"
+      weight="semibold"
+    />
+  );
+}
+
+type BalanceLedgerRowProps = {
+  amountLabel: string;
+  entry: BalanceEntry;
+  isDeleting: boolean;
+  isDisabled: boolean;
+  isOpen: boolean;
+  language: SupportedLanguage;
+  onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
+  onSwipeClose: (id: string) => void;
+  onSwipeInteractionStart: (id: string) => void;
+  onSwipeOpen: (id: string) => void;
+  testID: string;
+  typeName: string;
+};
+
+function BalanceLedgerRow({
+  amountLabel,
+  entry,
+  isDeleting,
+  isDisabled,
+  isOpen,
+  language,
+  onDelete,
+  onEdit,
+  onSwipeClose,
+  onSwipeInteractionStart,
+  onSwipeOpen,
+  testID,
+  typeName,
+}: BalanceLedgerRowProps) {
+  const swipeProgress = useRef(new Animated.Value(0)).current;
+  const isHorizontallyLockedRef = useRef(false);
+  const [rowWidth, setRowWidth] = useState(360);
+  const actionRevealWidth = Math.min(SWIPE_ACTION_WIDTH, Math.max(rowWidth, 1));
+
+  const animateTo = useCallback(
+    (toValue: number) => {
+      Animated.spring(swipeProgress, {
+        toValue,
+        damping: 22,
+        mass: 0.72,
+        stiffness: 260,
+        useNativeDriver: false,
+      }).start();
+    },
+    [swipeProgress],
+  );
+
+  const closeActions = useCallback(() => {
+    animateTo(0);
+    onSwipeClose(entry.id);
+  }, [animateTo, entry.id, onSwipeClose]);
+
+  const revealDelete = useCallback(() => {
+    onSwipeOpen(entry.id);
+    animateTo(1);
+  }, [animateTo, entry.id, onSwipeOpen]);
+
+  const revealEdit = useCallback(() => {
+    onSwipeOpen(entry.id);
+    animateTo(-1);
+  }, [animateTo, entry.id, onSwipeOpen]);
+
+  const handleTouchStart = useCallback(() => {
+    if (isDisabled) return;
+
+    onSwipeInteractionStart(entry.id);
+  }, [entry.id, isDisabled, onSwipeInteractionStart]);
+
+  const handleDeletePress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onDelete(entry.id);
+  }, [closeActions, entry.id, isDisabled, onDelete]);
+
+  const handleEditPress = useCallback(() => {
+    if (isDisabled) return;
+
+    closeActions();
+    onEdit(entry.id);
+  }, [closeActions, entry.id, isDisabled, onEdit]);
+
+  const panResponder = useMemo(
+    () =>
+      createHorizontalSwipePanResponder({
+        close: closeActions,
+        isDisabled,
+        lockRef: isHorizontallyLockedRef,
+        onGrant: () => {
+          onSwipeInteractionStart(entry.id);
+          swipeProgress.stopAnimation();
+        },
+        onMove: (dx) => {
+          swipeProgress.setValue(
+            clampSwipeProgress(
+              clampSwipeTranslation(dx, actionRevealWidth) / actionRevealWidth,
+            ),
+          );
+        },
+        revealLeading: revealDelete,
+        revealTrailing: revealEdit,
+      }),
+    [
+      closeActions,
+      entry.id,
+      isDisabled,
+      onSwipeInteractionStart,
+      revealDelete,
+      revealEdit,
+      actionRevealWidth,
+      swipeProgress,
+    ],
+  );
+
+  useEffect(() => {
+    if (isDisabled) closeActions();
+  }, [closeActions, isDisabled]);
+
+  useEffect(() => {
+    if (isOpen) return;
+
+    animateTo(0);
+  }, [animateTo, isOpen]);
+
+  const leftActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, actionRevealWidth],
+  });
+  const rightActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [actionRevealWidth, 0, 0],
+  });
+  const contentWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [
+      rowWidth - actionRevealWidth,
+      rowWidth,
+      rowWidth - actionRevealWidth,
+    ],
+  });
+  const cardBackgroundColor = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
+  });
+  const leftActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, 1],
+  });
+  const rightActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [1, 0, 0],
+  });
+
+  return (
+    <View
+      onLayout={(event) => {
+        setRowWidth(event.nativeEvent.layout.width);
+      }}
+      style={styles.swipeContainer}
+    >
+      <Animated.View
+        style={[
+          styles.swipeActionSlot,
+          { opacity: leftActionOpacity, width: leftActionWidth },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel={t(language, 'home.deleteBalanceA11y')}
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleDeletePress}
+          style={[
+            styles.swipeActionCircle,
+            styles.deleteSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Del" name="trash" />
+        </Pressable>
+      </Animated.View>
+
+      <Animated.View
+        {...panResponder.panHandlers}
+        onTouchStart={handleTouchStart}
+        style={[
+          styles.ledgerRow,
+          {
+            backgroundColor: cardBackgroundColor,
+            borderRadius: 24,
+            overflow: 'hidden',
+            width: contentWidth,
+          },
+        ]}
+        testID={testID}
+      >
+        <View style={styles.ledgerInfoRow}>
+          <View style={styles.ledgerIconSlot}>
+            <SymbolView
+              fallback={<Text style={styles.balanceIconFallback}>+</Text>}
+              name={BALANCE_ENTRY_ICON}
+              resizeMode="scaleAspectFit"
+              size={18}
+              testID={`analytics-balance-entry-icon-${entry.id}`}
+              tintColor="#100f10"
+              type="monochrome"
+              weight="semibold"
+            />
+          </View>
+
+          <View style={styles.ledgerCopy}>
+            <Text numberOfLines={1} style={styles.ledgerTitle}>
+              {typeName}
+            </Text>
+
+            <Text style={styles.ledgerTime}>
+              {formatAnalyticsTime(entry.createdAt, language)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.ledgerTrailingCopy}>
+          <Text style={[styles.ledgerAmount, styles.ledgerAmountPositive]}>
+            {amountLabel}
+          </Text>
+
+          {isDeleting ? (
+            <Text numberOfLines={1} style={styles.deletingText}>
+              {t(language, 'home.deleting')}
+            </Text>
+          ) : null}
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.swipeActionSlot,
+          styles.swipeActionSlotTrailing,
+          { opacity: rightActionOpacity, width: rightActionWidth },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel={t(language, 'home.editBalanceA11y')}
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleEditPress}
+          style={[
+            styles.swipeActionCircle,
+            styles.editSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 type LedgerRowProps = {
   balanceTypeOptions: BalanceTypeOption[];
   balanceTypes: BalanceType[];
   categories: Category[];
   currency: SettingsCurrency;
+  isBalanceActionDisabled: boolean;
+  isBalanceOpen: boolean;
+  isDeletingBalance: boolean;
+  isDeletingTransaction: boolean;
+  isTransactionActionDisabled: boolean;
+  isTransactionOpen: boolean;
   item: AnalyticsLedgerItem;
   language: SupportedLanguage;
+  onBalanceSwipeClose: (id: string) => void;
+  onBalanceSwipeInteractionStart: (id: string) => void;
+  onBalanceSwipeOpen: (id: string) => void;
+  onDeleteBalance: (id: string) => void;
+  onDeleteTransaction: (id: string) => void;
+  onEditBalance: (id: string) => void;
+  onEditTransaction: (id: string) => void;
+  onTransactionSwipeClose: (id: string) => void;
+  onTransactionSwipeInteractionStart: (id: string) => void;
+  onTransactionSwipeOpen: (id: string) => void;
 };
 
 function LedgerRow({
@@ -987,56 +1297,73 @@ function LedgerRow({
   balanceTypes,
   categories,
   currency,
+  isBalanceActionDisabled,
+  isBalanceOpen,
+  isDeletingBalance,
+  isDeletingTransaction,
+  isTransactionActionDisabled,
+  isTransactionOpen,
   item,
   language,
+  onBalanceSwipeClose,
+  onBalanceSwipeInteractionStart,
+  onBalanceSwipeOpen,
+  onDeleteBalance,
+  onDeleteTransaction,
+  onEditBalance,
+  onEditTransaction,
+  onTransactionSwipeClose,
+  onTransactionSwipeInteractionStart,
+  onTransactionSwipeOpen,
 }: LedgerRowProps) {
   if (item.kind === 'balance') {
     return (
-      <View
-        style={styles.ledgerRow}
+      <BalanceLedgerRow
+        amountLabel={formatAnalyticsAmount({
+          amount: item.entry.amount,
+          currency,
+          sign: '+',
+        })}
+        entry={item.entry}
+        isDeleting={isDeletingBalance}
+        isDisabled={isBalanceActionDisabled}
+        isOpen={isBalanceOpen}
+        language={language}
+        onDelete={onDeleteBalance}
+        onEdit={onEditBalance}
+        onSwipeClose={onBalanceSwipeClose}
+        onSwipeInteractionStart={onBalanceSwipeInteractionStart}
+        onSwipeOpen={onBalanceSwipeOpen}
         testID={`analytics-balance-row-${item.entry.id}`}
-      >
-        <View style={styles.ledgerInfoRow}>
-          <View style={styles.ledgerIconSlot} />
-
-          <View style={styles.ledgerCopy}>
-            <Text numberOfLines={1} style={styles.ledgerTitle}>
-              {getBalanceTypeDisplayName({
-                balanceTypeOptions,
-                balanceTypes,
-                language,
-                typeId: item.entry.typeId,
-              })}
-            </Text>
-
-            <Text style={styles.ledgerTime}>
-              {formatAnalyticsTime(item.entry.createdAt, language)}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={[styles.ledgerAmount, styles.ledgerAmountPositive]}>
-          {formatAnalyticsAmount({
-            amount: item.entry.amount,
-            currency,
-            sign: '+',
-          })}
-        </Text>
-      </View>
+        typeName={getBalanceTypeDisplayName({
+          balanceTypeOptions,
+          balanceTypes,
+          language,
+          typeId: item.entry.typeId,
+        })}
+      />
     );
   }
 
   const { transaction } = item;
 
   return (
-    <LedgerTransactionRow
+    <SwipeableTransactionRow
       amountLabel={formatAnalyticsAmount({
         amount: transaction.amount,
         currency,
         sign: '-',
       })}
       categories={categories}
+      isDeleting={isDeletingTransaction}
+      isDisabled={isTransactionActionDisabled}
+      isOpen={isTransactionOpen}
       language={language}
+      onDelete={onDeleteTransaction}
+      onEdit={onEditTransaction}
+      onSwipeClose={onTransactionSwipeClose}
+      onSwipeInteractionStart={onTransactionSwipeInteractionStart}
+      onSwipeOpen={onTransactionSwipeOpen}
       testID={`analytics-transaction-row-${transaction.id}`}
       transaction={transaction}
     />
@@ -1672,6 +1999,9 @@ export function AnalyticsScreen() {
   const loadTransactions = useTransactionsStore(
     (state) => state.loadTransactions,
   );
+  const removeTransaction = useTransactionsStore(
+    (state) => state.removeTransaction,
+  );
 
   const balanceEntries = useBalanceStore((state) => state.balanceEntries);
   const balanceTypes = useBalanceStore((state) => state.balanceTypes);
@@ -1682,6 +2012,9 @@ export function AnalyticsScreen() {
   const isBalanceInitialized = useBalanceStore((state) => state.isInitialized);
   const balanceError = useBalanceStore((state) => state.error);
   const loadBalance = useBalanceStore((state) => state.loadBalance);
+  const removeBalanceEntry = useBalanceStore(
+    (state) => state.removeBalanceEntry,
+  );
 
   const categories = useCategoriesStore((state) => state.categories);
   const activeCategories = useCategoriesStore(
@@ -1719,6 +2052,18 @@ export function AnalyticsScreen() {
     createDefaultAnalyticsFilter,
   );
   const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<
+    string | null
+  >(null);
+  const [deletingBalanceEntryId, setDeletingBalanceEntryId] = useState<
+    string | null
+  >(null);
+  const [openSwipeTransactionId, setOpenSwipeTransactionId] = useState<
+    string | null
+  >(null);
+  const [openSwipeBalanceEntryId, setOpenSwipeBalanceEntryId] = useState<
+    string | null
+  >(null);
 
   useTransactionsRefresh({
     isInitialized,
@@ -1812,6 +2157,196 @@ export function AnalyticsScreen() {
   const isFilterActive = isAnalyticsFilterActive(filter);
   const shouldLockScreenScroll =
     inlinePickerMode === 'month' || inlinePickerMode === 'year';
+
+  useEffect(() => {
+    if (!openSwipeTransactionId) return;
+
+    const isOpenTransactionVisible = ledgerItems.some((item) => {
+      return (
+        item.kind === 'transaction' &&
+        item.transaction.id === openSwipeTransactionId
+      );
+    });
+
+    if (isOpenTransactionVisible) return;
+
+    setOpenSwipeTransactionId(null);
+  }, [ledgerItems, openSwipeTransactionId]);
+
+  useEffect(() => {
+    if (!openSwipeBalanceEntryId) return;
+
+    const isOpenBalanceEntryVisible = ledgerItems.some((item) => {
+      return (
+        item.kind === 'balance' && item.entry.id === openSwipeBalanceEntryId
+      );
+    });
+
+    if (isOpenBalanceEntryVisible) return;
+
+    setOpenSwipeBalanceEntryId(null);
+  }, [ledgerItems, openSwipeBalanceEntryId]);
+
+  useEffect(() => {
+    if (
+      !isLoading &&
+      !isBalanceLoading &&
+      !deletingTransactionId &&
+      !deletingBalanceEntryId
+    ) {
+      return;
+    }
+
+    setOpenSwipeTransactionId(null);
+    setOpenSwipeBalanceEntryId(null);
+  }, [
+    deletingBalanceEntryId,
+    deletingTransactionId,
+    isBalanceLoading,
+    isLoading,
+  ]);
+
+  const handleTransactionSwipeInteractionStart = useCallback((id: string) => {
+    setOpenSwipeTransactionId((currentId) =>
+      currentId === id ? currentId : null,
+    );
+    setOpenSwipeBalanceEntryId(null);
+  }, []);
+
+  const handleTransactionSwipeOpen = useCallback((id: string) => {
+    setOpenSwipeTransactionId(id);
+  }, []);
+
+  const handleTransactionSwipeClose = useCallback((id: string) => {
+    setOpenSwipeTransactionId((currentId) =>
+      currentId === id ? null : currentId,
+    );
+  }, []);
+
+  const handleBalanceSwipeInteractionStart = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId((currentId) =>
+      currentId === id ? currentId : null,
+    );
+    setOpenSwipeTransactionId(null);
+  }, []);
+
+  const handleBalanceSwipeOpen = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId(id);
+  }, []);
+
+  const handleBalanceSwipeClose = useCallback((id: string) => {
+    setOpenSwipeBalanceEntryId((currentId) =>
+      currentId === id ? null : currentId,
+    );
+  }, []);
+
+  const handleDeleteTransaction = useCallback(
+    (id: string) => {
+      if (
+        isLoading ||
+        isBalanceLoading ||
+        deletingTransactionId ||
+        deletingBalanceEntryId
+      ) {
+        return;
+      }
+
+      Alert.alert(
+        t(language, 'home.deleteTransactionTitle'),
+        t(language, 'home.deleteTransactionMessage'),
+        [
+          {
+            text: t(language, 'common.cancel'),
+            style: 'cancel',
+          },
+          {
+            text: t(language, 'common.delete'),
+            style: 'destructive',
+            onPress: () => {
+              setDeletingTransactionId(id);
+
+              void removeTransaction(id).finally(() => {
+                setDeletingTransactionId(null);
+              });
+            },
+          },
+        ],
+      );
+    },
+    [
+      deletingBalanceEntryId,
+      deletingTransactionId,
+      isBalanceLoading,
+      isLoading,
+      language,
+      removeTransaction,
+    ],
+  );
+
+  const handleEditTransaction = useCallback(
+    (id: string) => {
+      if (deletingTransactionId !== null || deletingBalanceEntryId !== null) {
+        return;
+      }
+
+      router.push(`/transaction/${id}/edit` as Href);
+    },
+    [deletingBalanceEntryId, deletingTransactionId, router],
+  );
+
+  const handleDeleteBalanceEntry = useCallback(
+    (id: string) => {
+      if (
+        isLoading ||
+        isBalanceLoading ||
+        deletingTransactionId ||
+        deletingBalanceEntryId
+      ) {
+        return;
+      }
+
+      Alert.alert(
+        t(language, 'home.deleteBalanceTitle'),
+        t(language, 'home.deleteBalanceMessage'),
+        [
+          {
+            text: t(language, 'common.cancel'),
+            style: 'cancel',
+          },
+          {
+            text: t(language, 'common.delete'),
+            style: 'destructive',
+            onPress: () => {
+              setDeletingBalanceEntryId(id);
+
+              void removeBalanceEntry(id).finally(() => {
+                setDeletingBalanceEntryId(null);
+              });
+            },
+          },
+        ],
+      );
+    },
+    [
+      deletingBalanceEntryId,
+      deletingTransactionId,
+      isBalanceLoading,
+      isLoading,
+      language,
+      removeBalanceEntry,
+    ],
+  );
+
+  const handleEditBalanceEntry = useCallback(
+    (id: string) => {
+      if (deletingTransactionId !== null || deletingBalanceEntryId !== null) {
+        return;
+      }
+
+      router.push(`/balance/${id}/edit` as Href);
+    },
+    [deletingBalanceEntryId, deletingTransactionId, router],
+  );
 
   function handleOpenFilter() {
     setDraftFilter(filter);
@@ -2308,9 +2843,51 @@ export function AnalyticsScreen() {
                           balanceTypes={balanceTypes}
                           categories={categories}
                           currency={currency}
+                          isBalanceActionDisabled={
+                            isLoading ||
+                            isBalanceLoading ||
+                            deletingTransactionId !== null ||
+                            deletingBalanceEntryId !== null
+                          }
+                          isBalanceOpen={
+                            item.kind === 'balance' &&
+                            openSwipeBalanceEntryId === item.entry.id
+                          }
+                          isDeletingBalance={
+                            item.kind === 'balance' &&
+                            deletingBalanceEntryId === item.entry.id
+                          }
+                          isDeletingTransaction={
+                            item.kind === 'transaction' &&
+                            deletingTransactionId === item.transaction.id
+                          }
+                          isTransactionActionDisabled={
+                            isLoading ||
+                            isBalanceLoading ||
+                            deletingTransactionId !== null ||
+                            deletingBalanceEntryId !== null
+                          }
+                          isTransactionOpen={
+                            item.kind === 'transaction' &&
+                            openSwipeTransactionId === item.transaction.id
+                          }
                           item={item}
                           language={language}
                           key={item.id}
+                          onBalanceSwipeClose={handleBalanceSwipeClose}
+                          onBalanceSwipeInteractionStart={
+                            handleBalanceSwipeInteractionStart
+                          }
+                          onBalanceSwipeOpen={handleBalanceSwipeOpen}
+                          onDeleteBalance={handleDeleteBalanceEntry}
+                          onDeleteTransaction={handleDeleteTransaction}
+                          onEditBalance={handleEditBalanceEntry}
+                          onEditTransaction={handleEditTransaction}
+                          onTransactionSwipeClose={handleTransactionSwipeClose}
+                          onTransactionSwipeInteractionStart={
+                            handleTransactionSwipeInteractionStart
+                          }
+                          onTransactionSwipeOpen={handleTransactionSwipeOpen}
                         />
                       ))}
                     </View>
@@ -2721,6 +3298,44 @@ const styles = StyleSheet.create({
   ledgerRows: {
     gap: 0,
   },
+  swipeContainer: {
+    minHeight: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderRadius: 0,
+  },
+  swipeActionSlot: {
+    minHeight: 74,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  swipeActionSlotTrailing: {
+    alignItems: 'flex-end',
+  },
+  swipeActionCircle: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 26,
+  },
+  swipeActionDisabled: {
+    opacity: 0.5,
+  },
+  deleteSwipeAction: {
+    backgroundColor: '#ff3b45',
+  },
+  editSwipeAction: {
+    backgroundColor: '#34c759',
+  },
+  swipeActionFallback: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
   ledgerRow: {
     minHeight: 74,
     flexDirection: 'row',
@@ -2745,9 +3360,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  balanceIconFallback: {
+    color: '#100f10',
+    fontSize: 17,
+    lineHeight: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
   ledgerCopy: {
     flex: 1,
     minWidth: 0,
+    gap: 2,
+  },
+  ledgerTrailingCopy: {
+    alignItems: 'flex-end',
     gap: 2,
   },
   ledgerTitle: {
@@ -2774,6 +3400,13 @@ const styles = StyleSheet.create({
   },
   ledgerAmountNegative: {
     color: '#100f10',
+  },
+  deletingText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    textAlign: 'right',
+    color: '#c22121',
   },
   emptyState: {
     alignItems: 'center',

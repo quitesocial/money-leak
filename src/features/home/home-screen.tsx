@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LedgerTransactionRow } from '@/components/ledger-transaction-row';
 import { PeriodSelector } from '@/components/period-selector';
+import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import { calculateCurrentBalance } from '@/features/home/calculate-current-balance';
 import { getValidDate } from '@/lib/date-utils';
 import { formatMoneyAmount } from '@/lib/display-formatters';
@@ -44,7 +44,6 @@ import { useCategoriesStore } from '@/store/categories-store';
 import { usePeriodScopeStore } from '@/store/period-scope-store';
 import { useTransactionsStore } from '@/store/transactions-store';
 import type { BalanceEntry, BalanceType } from '@/types/balance';
-import type { Category } from '@/types/category';
 import type { Transaction } from '@/types/transaction';
 
 const TITLE_FONT_FAMILY = Platform.select({
@@ -59,6 +58,11 @@ const TITLE_FONT_WEIGHT = Platform.select({
 
 const HOME_PERIOD_OPTIONS: PeriodScope[] = ['today', 'yesterday', 'this_week'];
 const SWIPE_ACTION_WIDTH = 88;
+
+function clampSwipeProgress(value: number) {
+  return Math.max(-1, Math.min(1, value));
+}
+
 function isSameLocalDay(firstDate: Date, secondDate: Date) {
   return (
     firstDate.getFullYear() === secondDate.getFullYear() &&
@@ -186,178 +190,6 @@ function SwipeActionIcon({ fallbackLabel, name }: SwipeActionIconProps) {
   );
 }
 
-type HistoryTransactionItemProps = {
-  amountLabel: string;
-  categories: Category[];
-  isDeleting: boolean;
-  isDisabled: boolean;
-  isOpen: boolean;
-  onDelete: (id: string) => void;
-  onEdit: (id: string) => void;
-  onSwipeClose: (id: string) => void;
-  onSwipeInteractionStart: (id: string) => void;
-  onSwipeOpen: (id: string) => void;
-  transaction: Transaction;
-  language: SupportedLanguage;
-};
-
-function HistoryTransactionItem({
-  amountLabel,
-  categories,
-  isDeleting,
-  isDisabled,
-  isOpen,
-  onDelete,
-  onEdit,
-  onSwipeClose,
-  onSwipeInteractionStart,
-  onSwipeOpen,
-  transaction,
-  language,
-}: HistoryTransactionItemProps) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const isHorizontallyLockedRef = useRef(false);
-
-  const animateTo = useCallback(
-    (toValue: number) => {
-      Animated.spring(translateX, {
-        toValue,
-        damping: 22,
-        mass: 0.72,
-        stiffness: 260,
-        useNativeDriver: false,
-      }).start();
-    },
-    [translateX],
-  );
-
-  const closeActions = useCallback(() => {
-    animateTo(0);
-    onSwipeClose(transaction.id);
-  }, [animateTo, onSwipeClose, transaction.id]);
-
-  const revealDelete = useCallback(() => {
-    onSwipeOpen(transaction.id);
-    animateTo(SWIPE_ACTION_WIDTH);
-  }, [animateTo, onSwipeOpen, transaction.id]);
-
-  const revealEdit = useCallback(() => {
-    onSwipeOpen(transaction.id);
-    animateTo(-SWIPE_ACTION_WIDTH);
-  }, [animateTo, onSwipeOpen, transaction.id]);
-
-  const handleTouchStart = useCallback(() => {
-    if (isDisabled) return;
-
-    onSwipeInteractionStart(transaction.id);
-  }, [isDisabled, onSwipeInteractionStart, transaction.id]);
-
-  const handleDeletePress = useCallback(() => {
-    if (isDisabled) return;
-
-    closeActions();
-    onDelete(transaction.id);
-  }, [closeActions, isDisabled, onDelete, transaction.id]);
-
-  const handleEditPress = useCallback(() => {
-    if (isDisabled) return;
-
-    closeActions();
-    onEdit(transaction.id);
-  }, [closeActions, isDisabled, onEdit, transaction.id]);
-
-  const panResponder = useMemo(
-    () =>
-      createHorizontalSwipePanResponder({
-        close: closeActions,
-        isDisabled,
-        lockRef: isHorizontallyLockedRef,
-        onGrant: () => {
-          onSwipeInteractionStart(transaction.id);
-          translateX.stopAnimation();
-        },
-        onMove: (dx) => {
-          translateX.setValue(clampSwipeTranslation(dx, SWIPE_ACTION_WIDTH));
-        },
-        revealLeading: revealDelete,
-        revealTrailing: revealEdit,
-      }),
-    [
-      closeActions,
-      isDisabled,
-      onSwipeInteractionStart,
-      revealDelete,
-      revealEdit,
-      transaction.id,
-      translateX,
-    ],
-  );
-
-  useEffect(() => {
-    if (isDisabled) closeActions();
-  }, [closeActions, isDisabled]);
-
-  useEffect(() => {
-    if (isOpen) return;
-
-    animateTo(0);
-  }, [animateTo, isOpen]);
-
-  const cardBackgroundColor = translateX.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
-  });
-
-  return (
-    <View style={[styles.swipeContainer, styles.transactionSwipeContainer]}>
-      <View style={styles.swipeActionLayer}>
-        <Pressable
-          accessibilityLabel={t(language, 'home.deleteTransactionA11y')}
-          accessibilityRole="button"
-          disabled={isDisabled}
-          onPress={handleDeletePress}
-          style={[
-            styles.swipeActionCircle,
-            styles.deleteSwipeAction,
-            isDisabled ? styles.swipeActionDisabled : null,
-          ]}
-        >
-          <SwipeActionIcon fallbackLabel="Del" name="trash" />
-        </Pressable>
-
-        <Pressable
-          accessibilityLabel={t(language, 'home.editTransactionA11y')}
-          accessibilityRole="button"
-          disabled={isDisabled}
-          onPress={handleEditPress}
-          style={[
-            styles.swipeActionCircle,
-            styles.editSwipeAction,
-            isDisabled ? styles.swipeActionDisabled : null,
-          ]}
-        >
-          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
-        </Pressable>
-      </View>
-
-      <LedgerTransactionRow
-        amountLabel={amountLabel}
-        categories={categories}
-        deletingLabel={isDeleting ? t(language, 'home.deleting') : null}
-        gestureHandlers={panResponder.panHandlers}
-        onTouchStart={handleTouchStart}
-        style={{
-          backgroundColor: cardBackgroundColor,
-          transform: [{ translateX }],
-        }}
-        testID={`transaction-history-row-${transaction.id}`}
-        transaction={transaction}
-        language={language}
-      />
-    </View>
-  );
-}
-
 function HistoryBalanceItem({
   amountLabel,
   entry,
@@ -385,12 +217,14 @@ function HistoryBalanceItem({
   typeName: string;
   language: SupportedLanguage;
 }) {
-  const translateX = useRef(new Animated.Value(0)).current;
+  const swipeProgress = useRef(new Animated.Value(0)).current;
   const isHorizontallyLockedRef = useRef(false);
+  const [rowWidth, setRowWidth] = useState(360);
+  const actionRevealWidth = Math.min(SWIPE_ACTION_WIDTH, Math.max(rowWidth, 1));
 
   const animateTo = useCallback(
     (toValue: number) => {
-      Animated.spring(translateX, {
+      Animated.spring(swipeProgress, {
         toValue,
         damping: 22,
         mass: 0.72,
@@ -398,7 +232,7 @@ function HistoryBalanceItem({
         useNativeDriver: false,
       }).start();
     },
-    [translateX],
+    [swipeProgress],
   );
 
   const closeActions = useCallback(() => {
@@ -408,12 +242,12 @@ function HistoryBalanceItem({
 
   const revealDelete = useCallback(() => {
     onSwipeOpen(entry.id);
-    animateTo(SWIPE_ACTION_WIDTH);
+    animateTo(1);
   }, [animateTo, entry.id, onSwipeOpen]);
 
   const revealEdit = useCallback(() => {
     onSwipeOpen(entry.id);
-    animateTo(-SWIPE_ACTION_WIDTH);
+    animateTo(-1);
   }, [animateTo, entry.id, onSwipeOpen]);
 
   const handleTouchStart = useCallback(() => {
@@ -444,10 +278,14 @@ function HistoryBalanceItem({
         lockRef: isHorizontallyLockedRef,
         onGrant: () => {
           onSwipeInteractionStart(entry.id);
-          translateX.stopAnimation();
+          swipeProgress.stopAnimation();
         },
         onMove: (dx) => {
-          translateX.setValue(clampSwipeTranslation(dx, SWIPE_ACTION_WIDTH));
+          swipeProgress.setValue(
+            clampSwipeProgress(
+              clampSwipeTranslation(dx, actionRevealWidth) / actionRevealWidth,
+            ),
+          );
         },
         revealLeading: revealDelete,
         revealTrailing: revealEdit,
@@ -459,7 +297,8 @@ function HistoryBalanceItem({
       onSwipeInteractionStart,
       revealDelete,
       revealEdit,
-      translateX,
+      actionRevealWidth,
+      swipeProgress,
     ],
   );
 
@@ -473,14 +312,48 @@ function HistoryBalanceItem({
     animateTo(0);
   }, [animateTo, isOpen]);
 
-  const cardBackgroundColor = translateX.interpolate({
+  const leftActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, actionRevealWidth],
+  });
+  const rightActionWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [actionRevealWidth, 0, 0],
+  });
+  const contentWidth = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [
+      rowWidth - actionRevealWidth,
+      rowWidth,
+      rowWidth - actionRevealWidth,
+    ],
+  });
+  const cardBackgroundColor = swipeProgress.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: ['#ffffff', '#f7f7f5', '#ffffff'],
   });
+  const leftActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 0, 1],
+  });
+  const rightActionOpacity = swipeProgress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [1, 0, 0],
+  });
 
   return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.swipeActionLayer}>
+    <View
+      onLayout={(event) => {
+        setRowWidth(event.nativeEvent.layout.width);
+      }}
+      style={styles.swipeContainer}
+    >
+      <Animated.View
+        style={[
+          styles.swipeActionSlot,
+          { opacity: leftActionOpacity, width: leftActionWidth },
+        ]}
+      >
         <Pressable
           accessibilityLabel={t(language, 'home.deleteBalanceA11y')}
           accessibilityRole="button"
@@ -494,21 +367,7 @@ function HistoryBalanceItem({
         >
           <SwipeActionIcon fallbackLabel="Del" name="trash" />
         </Pressable>
-
-        <Pressable
-          accessibilityLabel={t(language, 'home.editBalanceA11y')}
-          accessibilityRole="button"
-          disabled={isDisabled}
-          onPress={handleEditPress}
-          style={[
-            styles.swipeActionCircle,
-            styles.editSwipeAction,
-            isDisabled ? styles.swipeActionDisabled : null,
-          ]}
-        >
-          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
-        </Pressable>
-      </View>
+      </Animated.View>
 
       <Animated.View
         {...panResponder.panHandlers}
@@ -518,7 +377,7 @@ function HistoryBalanceItem({
           styles.balanceEntryCard,
           {
             backgroundColor: cardBackgroundColor,
-            transform: [{ translateX }],
+            width: contentWidth,
           },
         ]}
         testID={`balance-history-row-${entry.id}`}
@@ -559,6 +418,28 @@ function HistoryBalanceItem({
             {t(language, 'home.deleting')}
           </Text>
         ) : null}
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.swipeActionSlot,
+          styles.swipeActionSlotTrailing,
+          { opacity: rightActionOpacity, width: rightActionWidth },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel={t(language, 'home.editBalanceA11y')}
+          accessibilityRole="button"
+          disabled={isDisabled}
+          onPress={handleEditPress}
+          style={[
+            styles.swipeActionCircle,
+            styles.editSwipeAction,
+            isDisabled ? styles.swipeActionDisabled : null,
+          ]}
+        >
+          <SwipeActionIcon fallbackLabel="Edit" name="pencil" />
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -1087,7 +968,7 @@ export function HomeScreen() {
                     deletingBalanceEntryId !== null;
 
                   return (
-                    <HistoryTransactionItem
+                    <SwipeableTransactionRow
                       categories={categories}
                       amountLabel={formatMoneyAmount({
                         amount: transaction.amount,
@@ -1103,6 +984,7 @@ export function HomeScreen() {
                       onSwipeClose={handleSwipeClose}
                       onSwipeInteractionStart={handleSwipeInteractionStart}
                       onSwipeOpen={handleSwipeOpen}
+                      testID={`transaction-history-row-${transaction.id}`}
                       transaction={transaction}
                       language={language}
                     />
@@ -1301,19 +1183,19 @@ const styles = StyleSheet.create({
   },
   swipeContainer: {
     minHeight: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
     overflow: 'hidden',
     borderRadius: 24,
   },
-  transactionSwipeContainer: {
-    minHeight: 74,
-    borderRadius: 0,
+  swipeActionSlot: {
+    minHeight: 100,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  swipeActionLayer: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+  swipeActionSlotTrailing: {
+    alignItems: 'flex-end',
   },
   swipeActionCircle: {
     width: 52,
