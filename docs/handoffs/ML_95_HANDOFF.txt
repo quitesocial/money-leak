@@ -1,0 +1,161 @@
+ML-95 [DEV] Analytics transaction and balance row swipe edit/delete handoff
+Date: 2026-07-07
+Project: Money Leak
+Version after task: 1.27.4
+
+Summary
+
+ML-95 is implemented, validated, and manually tested. Analytics & Leaks ledger
+rows now support swipe edit/delete for both expense transactions and balance
+additions. The final accepted swipe behavior matches the Settings category
+swipe model: the foreground row shrinks to reveal the action button instead of
+sliding the row content out of view, and foreground rows keep rounded corners.
+
+Manual QA status
+
+User completed manual testing after implementation and reported everything OK.
+The manually accepted behavior includes:
+
+- Analytics expense transaction rows can be swiped, edited, and deleted.
+- Analytics balance addition rows can be swiped, edited, and deleted.
+- Analytics balance addition rows show the arrow.down.left icon.
+- Swipe foreground rows keep rounded corners.
+- Row content does not slide out of the visible area during swipe; the row
+  shrinks to reveal the action button.
+
+Key product behavior implemented
+
+- Analytics expense transaction rows support swipe actions:
+  Edit opens /transaction/[id]/edit.
+  Delete shows confirmation and uses the existing removeTransaction flow.
+- Analytics balance addition rows support swipe actions:
+  Edit opens /balance/[id]/edit.
+  Delete shows confirmation and uses the existing removeBalanceEntry flow.
+- Home expense transaction rows still support the same edit/delete behavior as
+  before ML-95.
+- Home balance addition rows keep edit/delete behavior and were updated to the
+  same shrink-to-reveal swipe model.
+- One-open-row behavior is preserved within Home and Analytics. Opening a
+  transaction row closes an open balance row, and opening a balance row closes
+  an open transaction row.
+- Deleting rows clears open swipe state so the UI does not leave a broken open
+  action state.
+- Analytics Overview, ledger groups, and period/filter results update from the
+  current store state after edit/delete.
+- Analytics All / Added / Spent filters remain intact:
+  All can show both balance additions and expense transactions.
+  Added shows balance additions.
+  Spent shows expense transactions.
+- Balance additions remain a separate balance domain and are not encoded as
+  Transactions.
+
+Key implementation files
+
+- src/components/swipeable-transaction-row.tsx
+  New reusable wrapper for expense transaction swipe behavior. It composes the
+  existing LedgerTransactionRow and owns gesture handling, action buttons,
+  open/close animation, disabled/deleting state, and shrink-to-reveal layout.
+  LedgerTransactionRow remains presentation-only.
+
+- src/features/home/home-screen.tsx
+  Home expense transaction rows now use SwipeableTransactionRow. Home balance
+  rows remain local to Home but were updated to the same shrink-to-reveal swipe
+  model. Existing Home delete confirmations, edit routes, and one-open-row
+  behavior are preserved.
+
+- src/features/analytics/analytics-screen.tsx
+  Analytics now wires existing transaction and balance store removal flows into
+  ledger rows. Expense transaction rows use SwipeableTransactionRow. Balance
+  addition rows use an Analytics-local swipe row with the balance icon and the
+  existing balance edit/delete routes and confirmations.
+
+- src/features/analytics/__tests__/analytics-screen.test.tsx
+  Added/updated coverage for Analytics transaction edit/delete, transaction
+  delete confirmation/removal, pending delete disabled state, balance addition
+  icon rendering, balance edit/delete, and balance deletion through the balance
+  store flow.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated release/version contract to ML-95 and version 1.27.4.
+
+- docs/mvp-qa-checklist.md
+  Added ML-95 manual QA coverage and updated stale read-only Analytics wording
+  from earlier ML-93/ML-91-era sections.
+
+- package.json / package-lock.json
+  Version bumped from 1.27.3 to 1.27.4. app.config.js was not changed and still
+  reads version from package.json.
+
+Validation commands run successfully
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed; Expo config resolves package version 1.27.4.
+
+- npm test -- --runInBand
+  Result: 51 test suites passed, 431 tests passed.
+
+- npm run typecheck
+  Result: passed.
+
+- npm run lint
+  Result: passed.
+
+- npm run format:check
+  Result: passed.
+
+- npx expo config --json
+  Result: passed; resolved version is 1.27.4.
+
+- git diff --check
+  Result: passed before this handoff file was added.
+
+Targeted contract checks verified
+
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- Transaction edit route remains /transaction/[id]/edit.
+- Balance edit route remains /balance/[id]/edit.
+- Balance additions remain separate from expense Transactions.
+- No forbidden UI dependencies were added:
+  @expo/ui, expo-blur, BlurView, Liquid Glass, or glass-styles.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No raw env values, tokens, user IDs, owner IDs, localOwnerIds, device IDs,
+  backend IDs, secrets, or row payloads were exposed.
+
+Things intentionally not changed
+
+- No backend, auth, cloud sync, or Supabase migration changes.
+- No backup/restore/sync DTO or schema changes.
+- No Transaction CSV v1 migration.
+- No balance additions encoded as Transactions.
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No bottom tab/navigation changes.
+- No app.config.js or eas.json changes.
+- No new dependencies.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles.
+- AGENTS.md was not changed because the existing durable project rules already
+  cover this task.
+
+Notes for future agents
+
+- Keep LedgerTransactionRow presentation-only. Do not put CRUD, routing, store,
+  or Alert logic inside it.
+- Use SwipeableTransactionRow for expense transaction swipe behavior instead of
+  duplicating PanResponder/Animated transaction swipe logic in screens.
+- Preserve the shrink-to-reveal swipe pattern for ledger rows. Do not return to
+  translating the foreground row out of view.
+- Preserve rounded foreground row corners during swipe.
+- Keep balance additions on the balance domain path:
+  /balance/[id]/edit and removeBalanceEntry.
+- Keep expense transactions on the transaction domain path:
+  /transaction/[id]/edit and removeTransaction.
+- If future Analytics ledger behavior changes, retest All / Added / Spent
+  filters, Overview recalculation, and Home swipe regressions.
