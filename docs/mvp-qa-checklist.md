@@ -3492,3 +3492,34 @@ Manual QA:
 - Home swipe behavior is unchanged.
 - Transaction CSV v1, sync/backup/restore DTOs, Supabase schemas, tabs, root Stack routes, app config, EAS config, dependencies, and legal data contracts remain unchanged.
 - No forbidden UI dependency, service-role/admin mobile usage, raw env value, token, user ID, owner ID, localOwnerId, device ID, backend ID, secret, or row payload exposure is added.
+
+## ML-96 Home date headers
+
+### 68. Home transaction feed date groups
+
+**Preconditions**
+
+- Local data includes at least one expense transaction and one balance addition for today.
+- Local data includes at least one expense transaction or balance addition for yesterday.
+- Local data includes multiple visible days in `This week`.
+
+**Steps**
+
+1. Open `Home`, select `Today`, and confirm one full date header appears below `Transactions / More` and above the first row.
+2. Select `Yesterday` and confirm the header matches yesterday's local calendar date.
+3. Select `This week` and confirm rows are grouped by local calendar day, with newest date groups first.
+4. Add or verify an expense transaction and balance addition on the same local day; confirm they share one date header.
+5. Select a period with no visible rows and confirm the empty state renders without an orphan date header.
+6. Swipe a Home expense transaction row and confirm edit/delete still work.
+7. Swipe a Home balance addition row and confirm edit/delete still work.
+8. Confirm the Home period selector still shows only `Today`, `Yesterday`, and `This week`; `Choose date` does not appear.
+9. Tap `Add`, `Spend`, and `More`; confirm they still open `/add-balance`, `/add-transaction`, and `Analytics & Leaks`.
+10. Export/import Transaction CSV v1 and run sync/backup/manual restore regressions where available.
+
+**Expected result**
+
+- Home date headers use localized full-date labels such as `23 April 2026` in English.
+- `Today` and `Yesterday` show one date header only when rows exist.
+- `This week` groups expense transactions and balance additions by shared local calendar day.
+- Existing Home row visuals, shrink-to-reveal swipe actions, delete confirmations, edit routes, and one-open-row behavior are unchanged.
+- Balance block, Add/Spend buttons, More route, bottom tabs, root Stack routes, CSV v1, sync/backup/restore DTOs, Supabase schemas, app config, dependencies, and currency/data contracts remain unchanged.
