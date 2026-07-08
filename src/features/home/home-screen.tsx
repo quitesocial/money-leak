@@ -1,6 +1,13 @@
 import { useRouter, type Href } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Animated,
@@ -16,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PeriodSelector } from '@/components/period-selector';
 import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import { calculateCurrentBalance } from '@/features/home/calculate-current-balance';
+import { groupHomeHistoryItems } from '@/features/home/home-history-sections';
 import { getValidDate } from '@/lib/date-utils';
 import { formatMoneyAmount } from '@/lib/display-formatters';
 import {
@@ -536,6 +544,10 @@ export function HomeScreen() {
       return second.id.localeCompare(first.id);
     });
   }, [filteredBalanceEntries, filteredTransactions]);
+  const historySections = useMemo(
+    () => groupHomeHistoryItems(historyItems, language),
+    [historyItems, language],
+  );
 
   const currentBalance = calculateCurrentBalance({
     balanceEntries,
@@ -918,78 +930,89 @@ export function HomeScreen() {
 
             {hasHistoryItems ? (
               <View style={styles.transactionList}>
-                {historyItems.map((item) => {
-                  if (item.kind === 'balance') {
-                    const isDeletingThisBalanceEntry =
-                      deletingBalanceEntryId === item.entry.id;
-                    const isBalanceActionDisabled =
-                      isLoading ||
-                      isBalanceLoading ||
-                      deletingTransactionId !== null ||
-                      deletingBalanceEntryId !== null;
+                {historySections.map((section) => (
+                  <Fragment key={section.dateKey}>
+                    <Text
+                      style={styles.dateHeaderText}
+                      testID={`home-history-date-header-${section.dateKey}`}
+                    >
+                      {section.label}
+                    </Text>
 
-                    return (
-                      <HistoryBalanceItem
-                        amountLabel={formatMoneyAmount({
-                          amount: item.entry.amount,
-                          currency,
-                          sign: '+',
-                        })}
-                        entry={item.entry}
-                        isDeleting={isDeletingThisBalanceEntry}
-                        isDisabled={isBalanceActionDisabled}
-                        isOpen={openSwipeBalanceEntryId === item.entry.id}
-                        key={item.id}
-                        onDelete={handleDeleteBalanceEntry}
-                        onEdit={handleEditBalanceEntry}
-                        onSwipeClose={handleBalanceSwipeClose}
-                        onSwipeInteractionStart={
-                          handleBalanceSwipeInteractionStart
-                        }
-                        onSwipeOpen={handleBalanceSwipeOpen}
-                        typeName={getBalanceTypeDisplayName({
-                          balanceTypes,
-                          language,
-                          typeId: item.entry.typeId,
-                        })}
-                        language={language}
-                      />
-                    );
-                  }
+                    {section.items.map((item) => {
+                      if (item.kind === 'balance') {
+                        const isDeletingThisBalanceEntry =
+                          deletingBalanceEntryId === item.entry.id;
+                        const isBalanceActionDisabled =
+                          isLoading ||
+                          isBalanceLoading ||
+                          deletingTransactionId !== null ||
+                          deletingBalanceEntryId !== null;
 
-                  const { transaction } = item;
-                  const isDeletingThisTransaction =
-                    deletingTransactionId === transaction.id;
+                        return (
+                          <HistoryBalanceItem
+                            amountLabel={formatMoneyAmount({
+                              amount: item.entry.amount,
+                              currency,
+                              sign: '+',
+                            })}
+                            entry={item.entry}
+                            isDeleting={isDeletingThisBalanceEntry}
+                            isDisabled={isBalanceActionDisabled}
+                            isOpen={openSwipeBalanceEntryId === item.entry.id}
+                            key={item.id}
+                            onDelete={handleDeleteBalanceEntry}
+                            onEdit={handleEditBalanceEntry}
+                            onSwipeClose={handleBalanceSwipeClose}
+                            onSwipeInteractionStart={
+                              handleBalanceSwipeInteractionStart
+                            }
+                            onSwipeOpen={handleBalanceSwipeOpen}
+                            typeName={getBalanceTypeDisplayName({
+                              balanceTypes,
+                              language,
+                              typeId: item.entry.typeId,
+                            })}
+                            language={language}
+                          />
+                        );
+                      }
 
-                  const isTransactionActionDisabled =
-                    isLoading ||
-                    isBalanceLoading ||
-                    deletingTransactionId !== null ||
-                    deletingBalanceEntryId !== null;
+                      const { transaction } = item;
+                      const isDeletingThisTransaction =
+                        deletingTransactionId === transaction.id;
 
-                  return (
-                    <SwipeableTransactionRow
-                      categories={categories}
-                      amountLabel={formatMoneyAmount({
-                        amount: transaction.amount,
-                        currency,
-                        sign: '-',
-                      })}
-                      isDeleting={isDeletingThisTransaction}
-                      isDisabled={isTransactionActionDisabled}
-                      isOpen={openSwipeTransactionId === transaction.id}
-                      key={item.id}
-                      onDelete={handleDeleteTransaction}
-                      onEdit={handleEditTransaction}
-                      onSwipeClose={handleSwipeClose}
-                      onSwipeInteractionStart={handleSwipeInteractionStart}
-                      onSwipeOpen={handleSwipeOpen}
-                      testID={`transaction-history-row-${transaction.id}`}
-                      transaction={transaction}
-                      language={language}
-                    />
-                  );
-                })}
+                      const isTransactionActionDisabled =
+                        isLoading ||
+                        isBalanceLoading ||
+                        deletingTransactionId !== null ||
+                        deletingBalanceEntryId !== null;
+
+                      return (
+                        <SwipeableTransactionRow
+                          categories={categories}
+                          amountLabel={formatMoneyAmount({
+                            amount: transaction.amount,
+                            currency,
+                            sign: '-',
+                          })}
+                          isDeleting={isDeletingThisTransaction}
+                          isDisabled={isTransactionActionDisabled}
+                          isOpen={openSwipeTransactionId === transaction.id}
+                          key={item.id}
+                          onDelete={handleDeleteTransaction}
+                          onEdit={handleEditTransaction}
+                          onSwipeClose={handleSwipeClose}
+                          onSwipeInteractionStart={handleSwipeInteractionStart}
+                          onSwipeOpen={handleSwipeOpen}
+                          testID={`transaction-history-row-${transaction.id}`}
+                          transaction={transaction}
+                          language={language}
+                        />
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </View>
             ) : (
               <View style={styles.emptyState}>
@@ -1164,6 +1187,14 @@ const styles = StyleSheet.create({
   },
   transactionList: {
     gap: 0,
+  },
+  dateHeaderText: {
+    marginTop: 8,
+    marginBottom: 8,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '500',
+    color: '#100f10',
   },
   emptyState: {
     gap: 8,

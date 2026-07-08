@@ -393,6 +393,30 @@ function getPastDate(daysAgo: number) {
   return date;
 }
 
+function formatExpectedDateHeader(date: Date) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+function countExactTextNodes(renderer: ReactTestRenderer, text: string) {
+  const matchingTestIds = new Set<string>();
+
+  for (const candidate of findAllNodes(renderer.root, (candidate) => {
+    return Boolean(
+      getNodeText(candidate) === text &&
+      typeof candidate.props.testID === 'string' &&
+      candidate.props.testID.startsWith('home-history-date-header-'),
+    );
+  })) {
+    matchingTestIds.add(candidate.props.testID as string);
+  }
+
+  return matchingTestIds.size;
+}
+
 async function expectHistoryAmounts({
   hidden,
   visible,
@@ -713,6 +737,31 @@ describe('HomeScreen', () => {
     });
   });
 
+  it('renders one Today date header above visible rows', async () => {
+    const today = new Date();
+    const todayLabel = formatExpectedDateHeader(today);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'today';
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(countExactTextNodes(renderer, todayLabel)).toBe(1);
+    expect(screenText.indexOf('Transactions')).toBeLessThan(
+      screenText.indexOf(todayLabel),
+    );
+    expect(screenText.indexOf(todayLabel)).toBeLessThan(
+      screenText.indexOf('Food'),
+    );
+  });
+
   it('applies the Yesterday Transactions period filter to additions and expenses', async () => {
     const today = new Date();
     const yesterday = getPastDate(1);
@@ -749,6 +798,35 @@ describe('HomeScreen', () => {
     });
   });
 
+  it('renders the Yesterday date header above visible rows', async () => {
+    const today = new Date();
+    const yesterday = getPastDate(1);
+    const yesterdayLabel = formatExpectedDateHeader(yesterday);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'yesterday';
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-yesterday',
+        amount: 25,
+        createdAt: yesterday.getTime(),
+      }),
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(countExactTextNodes(renderer, yesterdayLabel)).toBe(1);
+    expect(screenText.indexOf(yesterdayLabel)).toBeLessThan(
+      screenText.indexOf('-25.00 €'),
+    );
+    expect(screenText).not.toContain('-35.00 €');
+  });
+
   it('applies the This week Transactions period filter to additions and expenses', async () => {
     const today = new Date();
     const olderThanThisWeek = getPastDate(8);
@@ -783,6 +861,102 @@ describe('HomeScreen', () => {
       visible: ['+125.00 €', '-35.00 €'],
       hidden: ['+75.00 €', '-25.00 €'],
     });
+  });
+
+  it('groups This week rows by local day newest first', async () => {
+    const today = new Date();
+    const yesterday = getPastDate(1);
+    const todayLabel = formatExpectedDateHeader(today);
+    const yesterdayLabel = formatExpectedDateHeader(yesterday);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'this_week';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-yesterday',
+        amount: 75,
+        createdAt: yesterday.getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(countExactTextNodes(renderer, todayLabel)).toBe(1);
+    expect(countExactTextNodes(renderer, yesterdayLabel)).toBe(1);
+    expect(screenText.indexOf(todayLabel)).toBeLessThan(
+      screenText.indexOf('-35.00 €'),
+    );
+    expect(screenText.indexOf('-35.00 €')).toBeLessThan(
+      screenText.indexOf(yesterdayLabel),
+    );
+    expect(screenText.indexOf(yesterdayLabel)).toBeLessThan(
+      screenText.indexOf('+75.00 €'),
+    );
+  });
+
+  it('uses one date header for expenses and balance additions from the same local day', async () => {
+    const today = new Date();
+    const todayLabel = formatExpectedDateHeader(today);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'today';
+    mockBalanceStoreState.balanceEntries = [
+      createBalanceEntry({
+        id: 'balance-today',
+        amount: 125,
+        createdAt: today.getTime(),
+      }),
+    ];
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime() + 1,
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(countExactTextNodes(renderer, todayLabel)).toBe(1);
+    expect(screenText.indexOf(todayLabel)).toBeLessThan(
+      screenText.indexOf('-35.00 €'),
+    );
+    expect(screenText.indexOf(todayLabel)).toBeLessThan(
+      screenText.indexOf('+125.00 €'),
+    );
+  });
+
+  it('does not render an orphan date header for an empty selected period', async () => {
+    const today = new Date();
+    const yesterday = getPastDate(1);
+    const yesterdayLabel = formatExpectedDateHeader(yesterday);
+
+    mockPeriodScopeStoreState.selectedPeriod = 'yesterday';
+    mockTransactionsStoreState.transactions = [
+      createTransaction({
+        id: 'txn-today',
+        amount: 35,
+        createdAt: today.getTime(),
+      }),
+    ];
+
+    const renderer = await renderHomeScreen();
+    const screenText = getNodeText(renderer.root);
+
+    expect(screenText).toContain('No transactions for Yesterday');
+    expect(screenText).not.toContain(yesterdayLabel);
+    expect(
+      findAllNodes(renderer.root, (candidate) => {
+        return candidate.props.testID === 'transaction-history-row-txn-today';
+      }),
+    ).toHaveLength(0);
   });
 
   it('keeps transaction edit and delete affordances testable', async () => {
