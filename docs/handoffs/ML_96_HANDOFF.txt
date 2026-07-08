@@ -1,0 +1,187 @@
+ML-96 [DEV] Home transaction feed date headers handoff
+Date: 2026-07-08
+Project: Money Leak
+Version after task: 1.27.5
+
+Summary
+
+ML-96 is implemented, validated, and manually tested. Home now shows localized
+date headers in the transaction feed:
+
+- Today shows one full-date header above rows when the selected period has
+  visible rows.
+- Yesterday shows one full-date header above rows when the selected period has
+  visible rows.
+- This week groups the Home union feed by local calendar day, newest day first.
+- Expense transactions and balance additions from the same local day share one
+  date header.
+- Empty selected periods keep the existing empty state and do not render an
+  orphan date header.
+
+Manual QA status
+
+User completed manual testing after implementation and reported everything OK.
+The manually accepted behavior includes:
+
+- Today date header renders correctly on Home.
+- Yesterday date header renders correctly on Home.
+- This week shows multiple local-day groups in newest-first order.
+- Mixed expense transaction and balance addition rows from the same day appear
+  under one shared date header.
+- Home transaction swipe edit/delete still works.
+- Home balance addition swipe edit/delete still works.
+- Empty period state does not show an orphan date header.
+- Home still does not show Choose date.
+- Navigation, CSV, sync/backup/restore, and data-contract behavior were not
+  regressed.
+
+Key product behavior implemented
+
+- Home feed remains the same union feed of expense transactions and balance
+  additions.
+- Home period selector remains limited to:
+  Today
+  Yesterday
+  This week
+- Home feed filtering still uses the existing local calendar period helpers.
+- Home feed sorting remains newest-first before grouping.
+- Date grouping is a render-layer concern and does not change stored
+  timestamps, Transaction data, Balance data, CSV contracts, sync DTOs, backup
+  DTOs, or restore DTOs.
+- Date labels use the existing i18n date formatter and language locale support.
+  English labels use the Figma-style long date format, for example:
+  23 April 2026.
+- Date headers render between the Transactions / More header row and the first
+  row/group.
+- Existing Home row components and behaviors are preserved:
+  expense rows use SwipeableTransactionRow;
+  balance rows keep Home-local shrink-to-reveal swipe behavior.
+
+Key implementation files
+
+- src/features/home/home-history-sections.ts
+  New pure helper for grouping already-filtered and already-sorted Home feed
+  items by local calendar day. It formats labels through formatLanguageDate and
+  skips invalid timestamps without creating empty groups.
+
+- src/features/home/home-screen.tsx
+  Home now derives historySections from historyItems and renders a date header
+  before each group. The existing transaction and balance row rendering,
+  edit/delete handlers, swipe state, alerts, routing, and amount formatting are
+  preserved.
+
+- src/features/home/__tests__/home-history-sections.test.ts
+  Unit coverage for English long-date formatting, local-day grouping, order
+  preservation within groups, and invalid timestamp handling.
+
+- src/features/home/__tests__/home-screen.test.tsx
+  Added/updated coverage for:
+  Today date header above rows;
+  Yesterday date header above rows;
+  This week local-day groups newest first;
+  shared header for expense + balance rows on the same local day;
+  empty period without orphan date header;
+  existing Add / Spend / More navigation;
+  existing transaction swipe edit/delete;
+  existing balance swipe edit/delete.
+
+- docs/mvp-qa-checklist.md
+  Added ML-96 manual QA coverage for Home date headers, grouping, mixed
+  expense/balance rows, swipe regressions, no Choose date, and no CSV/sync
+  regression.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated release/version contract to ML-96 and version 1.27.5.
+
+- package.json / package-lock.json
+  Version bumped from 1.27.4 to 1.27.5. app.config.js was not changed and still
+  reads version from package.json.
+
+Validation commands run successfully
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed; Expo config resolves package version 1.27.5.
+
+- npm test -- --runInBand
+  Result: 52 test suites passed, 439 tests passed.
+
+- npm run typecheck
+  Result: passed.
+
+- npm run lint
+  Result: passed.
+
+- npm run format:check
+  Result: passed.
+
+- npx expo config --json
+  Result: passed; resolved version is 1.27.5.
+
+- git diff --check
+  Result: passed before this handoff file was added.
+
+Targeted contract checks verified
+
+- Transaction CSV v1 header remains exactly:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- Home More still routes to Analytics & Leaks.
+- Home Add still routes to /add-balance.
+- Home Spend still routes to /add-transaction.
+- Transaction edit route remains /transaction/[id]/edit.
+- Balance edit route remains /balance/[id]/edit.
+- Balance additions remain separate from expense Transactions.
+- Date headers do not add language or locale fields to persisted transaction,
+  balance, or category contracts.
+- No forbidden UI dependencies were added:
+  @expo/ui, expo-blur, BlurView, Liquid Glass, or glass-styles.
+- No service-role/admin Supabase usage was added to mobile app code/config.
+- No raw env values, tokens, user IDs, owner IDs, localOwnerIds, device IDs,
+  backend IDs, secrets, or row payloads were exposed.
+
+Things intentionally not changed
+
+- No backend, auth, cloud sync, or Supabase migration changes.
+- No backup/restore/sync DTO or schema changes.
+- No Transaction CSV v1 migration.
+- No balance additions encoded as Transactions.
+- No stored timestamp changes.
+- No UTC conversion behavior added to Home grouping.
+- No FX conversion.
+- No per-transaction or per-balance currency fields.
+- No bottom tab/navigation changes.
+- No Choose date on Home.
+- No app.config.js or eas.json changes.
+- No new dependencies.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles.
+- LedgerTransactionRow was not changed.
+- AGENTS.md was not changed because the existing durable project rules already
+  cover this task.
+
+Notes for future agents
+
+- Treat src/features/home/home-history-sections.ts as the Home-specific
+  grouping boundary. Feed it already-filtered and already-sorted Home feed
+  items.
+- Keep date grouping local-calendar based. Do not switch Home grouping to UTC.
+- Keep Home period options limited to Today, Yesterday, and This week unless a
+  future task explicitly expands Home period scope.
+- Keep date headers out of empty states.
+- Keep LedgerTransactionRow presentation-only. Do not put CRUD, routing, store,
+  or Alert logic inside it.
+- Keep expense transaction rows on SwipeableTransactionRow and the transaction
+  domain path:
+  /transaction/[id]/edit and removeTransaction.
+- Keep balance addition rows on the balance domain path:
+  /balance/[id]/edit and removeBalanceEntry.
+- Preserve the shrink-to-reveal swipe pattern for Home rows. Do not return to
+  translating the foreground row out of view.
+- If future Home feed behavior changes, retest Today, Yesterday, This week,
+  mixed expense/balance grouping, empty states, and transaction/balance swipe
+  regressions together.
