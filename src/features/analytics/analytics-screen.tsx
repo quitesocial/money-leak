@@ -2149,7 +2149,6 @@ export function AnalyticsScreen() {
     !isInitialized || !isBalanceInitialized || !areCategoriesInitialized;
   const hasAnyItems = transactions.length > 0 || balanceEntries.length > 0;
   const hasSafeError = Boolean(error || balanceError || categoriesError);
-  const isRefreshing = isLoading || isBalanceLoading;
   const isCustomAwaitingType =
     selectedPeriod === 'custom' && customPeriodType === null;
   const shouldShowEmptyState =
@@ -2775,12 +2774,6 @@ export function AnalyticsScreen() {
             </View>
           ) : null}
 
-          {isRefreshing ? (
-            <Text style={styles.refreshingText}>
-              {t(language, 'analytics.refreshing')}
-            </Text>
-          ) : null}
-
           {hasSafeError ? (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>
@@ -3265,11 +3258,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '500',
     color: '#0088ff',
-  },
-  refreshingText: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: '#6b6b6f',
   },
   errorBox: {
     borderWidth: 1,

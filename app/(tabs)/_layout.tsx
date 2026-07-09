@@ -207,8 +207,10 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      detachInactiveScreens={false}
       tabBar={(props) => <AnimatedTabBar {...props} language={language} />}
       screenOptions={{
+        animation: 'fade',
         headerShown: false,
         sceneStyle: {
           backgroundColor: '#f7f7f5',
@@ -218,6 +220,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          lazy: false,
           title: t(language, 'tabs.home'),
         }}
       />
@@ -225,6 +228,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
+          lazy: false,
           title: t(language, 'tabs.analyticsTitle'),
         }}
       />

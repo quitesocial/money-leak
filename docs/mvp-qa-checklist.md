@@ -3523,3 +3523,35 @@ Manual QA:
 - `This week` groups expense transactions and balance additions by shared local calendar day.
 - Existing Home row visuals, shrink-to-reveal swipe actions, delete confirmations, edit routes, and one-open-row behavior are unchanged.
 - Balance block, Add/Spend buttons, More route, bottom tabs, root Stack routes, CSV v1, sync/backup/restore DTOs, Supabase schemas, app config, dependencies, and currency/data contracts remain unchanged.
+
+## ML-97 Home / Analytics tab switch stability
+
+### 69. Home to Analytics transition without visual jump
+
+**Preconditions**
+
+- Test on a physical device or TestFlight build when possible.
+- Local data includes at least one expense transaction and one balance addition visible on Home and Analytics.
+- Bottom tabs remain exactly `Home`, `Analytics & Leaks`, and `Settings`.
+
+**Steps**
+
+1. Cold launch the app and start on `Home`.
+2. Tap `Analytics & Leaks` once and watch the first rendered frame of the screen and active footer capsule.
+3. Tap `Home` once and watch the first rendered frame of the screen and active footer capsule.
+4. Quickly switch `Home` -> `Analytics & Leaks` -> `Home` several times.
+5. Confirm no loading or empty fallback flashes while already-loaded data refreshes on focus.
+6. On Home, confirm the balance block, `Add` -> `/add-balance`, `Spend` -> `/add-transaction`, date headers, `Today` / `Yesterday` / `This week`, and transaction/balance swipe edit/delete still work.
+7. On Analytics, confirm Overview/chart, `All` / `Added` / `Spent` filters, transaction/balance swipe edit/delete, `/transaction/[id]/edit`, and `/balance/[id]/edit` still work.
+8. Confirm Add Transaction and Add Balance remain pushed root Stack screens, not bottom tabs.
+
+**Expected result**
+
+- The first `Home` -> `Analytics & Leaks` switch has no visual/layout jump.
+- The `Analytics & Leaks` -> `Home` switch has no visual/layout jump.
+- Rapid repeated switching keeps screen content and the active footer capsule stable.
+- Home and Analytics are eagerly mounted, inactive tab screens remain attached, and focus refresh does not insert inline status text that shifts layout during tab switches.
+- The footer keeps the floating rounded pill, active gray capsule, active `#0088ff`, inactive `#1a1a1a`, `house`, `drop.halffull`, and `gearshape` icons.
+- The Analytics tab label remains layout-driven with no forced newline translations.
+- Home and Analytics refresh current local data without flashing loading/empty states after initialization.
+- Transaction CSV v1, DB schema, Supabase schema, sync/backup/restore DTOs, auth/backend behavior, app config, dependencies, and bottom-tab route contracts remain unchanged.
