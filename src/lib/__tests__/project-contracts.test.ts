@@ -58,9 +58,20 @@ describe('project contracts', () => {
     expect(tabsLayout).toContain("t(language, 'tabs.settings')");
     expect(tabsLayout).toContain('numberOfLines={2}');
     expect(tabsLayout).toContain('adjustsFontSizeToFit');
+    expect(tabsLayout).toContain('detachInactiveScreens={false}');
+    expect(tabsLayout).toContain("animation: 'fade'");
+    expect(tabsLayout).toContain('lazy: false');
+    expect(tabsLayout.match(/lazy: false/g)).toHaveLength(2);
+    expect(tabsLayout).toMatch(
+      /<Tabs\.Screen\s+name="index"\s+options=\{\{\s+lazy: false,/,
+    );
+    expect(tabsLayout).toMatch(
+      /<Tabs\.Screen\s+name="analytics"\s+options=\{\{\s+lazy: false,/,
+    );
     expect(tabsLayout).not.toContain('name="add-transaction"');
     expect(tabsLayout).not.toContain('name="add-balance"');
     expect(tabsLayout).not.toContain('name="shame-card"');
+    expect(tabsLayout).not.toContain("animation: 'none'");
   });
 
   it('keeps the Analytics tab label layout-driven without hard line breaks', () => {
@@ -77,6 +88,22 @@ describe('project contracts', () => {
     for (const label of analyticsTabLabels ?? []) {
       expect(label).not.toContain('\\n');
     }
+  });
+
+  it('keeps focus refresh status out of Home and Analytics layout flow', () => {
+    const homeScreen = readFileSync(
+      join(process.cwd(), 'src/features/home/home-screen.tsx'),
+      'utf8',
+    );
+    const analyticsScreen = readFileSync(
+      join(process.cwd(), 'src/features/analytics/analytics-screen.tsx'),
+      'utf8',
+    );
+
+    expect(homeScreen).not.toContain('home.refreshingTransactions');
+    expect(analyticsScreen).not.toContain('analytics.refreshing');
+    expect(homeScreen).not.toContain('refreshingText');
+    expect(analyticsScreen).not.toContain('refreshingText');
   });
 
   it('keeps pushed app routes as root stack screens', () => {
@@ -117,7 +144,7 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-96 version bump and Expo metadata aligned', () => {
+  it('keeps ML-97 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -131,9 +158,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.27.5');
-    expect(packageLock.version).toBe('1.27.5');
-    expect(packageLock.packages[''].version).toBe('1.27.5');
+    expect(packageJson.version).toBe('1.27.6');
+    expect(packageLock.version).toBe('1.27.6');
+    expect(packageLock.packages[''].version).toBe('1.27.6');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

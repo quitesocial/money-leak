@@ -556,7 +556,6 @@ export function HomeScreen() {
   const hasHistoryItems = historyItems.length > 0;
   const hasAnyHistoryItems =
     transactions.length > 0 || balanceEntries.length > 0;
-  const isHistoryRefreshing = isLoading || isBalanceLoading;
 
   const selectedPeriodLabel = getPeriodLabel(
     homeSelectedPeriod,
@@ -914,12 +913,6 @@ export function HomeScreen() {
               </Pressable>
             </View>
 
-            {isHistoryRefreshing ? (
-              <Text style={styles.refreshingText}>
-                {t(language, 'home.refreshingTransactions')}
-              </Text>
-            ) : null}
-
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>
@@ -1168,10 +1161,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
     color: '#4b5563',
-  },
-  refreshingText: {
-    fontSize: 14,
-    color: '#6b7280',
   },
   errorBox: {
     borderWidth: 1,
