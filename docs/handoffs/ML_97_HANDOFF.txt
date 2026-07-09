@@ -1,0 +1,169 @@
+ML-97 [DEV] Home / Analytics tab switch layout jump handoff
+Date: 2026-07-09
+Project: Money Leak
+Version after task: 1.27.6
+
+Summary
+
+ML-97 is implemented, validated, and manually tested. The visible vertical
+layout jump during Home <-> Analytics & Leaks tab switching was fixed without
+changing the stable Home or Analytics screen layout styles.
+
+The final fix has two parts:
+
+- Keep Home and Analytics warm/attached in the bottom tab navigator:
+  detachInactiveScreens={false} on Tabs.
+  lazy: false on the Home and Analytics tab screens.
+- Remove transient inline refresh status text from Home and Analytics layout
+  flow. The focus refresh still runs, but it no longer inserts a short-lived
+  "Refreshing..." row that pushes content down for one frame.
+
+Manual QA status
+
+User completed simulator manual testing after the final implementation and
+reported everything OK.
+
+The accepted manual behavior includes:
+
+- Home -> Analytics & Leaks no longer has the visible vertical layout jump.
+- Analytics & Leaks -> Home no longer has the visible vertical layout jump.
+- Fast repeated Home <-> Analytics & Leaks switching stays visually stable.
+- The fade/warm screen behavior is acceptable.
+- Home layout remains intact.
+- Analytics layout, empty state, scroll, and Add Transaction visibility remain
+  intact after reverting earlier risky layout experiments.
+
+Important implementation history
+
+Several approaches were tried and rejected before the final fix:
+
+- animation: 'none' alone did not fix the jump.
+- A short fade helped visually, but the jump was still visible after the fade.
+- Changing Analytics top padding / empty-state spacing was rejected because it
+  changed the screen layout and made empty Analytics worse.
+- detachInactiveScreens={false} helped but did not fully solve the issue while
+  the inline focus-refresh status text still shifted layout.
+
+The final root cause was the focus-refresh state inserting inline refresh text:
+
+- Home rendered home.refreshingTransactions as a Text node in the history group
+  when isLoading or isBalanceLoading was true.
+- Analytics rendered analytics.refreshing as a Text node before the Overview
+  section when isLoading or isBalanceLoading was true.
+- During tab focus refresh those rows appeared briefly, pushed content down, and
+  disappeared after load completion. This matched the observed "jumps down for a
+  fraction of a second, then returns" behavior.
+
+Key implementation files
+
+- app/(tabs)/_layout.tsx
+  Tabs now sets detachInactiveScreens={false}. Home and Analytics tab screen
+  options set lazy: false. The existing custom floating footer, active capsule,
+  active/inactive colors, SF Symbols, and adaptive Analytics label are
+  preserved.
+
+- src/features/home/home-screen.tsx
+  Removed the inline "Refreshing..." Text from the Home history section and the
+  now-unused isHistoryRefreshing derived flag. Data refresh behavior is
+  unchanged.
+
+- src/features/analytics/analytics-screen.tsx
+  Removed the inline "Refreshing..." Text from the Analytics content flow and
+  the now-unused isRefreshing derived flag. Data refresh behavior is unchanged.
+
+- src/lib/__tests__/project-contracts.test.ts
+  Updated release/version contract to ML-97 and 1.27.6. Added/updated
+  contracts for:
+  - bottom tabs remain exactly Home, Analytics & Leaks, Settings;
+  - Home and Analytics are eager-mounted;
+  - inactive screens remain attached;
+  - animation: 'none' is not used;
+  - Add Transaction and Add Balance remain root Stack screens;
+  - focus refresh status text is not inserted into Home/Analytics layout flow.
+
+- docs/mvp-qa-checklist.md
+  Added ML-97 manual QA coverage for Home <-> Analytics tab switching without
+  visual jumps and preservation of existing screen behavior.
+
+- package.json / package-lock.json
+  Version bumped from 1.27.5 to 1.27.6. app.config.js was not changed and still
+  reads version from package.json.
+
+Validation commands run successfully
+
+- npm run release:preflight
+  Result: 9 passed, 0 failed; Expo config resolves package version 1.27.6.
+
+- npm test -- --runInBand
+  Result: 52 test suites passed, 440 tests passed.
+
+- npm run typecheck
+  Result: passed.
+
+- npm run lint
+  Result: passed.
+
+- npm run format:check
+  Result: passed.
+
+- npx expo config --json
+  Result: passed; resolved version is 1.27.6.
+
+- git diff --check
+  Result: passed.
+
+Targeted contract checks verified
+
+- Bottom tabs remain exactly:
+  Home
+  Analytics & Leaks
+  Settings
+- Add Transaction and Add Balance remain pushed root Stack screens, not bottom
+  tabs.
+- Transaction edit route remains /transaction/[id]/edit.
+- Balance edit route remains /balance/[id]/edit.
+- Home Add still routes to /add-balance.
+- Home Spend still routes to /add-transaction.
+- Home More still routes to Analytics & Leaks.
+- Home period selector remains limited to:
+  Today
+  Yesterday
+  This week
+- Analytics Overview/chart and All / Added / Spent filters are preserved.
+- Transaction and balance swipe edit/delete behavior is preserved on Home and
+  Analytics.
+- Transaction CSV v1 header remains unchanged:
+  id,amount,category,isLeak,leakReason,note,createdAt
+- No DB schema, Supabase schema, sync/backup/restore DTO, auth/backend, or
+  dependency changes were added.
+- No @expo/ui, SwiftUI wrappers, expo-blur, BlurView, Liquid Glass, or
+  glass-styles were added.
+
+Things intentionally not changed
+
+- No Home screen layout redesign.
+- No Analytics screen layout redesign.
+- No Analytics padding, empty-state spacing, scroll behavior, or CTA layout
+  changes.
+- No footer geometry redesign.
+- No changes to the visible three-tab footer contract.
+- No Add Transaction or Add Balance tab routes.
+- No CSV, DB, backup, restore, sync, Supabase, auth, or backend contract
+  changes.
+- No new dependencies.
+- No AGENTS.md update was made; existing durable rules already cover the
+  project constraints.
+
+Notes for future agents
+
+- Do not reintroduce inline Home/Analytics focus-refresh status text unless it
+  is rendered in a way that cannot affect layout height.
+- If future work needs refresh feedback, prefer a non-layout-shifting affordance
+  such as an overlay, existing control state, or subtle opacity/state treatment.
+- Preserve detachInactiveScreens={false} and lazy: false for Home/Analytics
+  unless a future performance task explicitly measures and replaces this
+  behavior.
+- Do not change Home/Analytics stable layout styles to solve transition issues
+  unless the task explicitly scopes a design/layout change.
+- If another tab switching jump appears, first check for transient UI inserted
+  during focus refresh, not just navigator animation settings.
