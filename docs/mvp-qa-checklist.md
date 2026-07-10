@@ -3555,3 +3555,38 @@ Manual QA:
 - The Analytics tab label remains layout-driven with no forced newline translations.
 - Home and Analytics refresh current local data without flashing loading/empty states after initialization.
 - Transaction CSV v1, DB schema, Supabase schema, sync/backup/restore DTOs, auth/backend behavior, app config, dependencies, and bottom-tab route contracts remain unchanged.
+
+## ML-98 Settings Backup and Sync disclosure summaries
+
+### 70. Collapsible safe summary callouts
+
+**Preconditions**
+
+- Use an authenticated test account with Backup and incremental Sync enabled.
+- Prepare local and remote changes so Sync reports non-zero pulled, pushed, applied, conflicts, or ignored counts.
+- Prepare transactions, categories, balance types, balance entries, and Currency/Language settings for Backup.
+
+**Steps**
+
+1. Open `Settings` before running Backup or Sync and confirm no disclosure callout is fabricated without a safe summary.
+2. Run `Sync now` and confirm `What was changed on sync?` appears collapsed with `info.circle` and `chevron.down`.
+3. Tap anywhere on the Sync callout, confirm the safe aggregate pulled/pushed/applied/conflicts/ignored counts appear, and confirm the chevron changes to `chevron.up`.
+4. Tap the Sync callout again and confirm the detail disappears.
+5. Run `Create backup` and confirm `What was backed up?` appears collapsed directly below the Backup row.
+6. Expand Backup and confirm its real transaction, category, balance type, balance entry, and settings counts; collapse it again.
+7. Expand Sync and Backup independently, then run each operation again and confirm only the refreshed callout resets to collapsed, including when the new counts equal the previous counts.
+8. Force-close and restart after a successful Sync; confirm its persisted safe summary returns collapsed and can be expanded. Confirm Backup detail is not persisted solely for this UI.
+9. Repeat in English and at least one longer locale such as German or French; confirm titles/details wrap without clipping and no English-only runtime callout strings appear.
+10. Test offline and failed/skipped Backup and Sync attempts; confirm only generic safe error copy appears and no stale/fabricated success callout is shown.
+11. Recheck Backup, Restore, manual Sync, foreground auto-sync, account actions, categories, and navigation, including rapid repeated action taps.
+
+**Expected result**
+
+- Both callouts match Figma nodes `312:3821`, `312:4079`, `312:3857`, and `312:4092`: full-width white surface, 10px radius, 8px padding, 4px internal gap, title 17/22, detail 15/20, and blue up/down chevrons.
+- The whole callout is a button and exposes its expanded accessibility state; the touch target is not limited to the chevron.
+- Sync and Backup disclosure states are independent and reset only for a newly produced corresponding summary.
+- Sync renders only validated current or persisted safe aggregates. Backup renders only the successful screen-local result and includes every supported count without hardcoded Figma numbers.
+- Last sync/backup display, loading and disabled states, fast-tap guards, Restore, foreground auto-sync, guest/local mode, feature flags, and generic failure copy are unchanged.
+- No raw backend error, URL, env value, token, user/owner/localOwner/device ID, row payload, or secret appears in production UI.
+- Version is `1.27.7`; app config continues to read it from `package.json`.
+- Transaction CSV v1, DB/Supabase schemas, sync/backup/restore DTOs and services, routes, bottom tabs, auth contracts, dependencies, and EAS config remain unchanged.

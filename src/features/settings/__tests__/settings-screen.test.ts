@@ -41,6 +41,7 @@ type MockBackupRunResult =
       uploadedCategoriesCount: number;
       uploadedBalanceTypesCount: number;
       uploadedBalanceEntriesCount: number;
+      uploadedSettingsCount?: number;
     }
   | {
       status: 'failed';
@@ -108,6 +109,10 @@ type MockSyncRunResult =
       ignoredCategoryTombstonesCount: number;
       ignoredBalanceTypeTombstonesCount: number;
       ignoredBalanceEntryTombstonesCount: number;
+      ignoredSettingsCount?: number;
+      pulledSettingsCount?: number;
+      pushedSettingsCount?: number;
+      appliedSettingsCount?: number;
       conflictsCount: number;
     }
   | {
@@ -706,10 +711,32 @@ function findByAccessibilityLabel(
     return node.props.accessibilityLabel === accessibilityLabel;
   }) as ReactTestInstance & {
     props: {
+      accessibilityRole?: string;
+      accessibilityState?: { expanded?: boolean };
       onPress?: () => void;
       onValueChange?: (value: boolean) => void;
     };
   };
+}
+
+function getSymbolNames(node: ReactTestInstance) {
+  const names: string[] = [];
+
+  function visit(child: ReactTestInstance | string) {
+    if (typeof child === 'string') return;
+
+    if (typeof child.props.name === 'string') {
+      names.push(child.props.name);
+    }
+
+    child.children.forEach((nestedChild) => {
+      visit(nestedChild as ReactTestInstance | string);
+    });
+  }
+
+  visit(node);
+
+  return names;
 }
 
 function findByTestID(renderer: ReactTestRenderer, testID: string) {
@@ -810,11 +837,13 @@ function createSucceededBackupResult({
   uploadedBalanceEntriesCount = 5,
   uploadedBalanceTypesCount = 1,
   uploadedCategoriesCount = 2,
+  uploadedSettingsCount = 0,
   uploadedTransactionsCount = 3,
 }: {
   uploadedBalanceEntriesCount?: number;
   uploadedBalanceTypesCount?: number;
   uploadedCategoriesCount?: number;
+  uploadedSettingsCount?: number;
   uploadedTransactionsCount?: number;
 } = {}): MockBackupRunResult {
   return {
@@ -823,6 +852,7 @@ function createSucceededBackupResult({
     uploadedCategoriesCount,
     uploadedBalanceTypesCount,
     uploadedBalanceEntriesCount,
+    uploadedSettingsCount,
   };
 }
 
@@ -850,20 +880,24 @@ function createSucceededSyncResult({
   appliedBalanceEntriesCount = 0,
   appliedBalanceTypesCount = 0,
   appliedCategoriesCount = 1,
+  appliedSettingsCount = 0,
   appliedTransactionsCount = 3,
   conflictsCount = 5,
   ignoredBalanceEntryTombstonesCount = 0,
   ignoredBalanceTypeTombstonesCount = 0,
   ignoredCategoryTombstonesCount = 2,
+  ignoredSettingsCount = 0,
   ignoredTransactionTombstonesCount = 7,
   lastSuccessfulSyncAt = Date.parse('2026-05-20T12:00:00.000Z'),
   pulledBalanceEntriesCount = 0,
   pulledBalanceTypesCount = 0,
   pulledCategoriesCount = 1,
+  pulledSettingsCount = 0,
   pulledTransactionsCount = 2,
   pushedBalanceEntriesCount = 0,
   pushedBalanceTypesCount = 0,
   pushedCategoriesCount = 3,
+  pushedSettingsCount = 0,
   pushedTransactionsCount = 4,
 }: Partial<
   Extract<MockSyncRunResult, { status: 'succeeded' }>
@@ -879,14 +913,18 @@ function createSucceededSyncResult({
     appliedCategoriesCount,
     appliedBalanceTypesCount,
     appliedBalanceEntriesCount,
+    appliedSettingsCount,
     pushedTransactionsCount,
     pushedCategoriesCount,
     pushedBalanceTypesCount,
     pushedBalanceEntriesCount,
+    pushedSettingsCount,
     ignoredTransactionTombstonesCount,
     ignoredCategoryTombstonesCount,
     ignoredBalanceTypeTombstonesCount,
     ignoredBalanceEntryTombstonesCount,
+    ignoredSettingsCount,
+    pulledSettingsCount,
     conflictsCount,
   };
 }
@@ -1835,6 +1873,7 @@ describe('SettingsScreen sync section', () => {
     expect(text).toContain('Synchronization');
     expect(text).toContain('Runs when you return to the app');
     expect(text).toContain('Sync now');
+    expect(text).not.toContain('What was changed on sync?');
     expectNoRawSyncUiValues(text);
   });
 
@@ -1915,7 +1954,7 @@ describe('SettingsScreen sync section', () => {
     expect(mockLoadBalance).toHaveBeenCalledTimes(1);
   });
 
-  it('shows safe manual sync summary counts after success', async () => {
+  it('shows a collapsed sync disclosure and toggles safe summary counts after success', async () => {
     mutableFeatureFlags.incrementalSyncEnabled = true;
     mockAuthStoreState.status = 'authenticated';
     mockAuthStoreState.session = mockAuthSession;
@@ -1925,19 +1964,23 @@ describe('SettingsScreen sync section', () => {
         appliedBalanceEntriesCount: 2,
         appliedBalanceTypesCount: 1,
         appliedCategoriesCount: 1,
+        appliedSettingsCount: 2,
         appliedTransactionsCount: 3,
         conflictsCount: 5,
         ignoredBalanceEntryTombstonesCount: 1,
         ignoredBalanceTypeTombstonesCount: 1,
         ignoredCategoryTombstonesCount: 2,
+        ignoredSettingsCount: 3,
         ignoredTransactionTombstonesCount: 7,
         pulledBalanceEntriesCount: 4,
         pulledBalanceTypesCount: 2,
         pulledCategoriesCount: 1,
+        pulledSettingsCount: 5,
         pulledTransactionsCount: 2,
         pushedBalanceEntriesCount: 1,
         pushedBalanceTypesCount: 2,
         pushedCategoriesCount: 3,
+        pushedSettingsCount: 6,
         pushedTransactionsCount: 4,
       }),
     );
@@ -1946,12 +1989,45 @@ describe('SettingsScreen sync section', () => {
 
     await pressButton(renderer, 'Sync now');
 
-    const text = getNodeText(renderer.root);
+    let text = getNodeText(renderer.root);
+    let disclosure = findByAccessibilityLabel(
+      renderer,
+      'What was changed on sync?',
+    );
+
+    expect(text).toContain('What was changed on sync?');
+    expect(text).not.toContain(
+      'Pulled 14, pushed 16, applied 9, conflicts 5, ignored 14.',
+    );
+    expect(disclosure.props.accessibilityRole).toBe('button');
+    expect(disclosure.props.accessibilityState).toEqual({ expanded: false });
+    expect(getSymbolNames(disclosure)).toContain('info.circle');
+    expect(getSymbolNames(disclosure)).toContain('chevron.down');
+
+    await pressButton(renderer, 'What was changed on sync?');
+
+    text = getNodeText(renderer.root);
+    disclosure = findByAccessibilityLabel(
+      renderer,
+      'What was changed on sync?',
+    );
 
     expect(text).toContain(
-      'Sync complete. Pulled 9 changes. Pushed 10 changes. Applied 7 changes. Conflicts 5. Ignored 11 changes.',
+      'Pulled 14, pushed 16, applied 9, conflicts 5, ignored 14.',
     );
+    expect(disclosure.props.accessibilityState).toEqual({ expanded: true });
+    expect(getSymbolNames(disclosure)).toContain('chevron.up');
     expectNoRawSyncUiValues(text);
+
+    await pressButton(renderer, 'What was changed on sync?');
+
+    expect(getNodeText(renderer.root)).not.toContain(
+      'Pulled 14, pushed 16, applied 9, conflicts 5, ignored 14.',
+    );
+    expect(
+      findByAccessibilityLabel(renderer, 'What was changed on sync?').props
+        .accessibilityState,
+    ).toEqual({ expanded: false });
     expect(mockLoadTransactions).toHaveBeenCalledTimes(1);
     expect(mockLoadCategories).toHaveBeenCalledTimes(1);
     expect(mockLoadBalance).toHaveBeenCalledTimes(1);
@@ -1993,12 +2069,20 @@ describe('SettingsScreen sync section', () => {
 
     await flushAsyncWork();
 
-    const text = getNodeText(renderer.root);
+    let text = getNodeText(renderer.root);
 
     expect(text).toContain('Last sync:');
     expect(text).toContain('- Manual');
+    expect(text).toContain('What was changed on sync?');
+    expect(text).not.toContain(
+      'Pulled 3, pushed 7, applied 4, conflicts 5, ignored 9.',
+    );
+
+    await pressButton(renderer, 'What was changed on sync?');
+    text = getNodeText(renderer.root);
+
     expect(text).toContain(
-      'Sync complete. Pulled 3 changes. Pushed 7 changes. Applied 4 changes. Conflicts 5. Ignored 9 changes.',
+      'Pulled 3, pushed 7, applied 4, conflicts 5, ignored 9.',
     );
     expectNoRawSyncUiValues(text);
   });
@@ -2042,7 +2126,7 @@ describe('SettingsScreen sync section', () => {
     expect(text).toContain('Last sync:');
     expect(text).not.toContain('- Manual');
     expect(text).not.toContain('- Auto');
-    expect(text).not.toContain('Sync complete.');
+    expect(text).not.toContain('What was changed on sync?');
     expectNoRawSyncUiValues(text);
   });
 
@@ -2068,7 +2152,7 @@ describe('SettingsScreen sync section', () => {
 
     expect(text).toContain("Couldn't sync. Try again.");
     expectNoRawSyncUiValues(text);
-    expect(text).not.toContain('Sync complete.');
+    expect(text).not.toContain('What was changed on sync?');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
 
@@ -2085,7 +2169,7 @@ describe('SettingsScreen sync section', () => {
     expect(text).toContain("Couldn't sync. Try again.");
     expect(text).not.toContain('missing_session');
     expectNoRawSyncUiValues(text);
-    expect(text).not.toContain('Sync complete.');
+    expect(text).not.toContain('What was changed on sync?');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
   });
@@ -2109,7 +2193,7 @@ describe('SettingsScreen sync section', () => {
 
     expect(text).toContain("Couldn't sync. Try again.");
     expectNoRawSyncUiValues(text);
-    expect(text).not.toContain('Sync complete.');
+    expect(text).not.toContain('What was changed on sync?');
     expect(mockLoadTransactions).not.toHaveBeenCalled();
     expect(mockLoadCategories).not.toHaveBeenCalled();
   });
@@ -2126,6 +2210,7 @@ describe('SettingsScreen backup section', () => {
 
     expect(text).toContain('Backup');
     expect(text).toContain('Create backup');
+    expect(text).not.toContain('What was backed up?');
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('localOwnerId');
     expect(text).not.toContain('deviceId');
@@ -2183,6 +2268,7 @@ describe('SettingsScreen backup section', () => {
           uploadedBalanceEntriesCount: 6,
           uploadedBalanceTypesCount: 3,
           uploadedCategoriesCount: 4,
+          uploadedSettingsCount: 2,
           uploadedTransactionsCount: 2,
         }),
       );
@@ -2190,10 +2276,33 @@ describe('SettingsScreen backup section', () => {
       await Promise.resolve();
     });
 
-    const text = getNodeText(renderer.root);
+    let text = getNodeText(renderer.root);
+    let disclosure = findByAccessibilityLabel(renderer, 'What was backed up?');
+
+    expect(text).toContain('What was backed up?');
+    expect(text).not.toContain(
+      '2 transactions, 4 categories, 3 balance types, 6 balance entries, and 2 settings saved.',
+    );
+    expect(disclosure.props.accessibilityRole).toBe('button');
+    expect(disclosure.props.accessibilityState).toEqual({ expanded: false });
+    expect(getSymbolNames(disclosure)).toContain('info.circle');
+    expect(getSymbolNames(disclosure)).toContain('chevron.down');
+
+    await pressButton(renderer, 'What was backed up?');
+
+    text = getNodeText(renderer.root);
+    disclosure = findByAccessibilityLabel(renderer, 'What was backed up?');
 
     expect(text).toContain(
-      'Backup created. 2 transactions, 4 categories, 3 balance types, 6 balance entries, and 0 settings saved.',
+      '2 transactions, 4 categories, 3 balance types, 6 balance entries, and 2 settings saved.',
+    );
+    expect(disclosure.props.accessibilityState).toEqual({ expanded: true });
+    expect(getSymbolNames(disclosure)).toContain('chevron.up');
+
+    await pressButton(renderer, 'What was backed up?');
+
+    expect(getNodeText(renderer.root)).not.toContain(
+      '2 transactions, 4 categories, 3 balance types, 6 balance entries, and 2 settings saved.',
     );
     expect(text).toContain('Create backup');
     expect(mockSetLastSuccessfulBackupAt).toHaveBeenCalledWith(
@@ -2233,6 +2342,7 @@ describe('SettingsScreen backup section', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain("Couldn't create backup. Try again.");
+    expect(text).not.toContain('What was backed up?');
     expect(text).not.toContain('raw backend failure');
     expect(text).not.toContain('auth-user-test');
     expect(text).not.toContain('localOwnerId');
@@ -2261,7 +2371,88 @@ describe('SettingsScreen backup section', () => {
     expect(getNodeText(renderer.root)).toContain(
       "Couldn't create backup. Try again.",
     );
+    expect(getNodeText(renderer.root)).not.toContain('What was backed up?');
     expect(mockSetLastSuccessfulBackupAt).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsScreen disclosure summaries', () => {
+  it('keeps sync and backup expansion independent and resets only the updated summary', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    await pressButton(renderer, 'Sync now');
+    await pressButton(renderer, 'Create backup');
+    await pressButton(renderer, 'What was changed on sync?');
+    await pressButton(renderer, 'What was backed up?');
+
+    expect(
+      findByAccessibilityLabel(renderer, 'What was changed on sync?').props
+        .accessibilityState,
+    ).toEqual({ expanded: true });
+    expect(
+      findByAccessibilityLabel(renderer, 'What was backed up?').props
+        .accessibilityState,
+    ).toEqual({ expanded: true });
+
+    await pressButton(renderer, 'Sync now');
+
+    expect(
+      findByAccessibilityLabel(renderer, 'What was changed on sync?').props
+        .accessibilityState,
+    ).toEqual({ expanded: false });
+    expect(
+      findByAccessibilityLabel(renderer, 'What was backed up?').props
+        .accessibilityState,
+    ).toEqual({ expanded: true });
+
+    await pressButton(renderer, 'What was changed on sync?');
+    await pressButton(renderer, 'Create backup');
+
+    expect(
+      findByAccessibilityLabel(renderer, 'What was changed on sync?').props
+        .accessibilityState,
+    ).toEqual({ expanded: true });
+    expect(
+      findByAccessibilityLabel(renderer, 'What was backed up?').props
+        .accessibilityState,
+    ).toEqual({ expanded: false });
+  });
+
+  it('uses localized disclosure copy instead of hardcoded English strings', async () => {
+    mutableFeatureFlags.incrementalSyncEnabled = true;
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+    mockGetSettingsLanguage.mockResolvedValue('German');
+
+    const renderer = await renderSettingsScreen();
+
+    await flushAsyncWork();
+    await pressButton(renderer, 'Jetzt synchronisieren');
+    await pressButton(renderer, 'Backup erstellen');
+
+    let text = getNodeText(renderer.root);
+
+    expect(text).toContain('Was wurde synchronisiert?');
+    expect(text).toContain('Was wurde gesichert?');
+    expect(text).not.toContain('What was changed on sync?');
+    expect(text).not.toContain('What was backed up?');
+
+    await pressButton(renderer, 'Was wurde synchronisiert?');
+    await pressButton(renderer, 'Was wurde gesichert?');
+    text = getNodeText(renderer.root);
+
+    expect(text).toContain(
+      'Abgerufen 3, übertragen 7, angewendet 4, Konflikte 5, ignoriert 9.',
+    );
+    expect(text).toContain(
+      '3 Transaktionen, 2 Kategorien, 1 Kontotyp, 5 Saldoeinträge und 0 Einstellungen gespeichert.',
+    );
   });
 });
 

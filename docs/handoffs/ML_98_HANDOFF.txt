@@ -1,0 +1,100 @@
+ML-98 [DEV] Settings - alert for backup/sync handoff
+Date: 2026-07-10
+Project: Money Leak
+Version after task: 1.27.7
+
+Summary
+
+ML-98 replaces the old successful Backup and Sync summary text in Settings
+with two independent inline disclosure callouts. These are not native alerts or
+modals. The action services, persistence contracts, and sync triggers are
+unchanged.
+
+Figma references
+
+- Expanded screen: node 311:2643
+- Collapsed screen: node 312:3843
+- Expanded Sync callout: node 312:3821
+- Expanded Backup callout: node 312:4079
+- Collapsed Sync callout: node 312:3857
+- Collapsed Backup callout: node 312:4092
+
+Implemented behavior
+
+- Each callout starts collapsed and uses info.circle plus chevron.down.
+- Tapping the full white callout toggles its detail and chevron.up/down.
+- Each callout is an accessibility button with accessibilityState.expanded.
+- Sync and Backup expanded states are independent.
+- A new Sync or Backup attempt/result collapses only its corresponding callout,
+  including when the new aggregate values match the previous result.
+- Sync appears only for the current safe result or a validated persisted safe
+  summary from the existing sync metadata boundary.
+- Backup appears only after a successful manual backup in the current mounted
+  Settings screen. No Backup summary persistence was added.
+- Sync detail reports pulled, pushed, applied, conflicts, and ignored totals.
+- Backup detail reports transactions, categories, balance types, balance
+  entries, and settings from the actual successful result.
+- Callout titles, templates, and singular/plural Backup count labels are present
+  in every supported runtime locale. Persisted Indian still maps to Hindi UI.
+
+Files changed
+
+- src/features/settings/settings-screen.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/lib/i18n/translations.ts
+- src/lib/__tests__/project-contracts.test.ts
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_98_HANDOFF.txt
+- package.json
+- package-lock.json
+
+Automated coverage
+
+- No Sync disclosure without a safe current or persisted summary.
+- No Backup disclosure without a successful current Backup result.
+- Collapsed/expanded toggling, chevrons, accessibility role/state, and details.
+- Dynamic totals including synced settings and all five Backup count domains.
+- Independent expanded states and per-result collapse reset with equal counts.
+- Valid persisted Sync summary and rejection of corrupt persisted metadata.
+- Guest mode, feature flags, in-flight guards, loading, generic failures, and
+  forbidden raw backend/secret/identifier values remain covered.
+- German runtime copy confirms the callouts do not embed English JSX strings.
+
+Validation
+
+- npm run release:preflight
+  Result: passed, 9 checks passed and 0 failed; Expo/package version 1.27.7.
+- npm test -- --runInBand
+  Result: passed, 52 suites and 442 tests passed, 0 snapshots.
+- npm run typecheck
+  Result: passed.
+- npm run lint
+  Result: passed.
+- npm run format:check
+  Result: passed.
+- npx expo config --json
+  Result: passed; resolved Expo version is 1.27.7.
+- git diff --check
+  Result: passed.
+
+Things intentionally not changed
+
+- Backup, Restore, manual Sync, foreground auto-sync, or their service/adapters.
+- SQLite or Supabase schemas, sync status storage, Backup result lifetime, DTOs,
+  CSV v1, user-generated data, IDs, auth/session contracts, routes, or tabs.
+- Last sync/backup copy, loading/disabled behavior, fast double-tap guards, or
+  generic safe error behavior.
+- app.config.js, app.json, eas.json, dependencies, Tailwind, BlurView, or glass
+  styles.
+
+Manual QA remaining for the owner
+
+- Compare collapsed and expanded Sync/Backup callouts with the listed Figma
+  nodes on a physical iPhone or simulator.
+- Verify real dynamic counts for all supported domains.
+- Verify independent toggling and per-result collapse reset.
+- Force-close/restart and verify persisted Sync summary; confirm Backup summary
+  retains its existing screen-local lifetime.
+- Review English and at least one long locale such as German or French.
+- Verify offline/failure safe copy and Backup/Restore/manual Sync/foreground
+  sync/account/categories/navigation regressions.

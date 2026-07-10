@@ -196,14 +196,53 @@ function formatImportResult({ importedCount, skippedCount }: ImportResult) {
   return `Imported ${formatCountLabel(importedCount, 'transaction')}. Skipped ${formatCountLabel(skippedCount, 'row')}.`;
 }
 
-function formatBackupResult({
-  uploadedBalanceEntriesCount,
-  uploadedBalanceTypesCount,
-  uploadedCategoriesCount,
-  uploadedSettingsCount,
-  uploadedTransactionsCount,
-}: BackupResult) {
-  return `Backup created. ${formatCountLabel(uploadedTransactionsCount, 'transaction')}, ${formatCountLabel(uploadedCategoriesCount, 'category', 'categories')}, ${formatCountLabel(uploadedBalanceTypesCount, 'balance type')}, ${formatCountLabel(uploadedBalanceEntriesCount, 'balance entry', 'balance entries')}, and ${formatCountLabel(uploadedSettingsCount, 'setting')} saved.`;
+function formatBackupDetail(
+  language: SettingsLanguage,
+  {
+    uploadedBalanceEntriesCount,
+    uploadedBalanceTypesCount,
+    uploadedCategoriesCount,
+    uploadedSettingsCount,
+    uploadedTransactionsCount,
+  }: BackupResult,
+) {
+  return t(language, 'settings.backupSummaryDetail', {
+    balanceEntries: t(
+      language,
+      uploadedBalanceEntriesCount === 1
+        ? 'settings.backupBalanceEntryOne'
+        : 'settings.backupBalanceEntryOther',
+      { count: uploadedBalanceEntriesCount },
+    ),
+    balanceTypes: t(
+      language,
+      uploadedBalanceTypesCount === 1
+        ? 'settings.backupBalanceTypeOne'
+        : 'settings.backupBalanceTypeOther',
+      { count: uploadedBalanceTypesCount },
+    ),
+    categories: t(
+      language,
+      uploadedCategoriesCount === 1
+        ? 'settings.backupCategoryOne'
+        : 'settings.backupCategoryOther',
+      { count: uploadedCategoriesCount },
+    ),
+    settings: t(
+      language,
+      uploadedSettingsCount === 1
+        ? 'settings.backupSettingOne'
+        : 'settings.backupSettingOther',
+      { count: uploadedSettingsCount },
+    ),
+    transactions: t(
+      language,
+      uploadedTransactionsCount === 1
+        ? 'settings.backupTransactionOne'
+        : 'settings.backupTransactionOther',
+      { count: uploadedTransactionsCount },
+    ),
+  });
 }
 
 function formatRestoreResult({
@@ -217,14 +256,23 @@ function formatRestoreResult({
   return `Backup restored. ${formatCountLabel(restoredTransactionsCount, 'transaction')}, ${formatCountLabel(restoredCategoriesCount, 'category', 'categories')}, ${formatCountLabel(restoredBalanceTypesCount, 'balance type')}, ${formatCountLabel(restoredBalanceEntriesCount, 'balance entry', 'balance entries')}, and ${formatCountLabel(restoredSettingsCount, 'setting')} restored. Ignored ${formatCountLabel(ignoredSettingsCount, 'setting')}.`;
 }
 
-function formatSyncResult({
-  appliedCount,
-  conflictsCount,
-  ignoredCount,
-  pulledCount,
-  pushedCount,
-}: SyncUiResult) {
-  return `Sync complete. Pulled ${formatCountLabel(pulledCount, 'change')}. Pushed ${formatCountLabel(pushedCount, 'change')}. Applied ${formatCountLabel(appliedCount, 'change')}. Conflicts ${conflictsCount}. Ignored ${formatCountLabel(ignoredCount, 'change')}.`;
+function formatSyncDetail(
+  language: SettingsLanguage,
+  {
+    appliedCount,
+    conflictsCount,
+    ignoredCount,
+    pulledCount,
+    pushedCount,
+  }: SyncUiResult,
+) {
+  return t(language, 'settings.syncSummaryDetail', {
+    applied: appliedCount,
+    conflicts: conflictsCount,
+    ignored: ignoredCount,
+    pulled: pulledCount,
+    pushed: pushedCount,
+  });
 }
 
 function formatLastBackup(timestamp: number) {
@@ -465,6 +513,50 @@ function SafeSymbol({
       type="monochrome"
       weight="semibold"
     />
+  );
+}
+
+function SettingsInfoDisclosure({
+  detail,
+  expanded,
+  onPress,
+  title,
+}: {
+  detail: string;
+  expanded: boolean;
+  onPress: () => void;
+  title: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={title}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={onPress}
+      style={styles.infoDisclosure}
+    >
+      <SafeSymbol
+        fallbackLabel="i"
+        name="info.circle"
+        size={17}
+        tintColor="#000000"
+      />
+
+      <View style={styles.infoDisclosureCopy}>
+        <Text style={styles.infoDisclosureTitle}>{title}</Text>
+
+        {expanded ? (
+          <Text style={styles.infoDisclosureDetail}>{detail}</Text>
+        ) : null}
+      </View>
+
+      <SafeSymbol
+        fallbackLabel={expanded ? '⌃' : '⌄'}
+        name={expanded ? 'chevron.up' : 'chevron.down'}
+        size={17}
+        tintColor="#007aff"
+      />
+    </Pressable>
   );
 }
 
@@ -1059,12 +1151,14 @@ export function SettingsScreen() {
   const [isImporting, setIsImporting] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
+  const [isBackupSummaryExpanded, setIsBackupSummaryExpanded] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreUiResult | null>(
     null,
   );
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<SyncUiResult | null>(null);
+  const [isSyncSummaryExpanded, setIsSyncSummaryExpanded] = useState(false);
   const [persistedSyncResult, setPersistedSyncResult] =
     useState<SyncUiResult | null>(null);
   const [isRestoreEmpty, setIsRestoreEmpty] = useState(false);
@@ -1299,6 +1393,7 @@ export function SettingsScreen() {
       setLastSuccessfulSyncAtState(null);
       setLastSuccessfulSyncSourceState(null);
       setPersistedSyncResult(null);
+      setIsSyncSummaryExpanded(false);
 
       return;
     }
@@ -1318,6 +1413,7 @@ export function SettingsScreen() {
         setLastSuccessfulSyncSourceState(
           getSafeSyncSource(metadata.lastSuccessfulSyncSource),
         );
+        setIsSyncSummaryExpanded(false);
         setPersistedSyncResult(
           createSyncUiResultFromSummary(metadata.lastSyncSummary),
         );
@@ -1327,6 +1423,7 @@ export function SettingsScreen() {
         setLastSuccessfulSyncAtState(null);
         setLastSuccessfulSyncSourceState(null);
         setPersistedSyncResult(null);
+        setIsSyncSummaryExpanded(false);
       }
     })();
 
@@ -1635,6 +1732,7 @@ export function SettingsScreen() {
     setIsBackingUp(true);
     setBackupError(null);
     setBackupResult(null);
+    setIsBackupSummaryExpanded(false);
 
     try {
       const result = await manualBackupService.runBackup({
@@ -1666,6 +1764,7 @@ export function SettingsScreen() {
         uploadedBalanceEntriesCount: result.uploadedBalanceEntriesCount,
         uploadedSettingsCount: result.uploadedSettingsCount ?? 0,
       });
+      setIsBackupSummaryExpanded(false);
     } catch {
       setBackupError("Couldn't create backup. Try again.");
     } finally {
@@ -1768,6 +1867,7 @@ export function SettingsScreen() {
     setSyncError(null);
     setSyncResult(null);
     setPersistedSyncResult(null);
+    setIsSyncSummaryExpanded(false);
 
     try {
       const result = await manualSyncService.runIncrementalSync({
@@ -1786,6 +1886,7 @@ export function SettingsScreen() {
 
       setSyncResult(createSyncUiResult(result));
       setPersistedSyncResult(null);
+      setIsSyncSummaryExpanded(false);
 
       await Promise.all([
         loadTransactions(),
@@ -2065,33 +2166,41 @@ export function SettingsScreen() {
               <Text style={styles.errorText}>{syncPreferenceError}</Text>
             ) : null}
             {shouldShowSync ? (
-              <View style={styles.inlineStatusRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isSyncDisabled}
-                  onPress={() => {
-                    void handleSyncPress();
-                  }}
-                  style={isSyncDisabled ? styles.disabled : null}
-                >
-                  <Text style={styles.inlineActionText}>
-                    {isSyncing
-                      ? t(language, 'settings.syncing')
-                      : t(language, 'settings.syncNow')}
-                  </Text>
-                </Pressable>
+              <View style={styles.syncOperationGroup}>
+                <View style={styles.inlineStatusRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isSyncDisabled}
+                    onPress={() => {
+                      void handleSyncPress();
+                    }}
+                    style={isSyncDisabled ? styles.disabled : null}
+                  >
+                    <Text style={styles.inlineActionText}>
+                      {isSyncing
+                        ? t(language, 'settings.syncing')
+                        : t(language, 'settings.syncNow')}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {lastSyncText ? (
+                  <Text style={styles.metaText}>{lastSyncText}</Text>
+                ) : null}
+                {visibleSyncResult ? (
+                  <SettingsInfoDisclosure
+                    detail={formatSyncDetail(language, visibleSyncResult)}
+                    expanded={isSyncSummaryExpanded}
+                    onPress={() => {
+                      setIsSyncSummaryExpanded((expanded) => !expanded);
+                    }}
+                    title={t(language, 'settings.syncSummaryTitle')}
+                  />
+                ) : null}
+                {syncError ? (
+                  <Text style={styles.errorText}>{syncError}</Text>
+                ) : null}
               </View>
-            ) : null}
-            {lastSyncText ? (
-              <Text style={styles.metaText}>{lastSyncText}</Text>
-            ) : null}
-            {visibleSyncResult ? (
-              <Text style={styles.infoText}>
-                {formatSyncResult(visibleSyncResult)}
-              </Text>
-            ) : null}
-            {syncError ? (
-              <Text style={styles.errorText}>{syncError}</Text>
             ) : null}
 
             <View style={styles.categoryHeader}>
@@ -2361,20 +2470,33 @@ export function SettingsScreen() {
                 }
               />
 
-              <SettingsRow
-                disabled={isBackupDisabled}
-                onPress={() => {
-                  void handleBackupPress();
-                }}
-                title={t(language, 'settings.backup')}
-                trailing={
-                  <ActionText disabled={isBackupDisabled}>
-                    {isBackingUp
-                      ? t(language, 'settings.creatingBackup')
-                      : t(language, 'settings.createBackup')}
-                  </ActionText>
-                }
-              />
+              <View style={styles.operationDisclosureGroup}>
+                <SettingsRow
+                  disabled={isBackupDisabled}
+                  onPress={() => {
+                    void handleBackupPress();
+                  }}
+                  title={t(language, 'settings.backup')}
+                  trailing={
+                    <ActionText disabled={isBackupDisabled}>
+                      {isBackingUp
+                        ? t(language, 'settings.creatingBackup')
+                        : t(language, 'settings.createBackup')}
+                    </ActionText>
+                  }
+                />
+
+                {backupResult ? (
+                  <SettingsInfoDisclosure
+                    detail={formatBackupDetail(language, backupResult)}
+                    expanded={isBackupSummaryExpanded}
+                    onPress={() => {
+                      setIsBackupSummaryExpanded((expanded) => !expanded);
+                    }}
+                    title={t(language, 'settings.backupSummaryTitle')}
+                  />
+                ) : null}
+              </View>
 
               <SettingsRow
                 disabled={isRestoreDisabled}
@@ -2482,11 +2604,6 @@ export function SettingsScreen() {
             {lastBackupText ? (
               <Text style={styles.metaText}>{lastBackupText}</Text>
             ) : null}
-            {backupResult ? (
-              <Text style={styles.infoText}>
-                {formatBackupResult(backupResult)}
-              </Text>
-            ) : null}
             {backupError ? (
               <Text style={styles.errorText}>{backupError}</Text>
             ) : null}
@@ -2582,6 +2699,9 @@ const styles = StyleSheet.create({
   rowGroup: {
     gap: 16,
   },
+  operationDisclosureGroup: {
+    gap: 8,
+  },
   settingsRow: {
     minHeight: 52,
     flexDirection: 'row',
@@ -2621,6 +2741,9 @@ const styles = StyleSheet.create({
   },
   inlineStatusRow: {
     alignItems: 'flex-end',
+  },
+  syncOperationGroup: {
+    gap: 8,
     marginTop: -14,
   },
   inlineActionText: {
@@ -2855,6 +2978,35 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 17,
     lineHeight: 22,
+  },
+  infoDisclosure: {
+    width: '100%',
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    padding: 8,
+  },
+  infoDisclosureCopy: {
+    flex: 1,
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  infoDisclosureTitle: {
+    color: '#000000',
+    fontSize: 17,
+    fontWeight: '400',
+    letterSpacing: -0.43,
+    lineHeight: 22,
+  },
+  infoDisclosureDetail: {
+    color: 'rgba(60, 60, 67, 0.6)',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: -0.23,
+    lineHeight: 20,
   },
   metaText: {
     color: 'rgba(60, 60, 67, 0.6)',
