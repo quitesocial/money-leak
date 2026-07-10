@@ -2,6 +2,7 @@ ML-98 [DEV] Settings - alert for backup/sync handoff
 Date: 2026-07-10
 Project: Money Leak
 Version after task: 1.27.7
+Status: Completed and validated
 
 Summary
 
@@ -77,6 +78,28 @@ Validation
 - git diff --check
   Result: passed.
 
+Guidance for the next planning agent
+
+- Treat ML-98 as complete. There are no remaining implementation or manual QA
+  actions for this task.
+- Keep Backup summary state screen-local. Do not add SQLite or another
+  persistence layer solely to retain the Backup disclosure after unmount.
+- Keep persisted Sync summary reads behind the existing sync metadata boundary
+  and continue rejecting invalid or unsafe stored summary values.
+- Keep Settings UI thin: Backup, Restore, manual Sync, and foreground auto-sync
+  must continue through their existing services rather than direct adapters or
+  Supabase clients.
+- Do not introduce new automatic sync triggers on app start, login, session
+  restore, sign out, mutation, or background execution.
+- Preserve the current services, DTOs, SQLite/Supabase schemas, CSV v1, routes,
+  and bottom tabs unless a future task explicitly scopes a contract migration.
+- Preserve safe aggregate-only result copy and never expose raw backend errors,
+  URLs, env values, tokens, user/owner/localOwner/device IDs, row payloads, or
+  secrets.
+- Preserve the existing Figma disclosure behavior: initially collapsed, full
+  surface press target, independent Sync/Backup expansion, localized details,
+  accessibility expanded state, and per-result collapse reset.
+
 Things intentionally not changed
 
 - Backup, Restore, manual Sync, foreground auto-sync, or their service/adapters.
@@ -87,14 +110,15 @@ Things intentionally not changed
 - app.config.js, app.json, eas.json, dependencies, Tailwind, BlurView, or glass
   styles.
 
-Manual QA remaining for the owner
+Manual QA status
 
-- Compare collapsed and expanded Sync/Backup callouts with the listed Figma
-  nodes on a physical iPhone or simulator.
-- Verify real dynamic counts for all supported domains.
-- Verify independent toggling and per-result collapse reset.
-- Force-close/restart and verify persisted Sync summary; confirm Backup summary
-  retains its existing screen-local lifetime.
-- Review English and at least one long locale such as German or French.
-- Verify offline/failure safe copy and Backup/Restore/manual Sync/foreground
-  sync/account/categories/navigation regressions.
+The owner completed manual testing on 2026-07-10 and confirmed all checks pass:
+
+- Collapsed and expanded Sync/Backup callouts match the intended Figma states.
+- Real dynamic counts for the supported domains display correctly.
+- Independent toggling and per-result collapse reset work correctly.
+- Persisted Sync summary works after restart, while Backup keeps its existing
+  screen-local lifetime.
+- English and a longer supported locale render correctly.
+- Offline/failure safe copy and Backup/Restore/manual Sync/foreground
+  sync/account/categories/navigation regressions are all OK.
