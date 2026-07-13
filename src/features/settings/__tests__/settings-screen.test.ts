@@ -373,6 +373,7 @@ jest.mock('react-native-safe-area-context', () => {
     SafeAreaView: ({ children, ...props }: { children?: React.ReactNode }) => {
       return mockReact.createElement(mockView, props, children);
     },
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 24, left: 0 }),
   };
 });
 
@@ -1080,6 +1081,31 @@ afterAll(() => {
 });
 
 describe('SettingsScreen support links', () => {
+  it('renders the feedback CTA in guest mode and opens the sheet', async () => {
+    const renderer = await renderSettingsScreen();
+
+    expect(getNodeText(renderer.root)).toContain('Leave Feedback');
+    expect(
+      findByTestID(renderer, 'settings-leave-feedback').props.accessibilityRole,
+    ).toBe('button');
+
+    await pressButton(renderer, 'Leave Feedback');
+
+    expect(getNodeText(renderer.root)).toContain('Help us improve Money Leak');
+    expect(findByTestID(renderer, 'feedback-sheet')).toBeDefined();
+  });
+
+  it('renders the feedback CTA for an authenticated user', async () => {
+    mockAuthStoreState.status = 'authenticated';
+    mockAuthStoreState.session = mockAuthSession;
+    mockAuthStoreState.user = mockAuthSession.user;
+
+    const renderer = await renderSettingsScreen();
+
+    expect(getNodeText(renderer.root)).toContain('Leave Feedback');
+    expect(findByTestID(renderer, 'settings-leave-feedback')).toBeDefined();
+  });
+
   it('renders General support rows in guest mode without a login wall', async () => {
     const renderer = await renderSettingsScreen();
     const text = getNodeText(renderer.root);

@@ -13,6 +13,7 @@
 - Include data types transmitted off-device.
 - Account data can include email, name, avatar, and provider id when applicable.
 - Financial/user content data can include transactions, categories, notes, leak metadata, amounts, and timestamps when backed up or synced.
+- Anonymous feedback can include a 1-5 rating, an optional comment, app version, platform, runtime language, and server submission time. Verify no account, device, owner, financial, or transaction identifiers are stored with feedback.
 - Mark data linked to user as yes for authenticated backup, sync, and profile data.
 - Mark tracking as no only after dependency/code review confirms there is no tracking SDK or advertising cross-app tracking.
 
@@ -22,3 +23,4 @@
 - Verify Sign in with Apple remains available on iOS because Google login exists.
 - Verify guest/local mode still works without a login wall.
 - Verify manual backup, restore, and sync still work for authenticated users.
+- Before releasing feedback collection, update the public Notion Privacy Policy and verify anonymous feedback disclosure and retention language are accurate.

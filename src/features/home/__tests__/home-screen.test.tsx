@@ -459,6 +459,7 @@ async function renderHomeScreen() {
 }
 
 beforeEach(() => {
+  jest.useRealTimers();
   jest.clearAllMocks();
 
   mockRemoveBalanceEntry.mockResolvedValue(undefined);
@@ -864,6 +865,9 @@ describe('HomeScreen', () => {
   });
 
   it('groups This week rows by local day newest first', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 6, 15, 12));
+
     const today = new Date();
     const yesterday = getPastDate(1);
     const todayLabel = formatExpectedDateHeader(today);
@@ -899,6 +903,8 @@ describe('HomeScreen', () => {
     expect(screenText.indexOf(yesterdayLabel)).toBeLessThan(
       screenText.indexOf('+75.00 €'),
     );
+
+    jest.useRealTimers();
   });
 
   it('uses one date header for expenses and balance additions from the same local day', async () => {

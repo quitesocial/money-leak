@@ -1,0 +1,167 @@
+ML-99 [DEV] Settings - anonymous feedback form handoff
+Date: 2026-07-13
+Project: Money Leak
+Version after task: 1.28.0
+Status: Implemented and automated validation passed; owner actions and native manual QA remain required
+
+Summary
+
+ML-99 adds a guest- and authenticated-accessible Leave Feedback CTA to the
+bottom of Settings, an opaque React Native feedback bottom sheet based on the
+provided Figma states, and a real anonymous insert-only Supabase submission
+path. Feedback is not stored locally and is not connected to auth, sync,
+backup, restore, CSV, transaction, balance, or category contracts.
+
+Implemented behavior
+
+- Settings renders one full-width black Leave Feedback pill after the existing
+  sections and before the existing floating-tab bottom spacing.
+- The form uses Modal, Animated, KeyboardAvoidingView, Pressable, TextInput,
+  expo-symbols star/star.fill, safe-area padding, an opaque #f7f7f5 surface,
+  rounded top corners, and shadow. No blur/glass or new UI dependency was added.
+- The form starts with five outline stars and no label. Ratings 1-5 fill the
+  corresponding stars and show localized Hated it / Didn't like it / It was
+  okay / Liked it / Loved it copy.
+- Rating is required. Comment is optional, multiline, capped at 2000 input
+  characters, trimmed by the service, and stored as null when blank.
+- Stars expose button role, localized labels, and selected accessibility state.
+  The comment, Submit button, CTA, and backdrop close action are labeled.
+- A synchronous in-flight guard and disabled controls prevent fast duplicate
+  submits. Backdrop close and Android Back are ignored during submission.
+- Failure keeps the form open and renders only generic localized copy. Success
+  closes and resets the form and shows a localized thank-you Alert. Reopening
+  always starts clean.
+- All new UI and accessibility strings exist in English, German, French,
+  Spanish, Portuguese, Italian, Chinese, Russian, and Hindi runtime UI for the
+  persisted Indian option.
+
+Service and privacy boundary
+
+- FeedbackSubmissionPayload contains exactly rating, nullable comment,
+  app_version, platform, and language.
+- App version comes from Constants.expoConfig.version, platform from
+  Platform.OS, and language from the current runtime Settings language.
+- The service validates rating, comment length, and bounded non-empty metadata
+  before calling the adapter.
+- The adapter uses the existing public Supabase client and performs only
+  from('feedback_submissions').insert(payload). It never selects a created row.
+- Raw errors, comments, payloads, response data, URLs, env values, tokens, and
+  identifiers are not logged or returned to the UI.
+- No email, auth user ID, ownerId, localOwnerId, deviceId, token, transaction,
+  balance, category, amount, or other financial data is attached to feedback.
+
+Supabase migration and required manual action
+
+Migration file:
+supabase/migrations/20260713000000_create_feedback_submissions.sql
+
+The migration creates public.feedback_submissions with server-generated UUID
+and created_at values, rating 1-5, nullable comment <= 2000, and bounded app
+version/platform/language fields. It enables RLS, revokes all privileges from
+public/anon/authenticated, then grants only INSERT to anon and authenticated.
+One INSERT policy repeats the safe field checks. No SELECT, UPDATE, or DELETE
+grant or policy is created.
+
+Files changed
+
+- AGENTS.md
+- docs/app-store-privacy-checklist.md
+- docs/mvp-qa-checklist.md
+- docs/handoffs/ML_99_HANDOFF.txt
+- package.json
+- package-lock.json
+- src/features/home/__tests__/home-screen.test.tsx
+- src/features/settings/settings-screen.tsx
+- src/features/settings/feedback-sheet.tsx
+- src/features/settings/__tests__/settings-screen.test.ts
+- src/features/settings/__tests__/feedback-sheet.test.tsx
+- src/lib/feedback/feedback-service.ts
+- src/lib/feedback/supabase-feedback-adapter.ts
+- src/lib/feedback/__tests__/feedback-service.test.ts
+- src/lib/feedback/__tests__/supabase-feedback-adapter.test.ts
+- src/lib/i18n/translations.ts
+- src/lib/__tests__/project-contracts.test.ts
+- supabase/migrations/20260713000000_create_feedback_submissions.sql
+
+Automated coverage
+
+- Guest and authenticated CTA availability and sheet opening.
+- Initial outline state, ratings 1-5, fill/labels, rating changes, and
+  accessibility role/label/selected state.
+- Required rating, comment input/maxLength, trim/null service normalization,
+  in-flight disabled state, duplicate-submit protection, failure, success,
+  Alert, reset, and clean reopen.
+- Valid ratings, invalid rating/long comment rejection, version/platform/
+  language mapping, unsafe metadata, thrown failures, and exact anonymous
+  payload keys.
+- Supabase unavailable, insert error/throw, one insert call, and no readback.
+- Static migration assertions for table fields, size/rating constraints,
+  RLS, INSERT-only grants/policy, and absence of identity/financial columns.
+- Existing CSV v1, bottom-tab, root-route, no-forbidden-dependency, i18n, and
+  release-version contracts remain covered.
+- The pre-existing This week Home grouping test now freezes a Wednesday local
+  clock so its yesterday fixture remains inside the current week on Mondays;
+  production Home logic and layout were not changed.
+
+Validation
+
+- npm run release:preflight
+  Result: passed, 9 checks passed and 0 failed; Expo/package version 1.28.0.
+- npm test -- --runInBand
+  Result: passed, 55 suites and 478 tests passed, 0 snapshots.
+- npm run typecheck
+  Result: passed.
+- npm run lint
+  Result: passed.
+- npm run format:check
+  Result: passed.
+- npx expo config --json
+  Result: passed; resolved Expo version is 1.28.0.
+- git diff --check
+  Result: passed.
+- Focused ML-99 validation
+  Result: passed, 6 suites and 112 tests.
+- Security/contract inspection
+  Result: passed; no feedback references were added to sync, export, DB,
+  bottom-tab, or root-route implementation surfaces, and no service-role/admin
+  mobile code was added.
+
+Manual QA status
+
+Not run in this workspace. The owner must complete the ML-99 section in
+docs/mvp-qa-checklist.md on native iOS/Android and against the deployed test
+Supabase project. Automated tests do not replace keyboard, safe-area, native
+backdrop/Back, screen proportion, or live RLS verification.
+
+Required owner actions
+
+1. Apply supabase/migrations/20260713000000_create_feedback_submissions.sql to
+   the intended Supabase project before releasing version 1.28.0.
+2. Submit as anon and authenticated, inspect the stored row, and verify RLS
+   denies SELECT, UPDATE, and DELETE for both roles.
+3. Update the public Notion Privacy Policy linked by src/lib/app-links.ts to
+   disclose anonymous feedback collection and verify the link is public.
+4. Complete native manual QA from docs/mvp-qa-checklist.md, including keyboard,
+   safe area, English and German/French, offline failure, double tap, guest and
+   authenticated success, and all Settings regressions.
+
+AGENTS.md update
+
+Added one durable repository rule requiring Settings feedback to remain
+anonymous, insert-only, service-routed, free of identity/financial fields, and
+outside SQLite/CSV/backup/restore/sync. This is a long-lived privacy and
+architecture boundary rather than a task-specific implementation detail.
+
+Things intentionally not changed
+
+- Floating tab bar geometry or the Home / Analytics & Leaks / Settings tab set.
+- Root Stack routes, including Add Transaction and Add Balance.
+- Existing Settings reminder, category, Currency/Language sheet, import/export,
+  sign-out/delete-account, Privacy/Support, Backup/Restore, ML-98 disclosure,
+  manual Sync, or foreground Sync behavior.
+- SQLite schemas, transaction/balance/category models, Transaction CSV v1,
+  backup/restore/sync DTOs or Supabase remote-data schemas.
+- Auth/session linkage, automatic sync triggers, service-role/admin clients,
+  EXPO_PUBLIC secrets, app.config.js, app.json, eas.json, or dependencies.
+- Local docs/privacy-policy.md; it is not the public policy source. Updating the
+  linked public Notion policy remains an explicit owner action.
