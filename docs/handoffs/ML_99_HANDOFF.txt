@@ -2,7 +2,7 @@ ML-99 [DEV] Settings - anonymous feedback form handoff
 Date: 2026-07-13
 Project: Money Leak
 Version after task: 1.28.0
-Status: Implemented and automated validation passed; owner actions and native manual QA remain required
+Status: Completed and validated
 
 Summary
 
@@ -128,22 +128,18 @@ Validation
 
 Manual QA status
 
-Not run in this workspace. The owner must complete the ML-99 section in
-docs/mvp-qa-checklist.md on native iOS/Android and against the deployed test
-Supabase project. Automated tests do not replace keyboard, safe-area, native
-backdrop/Back, screen proportion, or live RLS verification.
+The owner confirmed on 2026-07-13 that the full ML-99 manual workflow passes,
+including native layout, keyboard and safe-area behavior, backdrop/Android Back,
+ratings and labels, empty/multiline comments, duplicate-submit protection,
+guest and authenticated submissions, offline/failure behavior, localization,
+stored-row privacy, RLS, and existing Settings regressions.
 
-Required owner actions
+Completed owner actions
 
-1. Apply supabase/migrations/20260713000000_create_feedback_submissions.sql to
-   the intended Supabase project before releasing version 1.28.0.
-2. Submit as anon and authenticated, inspect the stored row, and verify RLS
-   denies SELECT, UPDATE, and DELETE for both roles.
-3. Update the public Notion Privacy Policy linked by src/lib/app-links.ts to
-   disclose anonymous feedback collection and verify the link is public.
-4. Complete native manual QA from docs/mvp-qa-checklist.md, including keyboard,
-   safe area, English and German/French, offline failure, double tap, guest and
-   authenticated success, and all Settings regressions.
+1. Applied supabase/migrations/20260713000000_create_feedback_submissions.sql.
+2. Verified stored rows and anon/authenticated INSERT-only RLS behavior.
+3. Updated the public Privacy Policy for anonymous feedback collection.
+4. Completed native manual QA from docs/mvp-qa-checklist.md successfully.
 
 AGENTS.md update
 
@@ -163,5 +159,5 @@ Things intentionally not changed
   backup/restore/sync DTOs or Supabase remote-data schemas.
 - Auth/session linkage, automatic sync triggers, service-role/admin clients,
   EXPO_PUBLIC secrets, app.config.js, app.json, eas.json, or dependencies.
-- Local docs/privacy-policy.md; it is not the public policy source. Updating the
-  linked public Notion policy remains an explicit owner action.
+- Local docs/privacy-policy.md; it is not the public policy source. The owner
+  updated the linked public policy separately.
