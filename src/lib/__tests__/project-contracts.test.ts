@@ -144,7 +144,60 @@ describe('project contracts', () => {
     expect(packageLock).not.toMatch(forbiddenDependencyPattern);
   });
 
-  it('keeps ML-98 version bump and Expo metadata aligned', () => {
+  it('keeps feedback anonymous, insert-only, and behind its service boundary', () => {
+    const migration = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20260713000000_create_feedback_submissions.sql',
+      ),
+      'utf8',
+    );
+    const settingsScreen = readFileSync(
+      join(process.cwd(), 'src/features/settings/settings-screen.tsx'),
+      'utf8',
+    );
+    const feedbackService = readFileSync(
+      join(process.cwd(), 'src/lib/feedback/feedback-service.ts'),
+      'utf8',
+    );
+    const tableDefinition = migration.match(
+      /create table if not exists public\.feedback_submissions \(([\s\S]*?)\n\);/,
+    )?.[1];
+
+    expect(tableDefinition).toBeDefined();
+    expect(tableDefinition).toContain('rating smallint not null');
+    expect(tableDefinition).toContain('comment text null');
+    expect(tableDefinition).toContain('app_version text not null');
+    expect(tableDefinition).toContain('platform text not null');
+    expect(tableDefinition).toContain('language text not null');
+    expect(tableDefinition).toContain(
+      'created_at timestamptz not null default now()',
+    );
+    expect(tableDefinition).not.toMatch(
+      /user_id|owner_id|local_owner_id|device_id|email|token|amount|transaction/,
+    );
+    expect(migration).toContain(
+      'alter table public.feedback_submissions enable row level security;',
+    );
+    expect(migration).toContain(
+      'grant insert on table public.feedback_submissions to anon, authenticated;',
+    );
+    expect(migration).not.toMatch(
+      /grant (select|update|delete) on table public\.feedback_submissions/,
+    );
+    expect(migration).toContain('for insert');
+    expect(migration).not.toMatch(/for (select|update|delete)/);
+    expect(settingsScreen).toContain(
+      "import { FeedbackSheet } from '@/features/settings/feedback-sheet';",
+    );
+    expect(settingsScreen).not.toContain('supabase-feedback-adapter');
+    expect(settingsScreen).not.toContain('getSupabaseClient');
+    expect(feedbackService).not.toContain("from '@/lib/sync/");
+    expect(feedbackService).not.toContain("from '@/db/");
+    expect(feedbackService).not.toMatch(/backup|restore|sqlite|csv/i);
+  });
+
+  it('keeps ML-99 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -158,9 +211,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.27.7');
-    expect(packageLock.version).toBe('1.27.7');
-    expect(packageLock.packages[''].version).toBe('1.27.7');
+    expect(packageJson.version).toBe('1.28.0');
+    expect(packageLock.version).toBe('1.28.0');
+    expect(packageLock.packages[''].version).toBe('1.28.0');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );

@@ -3590,3 +3590,38 @@ Manual QA:
 - No raw backend error, URL, env value, token, user/owner/localOwner/device ID, row payload, or secret appears in production UI.
 - Version is `1.27.7`; app config continues to read it from `package.json`.
 - Transaction CSV v1, DB/Supabase schemas, sync/backup/restore DTOs and services, routes, bottom tabs, auth contracts, dependencies, and EAS config remain unchanged.
+
+## ML-99 Settings anonymous feedback form
+
+### 71. Feedback CTA, sheet, submission, and privacy
+
+**Preconditions**
+
+- Apply `supabase/migrations/20260713000000_create_feedback_submissions.sql` to the test Supabase project.
+- Have guest/local mode and an authenticated account available.
+- Use a native iOS or Android build with valid public Supabase configuration.
+
+**Steps**
+
+1. Open Settings in guest mode and confirm the full-width black `Leave Feedback` pill appears after the existing sections and above the floating-tab safe spacing.
+2. Repeat while authenticated and confirm the same CTA remains available without changing account, Backup, Restore, or Sync controls.
+3. Open the form and confirm it uses an opaque light bottom sheet with `Help us improve Money Leak`, five outline stars, the optional multiline comment field, and a black Submit pill.
+4. Close with the backdrop and Android Back, reopen, and confirm the form is clean. Confirm the floating tab bar and status bar were not recreated or moved.
+5. Select ratings 1 through 5 and verify filled stars and the matching labels: `Hated it`, `Didn't like it`, `It was okay`, `Liked it`, and `Loved it`. Change the rating before submission.
+6. Submit without a rating and confirm localized required copy appears without a network request.
+7. Submit with an empty comment, whitespace-only comment, and a multiline comment. Confirm whitespace-only becomes database `null`, input is capped at 2000 characters, and the keyboard does not hide the field or Submit button.
+8. Tap Submit rapidly and confirm only one request occurs; while submitting, stars, input, backdrop dismissal, Android Back, and repeat Submit remain blocked and the localized `Submitting…` label appears.
+9. Complete successful guest and authenticated submissions. Confirm the sheet closes, the localized thank-you alert appears, and reopening starts clean.
+10. Disable connectivity or force an insert failure. Confirm the sheet stays open with generic localized copy and no backend error, URL, env value, token, identifier, row payload, or comment is logged or rendered.
+11. Repeat layout and interaction checks in English and a longer locale such as German or French, then verify persisted `Indian` still renders Hindi feedback copy.
+12. Inspect each Supabase row and confirm it contains only `id`, rating, nullable normalized comment, app version, platform, runtime language, and server `created_at`. Confirm there is no email, auth/user/owner/localOwner/device ID, token, or financial/transaction data.
+13. With anon and authenticated clients, verify INSERT succeeds and SELECT, UPDATE, and DELETE are denied by grants/RLS.
+14. Recheck reminder, categories, Currency/Language sheets, import/export, account actions, ML-98 Backup/Sync disclosures, manual/foreground Sync, bottom tabs, and root Stack routes.
+
+**Expected result**
+
+- Feedback works in both guest and authenticated states while rows remain anonymous and insert-only.
+- Rating is required, comment is optional and limited to 2000 characters, metadata is bounded, and `created_at` is server-generated.
+- Loading, success, failure, reset, keyboard, safe-area, accessibility, and fast-tap behavior match the ML-99 requirements without blur/glass or a new UI dependency.
+- Version is `1.28.0`; `app.config.js` continues to resolve it from `package.json`.
+- Transaction CSV v1, SQLite, backup/restore/sync DTOs and triggers, financial data, routes, tabs, and existing Settings behavior are unchanged.

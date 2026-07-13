@@ -65,6 +65,7 @@ nvm use 20.19.4
 - Category icons are now a persisted local category property. Keep `Transaction.category` storing the stable category ID only. Do not add category icons to the transaction CSV v1 format or remote sync/backup schema unless a future task explicitly scopes a data-contract migration.
 - Balance entries are a separate domain from expense Transactions. Balance backup/restore/manual sync uses dedicated balance tables and sync DTOs. Do not encode balance additions as Transactions, and keep Transaction CSV v1 unchanged unless a future task explicitly scopes a CSV migration.
 - Settings currency preference is display formatting only. Do not add FX conversion, per-transaction or per-balance currency fields, Transaction CSV currency columns, or sync/backup schema changes unless a future task explicitly scopes a data-contract migration.
+- Keep Settings feedback anonymous, insert-only, and routed through the feedback service boundary. Do not attach auth/user/owner/localOwner/device identifiers or financial data, and do not add feedback to SQLite, CSV, backup, restore, or sync contracts.
 
 ## Current App Structure
 

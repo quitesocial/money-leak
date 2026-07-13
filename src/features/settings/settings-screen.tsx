@@ -31,6 +31,7 @@ import {
   setLastSuccessfulBackupAt,
 } from '@/db/backup-status';
 import { getSyncMetadata } from '@/db/sync-status';
+import { FeedbackSheet } from '@/features/settings/feedback-sheet';
 import { exportTransactionsCsv } from '@/features/export/export-transactions-csv';
 import {
   IMPORT_TRANSACTIONS_UNSUPPORTED_ERROR_MESSAGE,
@@ -1176,6 +1177,7 @@ export function SettingsScreen() {
   const [externalLinkError, setExternalLinkError] = useState<string | null>(
     null,
   );
+  const [isFeedbackVisible, setIsFeedbackVisible] = useState(false);
 
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -2643,6 +2645,27 @@ export function SettingsScreen() {
               <Text style={styles.errorText}>{externalLinkError}</Text>
             ) : null}
           </View>
+
+          <Pressable
+            accessibilityLabel={t(
+              language,
+              'settings.feedback.leaveFeedbackA11y',
+            )}
+            accessibilityRole="button"
+            onPress={() => setIsFeedbackVisible(true)}
+            style={styles.feedbackButton}
+            testID="settings-leave-feedback"
+          >
+            <SafeSymbol
+              fallbackLabel="★"
+              name="star"
+              size={18}
+              tintColor="#ffffff"
+            />
+            <Text style={styles.feedbackButtonText}>
+              {t(language, 'settings.feedback.leaveFeedback')}
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -2657,6 +2680,11 @@ export function SettingsScreen() {
         onSelectCurrency={setDraftCurrency}
         onSelectLanguage={setDraftLanguage}
         sheet={sheet}
+      />
+      <FeedbackSheet
+        language={language}
+        onClose={() => setIsFeedbackVisible(false)}
+        visible={isFeedbackVisible}
       />
     </SafeAreaView>
   );
@@ -2885,6 +2913,22 @@ const styles = StyleSheet.create({
   appleButton: {
     width: '100%',
     height: 48,
+  },
+  feedbackButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 26,
+    backgroundColor: '#100f10',
+    paddingHorizontal: 20,
+  },
+  feedbackButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   sheetBackdrop: {
     flex: 1,
