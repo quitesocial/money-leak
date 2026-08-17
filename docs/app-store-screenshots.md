@@ -77,13 +77,12 @@ and revert it before validation; do not change the shipped focus behavior.
 6. Inspect every final JPEG at 100% zoom, then run
    `npm run screenshots:validate` and the release validation chain.
 
-ML-100 attempted to create the requested sibling Figma section named
-`ML-100 App Store screens — iPhone 6.9 — 1320x2868`. The connected Figma
-account rejected write operations because a Full seat is required. The source
-section was not modified. The committed files therefore use read-only Figma
-assets plus deterministic local composition; after a Full seat is granted,
-copy the five source compositions into that sibling section and place these
-same native captures into the three display areas.
+The automated ML-100 run could not create the requested sibling Figma section
+because the connected account required a Full seat. The source section was not
+modified, and the committed files were assembled from read-only Figma assets
+plus deterministic local composition. On 17 August 2026, the owner confirmed
+that all remaining manual actions were completed, including the Figma follow-up
+and manual QA.
 
 ## App Store Connect upload
 

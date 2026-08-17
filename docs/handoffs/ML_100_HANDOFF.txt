@@ -1,25 +1,79 @@
 ML-100 HANDOFF — APP STORE SCREENSHOTS 6.9-INCH
 
-Status: Implementation complete; Figma sibling-section write remains blocked by account seat permissions.
+Last updated: 2026-08-17
 Version: 1.28.1
-Final asset directory: assets/app-store/ios/en-US/6.9/
-Manifest: assets/app-store/ios/en-US/6.9-manifest.json
+Status: Completed and validated. Owner manual work and manual QA passed. The dimension contract is resolved at 1320x2868.
 
-DELIVERED
+PURPOSE OF THIS HANDOFF
 
-- Five opaque JPEG assets at 1320x2868, quality 96, in the required order.
-- Real iPhone 17 Pro Max captures for Add Transaction, Home, and Analytics & Leaks.
-- English, EUR, 9:41, current one-page Add form, deterministic fictional ledger data, and no keyboard/debug/Metro overlays.
-- Test/docs-only deterministic fixture exporting only transactions and balanceEntries.
-- Dependency-free JPEG filename/signature/SOF/dimension validator exposed as npm run screenshots:validate.
-- Version alignment in package.json, package-lock.json, and project-contract tests.
-- Updated screenshot documentation, QA checklist, and the stable AGENTS.md validation rule.
+This is the canonical continuation artifact for ML-100. Do not create another ML-100 handoff. Use this file to understand what was implemented, what the owner completed manually, and what was validated.
 
-FIGMA PROVENANCE
+ORIGINAL TASK
 
-File key: h0QVqyKT70KlwgNfgRbrjm
-Original section: 342:6189 (unchanged)
-Requested sibling section name: ML-100 App Store screens — iPhone 6.9 — 1320x2868
+Prepare five English (U.S.) iPhone 6.9-inch App Store screenshots, preserve the supplied Figma compositions, replace stale Add Transaction, Home, and Analytics display content with current app captures, add deterministic screenshot data and validation tooling, update release metadata/docs, and avoid any production runtime/navigation/data-contract changes.
+
+DELIVERED IMPLEMENTATION
+
+1. App Store assets
+
+- Directory: assets/app-store/ios/en-US/6.9/
+- Exactly five JPEG files in the requested order:
+  1. 01-see-where-money-goes.jpg
+  2. 02-spot-draining-habits.jpg
+  3. 03-add-income-or-spending-fast.jpg
+  4. 04-explore-spending.jpg
+  5. 05-clear-insights.jpg
+- Original automated delivery generated opaque quality-96 JPEGs at 1320x2868.
+- A later manual asset set was 1608x3496. On 2026-08-17 the owner explicitly selected option 1: retain the original ML-100 contract at 1320x2868.
+- All five current files were normalized to exactly 1320x2868 with their filenames, order, and compositions preserved.
+- Adjacent provenance manifest: assets/app-store/ios/en-US/6.9-manifest.json.
+
+2. Current app captures
+
+- Captured on iPhone 17 Pro Max at 9:41 with English and EUR.
+- Production-like Expo session used --no-dev --minify.
+- Add Transaction: 12.50, Leak, Boredom, Shopping; current one-page form; no keyboard.
+- Home: EUR 1,234.56 balance; Add/Spend; Today/Yesterday/This week; Transactions/More; leak, normal expense, and balance rows; floating tabs.
+- Analytics & Leaks: Today/Week/Month/Custom; populated Overview/donut; Income EUR 1,249.12; Expenses EUR 14.56; Leaks EUR 10.00; ledger and floating tabs.
+- Captures contain no Metro/dev menu, debug overlay, notifications, account data, email, token, backend URL, or user/owner/localOwner/device identifier.
+
+3. Deterministic screenshot fixture
+
+- Source: src/features/dev/app-store-screenshot-fixture.ts
+- Tests: src/features/dev/__tests__/app-store-screenshot-fixture.test.ts
+- Public result shape is only { transactions, balanceEntries }.
+- Current-day deterministic fictional data:
+  - salary balance entry: EUR 1,249.12 at 14:45;
+  - normal Food expense: EUR 4.56 at 12:33;
+  - leak Shopping expense: EUR 10.00, reason Impulse, at 15:45;
+  - resulting balance: EUR 1,234.56.
+- Tests cover deterministic IDs/timestamps, expected totals, normal/leak/balance coverage, stable category/type IDs, and absence of personal identifiers/secrets.
+- The fixture is test/docs-only. Production runtime files do not import it.
+
+4. Screenshot validator
+
+- Script: scripts/validate-app-store-screenshots.js
+- npm interface: npm run screenshots:validate
+- Dependency-free JPEG parser validates the exact five filenames, no extra directory entries, JPEG signature/SOF dimensions, identical required dimensions, portrait/non-empty assets.
+- The validator currently hardcodes 1320x2868, matching the original ML-100 specification.
+
+5. Release/contracts/docs
+
+- package.json version changed from 1.28.0 to 1.28.1.
+- package-lock.json root version fields changed to 1.28.1.
+- src/lib/__tests__/project-contracts.test.ts checks version alignment, validator registration, dependency-free validator implementation, and absence of fixture imports from production runtime.
+- docs/app-store-screenshots.md documents order/copy, provenance, fixture, capture/privacy workflow, and App Store Connect workflow.
+- docs/mvp-qa-checklist.md contains the ML-100 manual QA section.
+- AGENTS.md gained one durable rule only: run npm run screenshots:validate when App Store screenshot assets change.
+- app.config.js, release workflow, and EAS config were not changed.
+
+FIGMA PROVENANCE AND MANUAL COMPLETION
+
+Figma file key: h0QVqyKT70KlwgNfgRbrjm
+Original section: 342:6189
+Requested sibling section: ML-100 App Store screens — iPhone 6.9 — 1320x2868
+
+Source mapping:
 
 1. 342:6083 -> 01-see-where-money-goes.jpg
 2. 342:6181 -> 02-spot-draining-habits.jpg
@@ -27,23 +81,31 @@ Requested sibling section name: ML-100 App Store screens — iPhone 6.9 — 1320
 4. 342:6184 -> 04-explore-spending.jpg
 5. 342:6088 -> 05-clear-insights.jpg
 
-Duplicate-link clarification: the first device mockup is node 342:6187, a direct child of section 342:6189 rather than a child of frame 342:6083. Screenshot 1 combines both source nodes. The five listed frame sources are unique.
+Duplicate-link clarification: the first splash device mockup is node 342:6187, a direct child of source section 342:6189 rather than a child of frame 342:6083. Screenshot 1 combines both nodes. The five frame IDs above are otherwise unique.
 
-The connected Figma MCP account rejected the create/copy operation with "Full seat" required (debug UUID f29c8f60-ac93-4c29-b2ab-94e8dc6cd3e3). No original node was mutated. Final committed assets were assembled deterministically from read-only Figma copy/colors/New York typography/device assets/closing vector and native simulator captures. After a Full seat is granted, create the requested sibling section and place the same three native captures only inside copied device displays.
+Automation could read/export Figma sources but could not write because the connected account required a Full seat (Figma debug UUID f29c8f60-ac93-4c29-b2ab-94e8dc6cd3e3). Automation did not mutate the original section. The owner confirmed on 2026-08-17 that all remaining manual actions were completed, including the Figma follow-up, App Store work, and manual testing. Manual QA result: PASS.
 
-CAPTURE WORKFLOW AND PRIVACY
+TEMPORARY CAPTURE WORK REMOVED
 
-- Simulator: iPhone 17 Pro Max, native 1320x2868.
-- Production-like Expo session: --no-dev --minify.
-- Status bar: 9:41, normal signal/Wi-Fi, charged battery.
-- Fixture totals: salary EUR 1,249.12; normal Food expense EUR 4.56; leak Shopping expense EUR 10.00; resulting balance EUR 1,234.56.
-- Add Transaction: 12.50, Leak, Boredom, Shopping.
-- Captures contain no real person/account data, email, notification, token, backend URL, user/owner/localOwner/device identifier, keyboard, Metro menu, or debug overlay.
-- All temporary runtime fixture wiring, capture-only form defaults/focus edits, and Analytics error suppression were removed. Production runtime contains no fixture import.
+The capture session temporarily seeded local state and temporarily adjusted Add Transaction focus/defaults and Analytics capture error visibility. All temporary runtime wiring and capture-only edits were removed before the original automated validation. Root layout, Add Transaction behavior, and Analytics error handling were restored. Production runtime contains no screenshot-fixture import.
 
-VALIDATION
+PRESERVED CONTRACTS / MUST NOT REGRESS
 
-- npm run screenshots:validate: PASS (5/5 JPEG files, each 1320x2868)
+- Runtime routes and bottom tabs.
+- Existing Home, Analytics, Add Transaction, Settings, icon, and splash behavior.
+- Transaction/balance/category models and persisted IDs.
+- SQLite and Supabase schemas.
+- Auth/session, incremental/manual/foreground sync, backup, and restore contracts.
+- Transaction CSV v1.
+- Currency remains display-only; no FX conversion or currency fields were added.
+- app.config.js, release workflow, EAS config, and dependency set.
+- Permanent guest/local behavior and existing service boundaries.
+
+VALIDATION HISTORY
+
+Original automated delivery:
+
+- npm run screenshots:validate: PASS (5/5 JPEG, each 1320x2868)
 - npm run release:preflight: PASS (9/9 checks)
 - npm test -- --runInBand: PASS (56 suites, 483 tests)
 - npm run typecheck: PASS
@@ -51,16 +113,51 @@ VALIDATION
 - npm run format:check: PASS
 - npx expo config --json: PASS (version 1.28.1)
 - git diff --check: PASS
-- Manual visual inspection of all five JPEGs: PASS
+- Visual inspection of all five original JPEGs: PASS
 
-PRESERVED CONTRACTS / MUST NOT REGRESS
+Owner follow-up:
 
-- Runtime routes, bottom tabs, UI behavior, transaction/balance/category models, SQLite/Supabase schemas, auth/session, sync/backup/restore DTOs and automation, Transaction CSV v1, Settings, icon, and splash configuration.
-- app.config.js, release workflow, EAS config, and dependency set.
-- Permanent guest/local behavior and existing service boundaries.
+- Remaining manual Figma/App Store actions: PASS, confirmed 2026-08-17.
+- Manual testing/visual QA: PASS, confirmed 2026-08-17.
+
+Dimension reconciliation on 2026-08-17:
+
+- The owner explicitly selected option 1: 1320x2868 remains final.
+- All five JPEGs were normalized from 1608x3496 to exactly 1320x2868.
+- Manual visual inspection after normalization: PASS.
+- npm run screenshots:validate after normalization: PASS.
+- The validator, manifest, docs, QA checklist, and Figma target naming remain aligned to 1320x2868.
+- No dimension-contract decision remains open.
+
+CURRENT WORKTREE STATE AT HANDOFF UPDATE
+
+The following documentation/provenance files are modified locally by this completion update:
+
+- assets/app-store/ios/en-US/6.9/01-see-where-money-goes.jpg
+- assets/app-store/ios/en-US/6.9/02-spot-draining-habits.jpg
+- assets/app-store/ios/en-US/6.9/03-add-income-or-spending-fast.jpg
+- assets/app-store/ios/en-US/6.9/04-explore-spending.jpg
+- assets/app-store/ios/en-US/6.9/05-clear-insights.jpg
+- assets/app-store/ios/en-US/6.9-manifest.json
+- docs/app-store-screenshots.md
+- docs/handoffs/ML_100_HANDOFF.txt
+- docs/mvp-qa-checklist.md
+
+No production runtime file is modified by this update.
+
+RECOMMENDED NEXT VALIDATION
+
+For any future screenshot change, run:
+
+1. npm run screenshots:validate
+2. npm run release:preflight
+3. npm test -- --runInBand
+4. npm run typecheck
+5. npm run lint
+6. npm run format:check
+7. npx expo config --json
+8. git diff --check
 
 REMAINING OWNER ACTIONS
 
-1. Obtain/assign a Figma Full seat, create the requested sibling section next to 342:6189, and copy the five compositions there without editing the originals.
-2. Upload the five committed JPEGs in numeric filename order to App Store Connect -> English (U.S.) -> iPhone 6.9-inch, then confirm the saved order and cropping.
-3. Prepare separate localized Figma copies and locale directories only if future localizations are required.
+None for ML-100. The owner confirmed Figma/App Store work and manual QA, and the repository dimension contract is now reconciled.
