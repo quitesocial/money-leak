@@ -1,6 +1,6 @@
 {
   "name": "money-leak",
-  "version": "1.28.0",
+  "version": "1.28.1",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -13,6 +13,7 @@
     "format": "node ./node_modules/prettier/bin/prettier.cjs . --write",
     "format:check": "node ./node_modules/prettier/bin/prettier.cjs . --check",
     "release:preflight": "node scripts/release-preflight.js",
+    "screenshots:validate": "node scripts/validate-app-store-screenshots.js",
     "version:patch": "npm version patch --no-git-tag-version",
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version",

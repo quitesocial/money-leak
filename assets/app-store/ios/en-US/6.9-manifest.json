@@ -1,0 +1,53 @@
+{
+  "task": "ML-100",
+  "locale": "en-US",
+  "display": "iPhone 6.9-inch",
+  "sourceSection": "342:6189",
+  "requestedTargetSection": "ML-100 App Store screens — iPhone 6.9 — 1320x2868",
+  "figmaWriteStatus": "blocked-full-seat-required",
+  "dimensions": {
+    "width": 1320,
+    "height": 2868
+  },
+  "format": "JPEG",
+  "quality": 96,
+  "assets": [
+    {
+      "filename": "01-see-where-money-goes.jpg",
+      "figmaSourceNode": "342:6083",
+      "additionalSourceNode": "342:6187",
+      "dimensions": "1320x2868",
+      "format": "JPEG",
+      "provenance": "Read-only Figma headline/background plus original Figma splash device mockup"
+    },
+    {
+      "filename": "02-spot-draining-habits.jpg",
+      "figmaSourceNode": "342:6181",
+      "dimensions": "1320x2868",
+      "format": "JPEG",
+      "provenance": "Read-only Figma composition/device bezel; native iPhone 17 Pro Max Add Transaction capture at 9:41"
+    },
+    {
+      "filename": "03-add-income-or-spending-fast.jpg",
+      "figmaSourceNode": "342:6085",
+      "dimensions": "1320x2868",
+      "format": "JPEG",
+      "provenance": "Read-only Figma composition/device bezel; native iPhone 17 Pro Max Home capture at 9:41"
+    },
+    {
+      "filename": "04-explore-spending.jpg",
+      "figmaSourceNode": "342:6184",
+      "dimensions": "1320x2868",
+      "format": "JPEG",
+      "provenance": "Read-only Figma composition/device bezel; native iPhone 17 Pro Max Analytics & Leaks capture at 9:41"
+    },
+    {
+      "filename": "05-clear-insights.jpg",
+      "figmaSourceNode": "342:6088",
+      "dimensions": "1320x2868",
+      "format": "JPEG",
+      "provenance": "Read-only Figma copy plus original vector closing illustration"
+    }
+  ],
+  "privacy": "Fictional local fixture only; no account, user, device, backend, or financial-identifying data"
+}

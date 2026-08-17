@@ -3625,3 +3625,55 @@ Manual QA:
 - Loading, success, failure, reset, keyboard, safe-area, accessibility, and fast-tap behavior match the ML-99 requirements without blur/glass or a new UI dependency.
 - Version is `1.28.0`; `app.config.js` continues to resolve it from `package.json`.
 - Transaction CSV v1, SQLite, backup/restore/sync DTOs and triggers, financial data, routes, tabs, and existing Settings behavior are unchanged.
+
+## ML-100 App Store screenshots — iPhone 6.9-inch
+
+### 72. English (U.S.) 1320×2868 final assets
+
+**Preconditions**
+
+- Use the five JPEGs in `assets/app-store/ios/en-US/6.9/`.
+- Keep the original Figma section `342:6189` unchanged.
+- Use the deterministic ML-100 fixture and an iPhone 17 Pro Max simulator for
+  any recapture.
+
+**Steps**
+
+1. Run `npm run screenshots:validate` and confirm exactly the five documented
+   filenames pass as JPEG `1320×2868` files.
+2. Inspect each file at 100% zoom and confirm copy, order, colors, New York
+   typography, illustrations, and device bezels match the documented Figma
+   sources.
+3. Confirm Add Transaction shows `12.50`, Leak, a selected reason, a selected
+   category, and the current one-page form without a keyboard.
+4. Confirm Home shows `€1,234.56`, Add/Spend, all three periods,
+   Transactions/More, leak/normal/balance rows, and floating tabs.
+5. Confirm Analytics & Leaks shows all four periods, Overview, a non-zero donut,
+   Income/Expenses/Leaks, ledger rows, and floating tabs.
+6. Confirm every app capture shows `9:41`, English and EUR, with no Metro/dev
+   menu, debug overlay, notification, email, token, backend URL, identifier, or
+   other sensitive data.
+7. Search production runtime files and confirm none imports
+   `app-store-screenshot-fixture`; recheck normal Add Transaction autofocus and
+   Analytics error handling after capture-only edits are removed.
+8. Confirm version `1.28.1` flows from `package.json` through `app.config.js`,
+   with no change to EAS config or release workflow.
+9. After a Figma Full seat is available, create the requested sibling section,
+   copy the five source compositions without editing `342:6189`, and place the
+   three native captures only inside their device displays.
+10. Upload the five JPEGs in filename order to App Store Connect under English
+    (U.S.) / iPhone 6.9-inch and confirm the saved order.
+
+**Expected result**
+
+- The final directory contains exactly five opaque portrait JPEGs, all
+  `1320×2868`, non-empty, ordered and named as specified.
+- Simulator captures use deterministic fictional values and contain no private
+  or debugging information.
+- App runtime, routes, bottom tabs, models, SQLite/Supabase schemas,
+  auth/session, sync/backup/restore DTOs, CSV v1, Settings, icon, splash, app
+  config, EAS config, and dependencies are unchanged.
+- The fixture remains test/docs-only and exports only transactions and balance
+  entries.
+- Figma write status is recorded in the manifest and handoff; the original
+  source section remains untouched.

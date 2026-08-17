@@ -140,6 +140,7 @@ npx tsc --noEmit
 After code changes, prefer to run the smallest relevant checks:
 
 - `npm run release:preflight`
+- `npm run screenshots:validate` when App Store screenshot assets changed
 - `npm test`
 - `npx tsc --noEmit`
 - `npm run lint`

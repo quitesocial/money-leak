@@ -197,7 +197,46 @@ describe('project contracts', () => {
     expect(feedbackService).not.toMatch(/backup|restore|sqlite|csv/i);
   });
 
-  it('keeps ML-99 version bump and Expo metadata aligned', () => {
+  it('keeps App Store screenshot fixtures out of production runtime', () => {
+    const runtimeFiles = [
+      'app/_layout.tsx',
+      'app/(tabs)/_layout.tsx',
+      'app/(tabs)/index.tsx',
+      'app/(tabs)/analytics.tsx',
+      'app/(tabs)/settings.tsx',
+      'app/add-transaction.tsx',
+      'app/add-balance.tsx',
+      'src/features/home/home-screen.tsx',
+      'src/features/analytics/analytics-screen.tsx',
+      'src/features/add-transaction/add-transaction-screen.tsx',
+      'src/features/settings/settings-screen.tsx',
+    ];
+
+    for (const filePath of runtimeFiles) {
+      const source = readFileSync(join(process.cwd(), filePath), 'utf8');
+
+      expect(source).not.toContain('app-store-screenshot-fixture');
+    }
+  });
+
+  it('registers the dependency-free App Store screenshot validator', () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const validator = readFileSync(
+      join(process.cwd(), 'scripts/validate-app-store-screenshots.js'),
+      'utf8',
+    );
+
+    expect(packageJson.scripts['screenshots:validate']).toBe(
+      'node scripts/validate-app-store-screenshots.js',
+    );
+    expect(validator).toContain('1320');
+    expect(validator).toContain('2868');
+    expect(validator).not.toMatch(/require\(['"](sharp|canvas|pngjs)/);
+  });
+
+  it('keeps ML-100 version bump and Expo metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -211,9 +250,9 @@ describe('project contracts', () => {
     const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.28.0');
-    expect(packageLock.version).toBe('1.28.0');
-    expect(packageLock.packages[''].version).toBe('1.28.0');
+    expect(packageJson.version).toBe('1.28.1');
+    expect(packageLock.version).toBe('1.28.1');
+    expect(packageLock.packages[''].version).toBe('1.28.1');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );
