@@ -2,11 +2,23 @@ ML-101 HANDOFF — APP STORE RELEASE HARDENING
 
 Last updated: 2026-08-17
 Version: 1.28.2
-Status: Repository work complete and validated. External owner actions and final App Review submission remain intentionally manual.
+Status: Completed. Repository validation passed, and the owner confirmed all external actions and manual QA passed.
 
 PURPOSE
 
 Prepare a clean first-public-release candidate that can pass the existing GitHub/EAS production build and upload flow, complete final TestFlight smoke QA, and be manually submitted by the owner through App Store Connect. ML-101 does not redesign the app, replace completed functionality, or automate legal declarations or final review submission.
+
+CONTINUATION SUMMARY FOR THE NEXT AGENT
+
+- ML-101 is complete. Do not recreate, re-plan, or reimplement this epic.
+- The implementation was merged to main in commit e48845b / PR #136.
+- Current app version is 1.28.2 and the first public iOS release is iPhone-only with ios.supportsTablet false.
+- The owner explicitly confirmed all external App Store Connect, EAS, Apple Developer, provider/Supabase, screenshot, metadata, compliance, reviewer-access, and manual review actions were completed.
+- The owner explicitly confirmed the full manual TestFlight/App Store QA result is PASS.
+- Remaining ML-101 owner actions: none.
+- No runtime product code, dependency, persisted contract, Supabase schema, EAS architecture, GitHub workflow, or screenshot asset changed during the post-merge completion update.
+- Do not bump the version or create another iOS build merely to record the completion documentation.
+- At the time of this handoff update, the worktree contains only the five documentation modifications listed in POST-MERGE OWNER COMPLETION UPDATE below. Preserve them when continuing.
 
 BASELINE FOUND BEFORE CHANGES
 
@@ -75,7 +87,7 @@ PRIVACY AUDIT RESULT
 - Feedback storage contains rating, optional comment, app version, platform, runtime language, server time, and a server-generated row ID, without account/user/owner/localOwner/device or financial identifiers.
 - The checklist recommends disclosure of feedback rather than assuming Apple's optional-feedback exemption.
 - No repository evidence of advertising, tracking, analytics, crash reporting, telemetry, or attribution was found.
-- docs/privacy-policy.md was rewritten as an accurate technical source draft. Publishing/legal wording, retention, provider logging, and final App Store classifications remain OWNER ACTIONS.
+- docs/privacy-policy.md was rewritten as an accurate technical source draft. The owner confirmed publishing/legal wording, retention, provider logging, and final App Store classifications were completed externally on 2026-08-17.
 
 APPLE COMPLIANCE AUDIT RESULT
 
@@ -117,35 +129,68 @@ AGENTS.MD RESULT
 
 AGENTS.md gained one durable release rule: iOS App Store distribution is iPhone-only and ios.supportsTablet must stay false unless future work explicitly includes iPad UI QA and App Store screenshots. This prevents the exact release-scope mismatch found in ML-101 and is broader than a one-time task detail. The existing screenshot-validator rule was not duplicated.
 
-REMAINING OWNER ACTIONS
+OWNER COMPLETION CONFIRMATION
 
-1. Publish or update the external Privacy Policy so it matches the audited data flows, add required legal/operator/retention language, and verify the configured URL opens without a login.
-2. Provide or confirm the required public App Store Connect Support URL. The repository currently identifies only the in-app mailto action.
-3. Review and publish App Privacy answers, including Apple, Google, Supabase, profile/avatar, source-device ID, feedback, provider logging, retention, linked/not-linked status, and purpose classifications.
-4. Verify the intended production Supabase project has all migrations/RLS, Apple and Google provider configuration, redirect allowlists, and the delete-account Edge Function deployed.
-5. Verify the EAS production public environment values and GitHub release secrets are configured without exposing them.
-6. Complete the current age-rating questionnaire, including social-capability questions.
-7. Complete any App Store Connect export-compliance response; the repository only supplies the technical configuration.
-8. Complete DSA trader/non-trader status and any required verification.
-9. Choose territories/availability, confirm Free pricing, and choose the desired release behavior after approval.
-10. Enter App Review contact information, final metadata, public links, and App Review Notes.
-11. Decide whether App Review requires credentials for optional authenticated flows. If requested, enter reviewer-only credentials in App Store Connect and never in the repository.
-12. Upload the five English (U.S.) iPhone 6.9-inch screenshots in numeric filename order.
-13. Merge the reviewed release PR to main and confirm GitHub Release iOS follows the version-changed path.
-14. Inspect the final EAS build log and confirm Xcode 26 or later, iOS 26 SDK or later, remote build-number increment, successful production build, and successful auto-submit.
-15. Confirm App Store Connect accepts and completes processing for the uploaded build.
-16. Run the complete TestFlight smoke QA in docs/app-store-submission-checklist.md on the exact build selected for review.
-17. Select the tested build, click Add for Review manually, review all declarations, and click Submit for Review manually.
+On 2026-08-17 the owner confirmed that every external/manual ML-101 action was completed successfully, including:
 
-COULD NOT BE VERIFIED FROM THE REPOSITORY
+- public Privacy Policy and Support URL publication/verification;
+- final App Privacy, age-rating, export-compliance, DSA, availability, pricing, release behavior, review contact, metadata, and reviewer-access decisions;
+- production Supabase/provider/Edge Function, EAS environment, and GitHub release configuration checks;
+- iPhone screenshot upload/order, release build/upload/processing checks, and selection of the intended build;
+- the complete TestFlight smoke QA, including guest mode, both authentication providers, backup/restore/sync, account deletion, feedback, Privacy Policy, and Support;
+- the manual App Store review actions that repository automation intentionally does not perform.
 
-- Whether the configured Notion Privacy Policy is publicly accessible and already contains current wording.
-- The final public App Store Support URL.
-- Live production Supabase/provider/Edge Function deployment state.
-- EAS/GitHub secret and public-environment values.
-- The Xcode/iOS SDK used by the not-yet-created final production build.
-- App Store Connect processing, metadata, privacy/compliance declarations, availability, pricing, reviewer access, and TestFlight behavior.
+Manual QA result: PASS.
+Remaining OWNER ACTIONS: None.
 
-FINAL TECHNICAL READINESS
+EXTERNAL VERIFICATION BOUNDARY
 
-The repository is technically ready for owner review and merge after the final diff is accepted. External owner gates above must still pass before manual App Review submission. Final App Review submission itself was intentionally not performed or automated.
+The repository cannot independently prove App Store Connect, EAS, Apple Developer, provider-dashboard, or deployed Supabase state. Their completion is recorded from the owner's explicit confirmation. No credentials, production identifiers, or legal declarations were copied into the repository.
+
+POST-MERGE OWNER COMPLETION UPDATE
+
+After e48845b was merged, the owner reported that every remaining manual action and all manual testing were complete and successful. The following existing documents were updated to preserve that completion state; no new handoff was created:
+
+1. docs/app-store-metadata.md
+   - Public-link, metadata, reviewer-access, compliance, and manual review actions are marked OWNER CONFIRMED on 2026-08-17.
+2. docs/app-store-privacy-checklist.md
+   - Privacy/public-link/provider/deployment classifications and checks are marked OWNER CONFIRMED on 2026-08-17.
+3. docs/app-store-submission-checklist.md
+   - Every repository, TestFlight, App Store Connect, EAS, Apple Developer, and final manual review item is checked complete.
+4. docs/mvp-qa-checklist.md
+   - ML-101 records complete manual TestFlight/App Store QA as PASS with no remaining owner action.
+5. docs/handoffs/ML_101_HANDOFF.txt
+   - This canonical handoff records the owner completion confirmation and next-agent starting point.
+
+The completion update intentionally keeps package.json and package-lock.json at 1.28.2. Because package.json.version did not change, this documentation-only follow-up must not trigger a new version-gated iOS release build.
+
+POST-MERGE COMPLETION VALIDATION
+
+Environment: Node 20.19.4.
+
+- npm run screenshots:validate: PASS, 5/5 JPEG files at 1320x2868.
+- npm run release:preflight: PASS, 10 passed and 0 failed.
+- npm test -- --runInBand: PASS, 56 suites and 483 tests.
+- npm run typecheck: PASS.
+- npm run lint: PASS.
+- npm run format:check: PASS after formatting the updated completion checklist.
+- git diff --check: PASS with no output.
+- docs/app-store-submission-checklist.md contains no unchecked checkbox.
+
+CURRENT WORKTREE STATE FOR CONTINUATION
+
+Branch: main, aligned with origin/main at e48845b before the local completion-record edits.
+
+Modified locally and not yet committed at the time of this handoff update:
+
+- docs/app-store-metadata.md
+- docs/app-store-privacy-checklist.md
+- docs/app-store-submission-checklist.md
+- docs/handoffs/ML_101_HANDOFF.txt
+- docs/mvp-qa-checklist.md
+
+These are documentation-only completion records. There is no version bump, runtime code change, screenshot change, generated artifact, or new release configuration change in the worktree.
+
+FINAL RELEASE STATUS
+
+ML-101 is complete. The release implementation was merged to main in e48845b, repository validation passed, and the owner confirmed all external work and manual testing passed. Final legal/review actions remained owner-operated and were not automated by repository code.

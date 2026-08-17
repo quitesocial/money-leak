@@ -4,6 +4,10 @@ This is the repository-side English (U.S.) metadata draft for Money Leak
 `1.28.2`. Compare every field with the editable App Store Connect version
 before submission.
 
+**Completion record (2026-08-17):** The owner confirmed that all external
+metadata, public-link, compliance, reviewer-access, and manual App Store review
+actions were completed successfully.
+
 ## App name
 
 Money Leak
@@ -26,19 +30,16 @@ The keyword string is 92 characters.
 
 - In-app support action: `mailto:asrazdorskiy@gmail.com`
 - Support contact: `asrazdorskiy@gmail.com`
-- **OWNER ACTION:** Enter and verify the required public App Store Connect
-  Support URL. The repository does not identify a public web support page;
-  the in-app support action is email only.
+- **OWNER CONFIRMED (2026-08-17):** The required public App Store Connect
+  Support URL was entered and verified externally. The repository continues to
+  identify only the in-app email action.
 
 ## Privacy Policy URL
 
 https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true
 
-**OWNER ACTION:** Publish or update the public policy so it matches the
-current data flows documented in `docs/privacy-policy.md`, then verify the URL
-opens without a Notion login. Do not submit while the public policy still
-claims that accounts, Supabase, backup, restore, sync, or feedback do not
-exist.
+**OWNER CONFIRMED (2026-08-17):** The public policy was updated for the current
+data flows documented in `docs/privacy-policy.md` and verified externally.
 
 ## Description
 
@@ -131,14 +132,14 @@ in-app purchase. No reviewer credentials are required for core functionality.
 Anonymous feedback is available from the Leave Feedback button at the bottom
 of Settings.
 
-**OWNER ACTION:** If App Review asks for separate credentials to test optional
-account-backed flows, enter reviewer-only credentials in App Store Connect
-Review Information. Never store credentials in this repository or in these
+**OWNER CONFIRMED (2026-08-17):** Reviewer-access requirements were completed
+in App Store Connect without storing credentials in this repository or these
 notes.
 
-## Owner-only App Store Connect fields
+## Owner completion record
 
-Complete these directly in App Store Connect:
+The owner confirmed these fields were completed directly in App Store Connect
+on 2026-08-17:
 
 - App Review contact name, phone, and email.
 - Copyright.

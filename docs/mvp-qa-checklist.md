@@ -3680,6 +3680,10 @@ Manual QA:
 
 ## ML-101 App Store release hardening
 
+**Completion record (2026-08-17):** The owner confirmed all external release
+actions and the complete manual TestFlight/App Store QA passed. No ML-101 owner
+action remains.
+
 ### 73. iPhone-only release candidate and submission readiness
 
 **Automated checks**
