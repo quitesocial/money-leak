@@ -4,15 +4,20 @@ This checklist maps the Money Leak `1.28.2` repository behavior to the facts
 needed for App Store Connect. It is technical evidence, not legal advice or a
 substitute for the owner's final declarations.
 
+**Completion record (2026-08-17):** The owner confirmed that the public links,
+provider/deployment checks, privacy classifications, retention/legal review,
+and final App Store Connect privacy answers were completed successfully.
+
 ## Public links
 
 - Privacy Policy URL:
   https://www.notion.so/quitesocial/35357a24e62c804dab18c28d24a6c75a?showMoveTo=true&saveParent=true
 - In-app support action: `mailto:asrazdorskiy@gmail.com`
-- **OWNER ACTION:** Verify the Privacy Policy opens publicly without a Notion
-  login and matches `docs/privacy-policy.md`.
-- **OWNER ACTION:** Enter and test a public App Store Connect Support URL; the
-  repository currently identifies only the in-app email action.
+- **OWNER CONFIRMED (2026-08-17):** The public Privacy Policy was verified and
+  matches the current data-flow review.
+- **OWNER CONFIRMED (2026-08-17):** A public App Store Connect Support URL was
+  entered and tested externally; the repository continues to identify only
+  the in-app email action.
 
 ## Data that stays on-device
 
@@ -67,9 +72,9 @@ Candidate App Store Connect data types for owner review:
 - Other Data Types: confirm classification of provider, settings, schema, and
   sync metadata.
 
-Default purpose: App Functionality. **OWNER ACTION:** Decide whether synced
-language/currency preferences also require Product Personalization and confirm
-the final classification with current Apple guidance.
+Default purpose: App Functionality. **OWNER CONFIRMED (2026-08-17):** The final
+purpose classification, including treatment of synced language/currency
+preferences, was reviewed in App Store Connect.
 
 ## Anonymous feedback transmitted to Supabase
 
@@ -97,9 +102,8 @@ Recommended App Store Connect treatment, pending owner/legal review:
 - do not rely on Apple's optional-feedback disclosure exception without
   confirming every current eligibility condition.
 
-**OWNER ACTION:** Confirm Supabase infrastructure logging and retention do not
-create a link between feedback and identity, and document the actual feedback
-retention policy in the public Privacy Policy.
+**OWNER CONFIRMED (2026-08-17):** Supabase logging/retention and the public
+feedback-retention disclosure were reviewed externally.
 
 ## Tracking, advertising, analytics, and diagnostics
 
@@ -111,9 +115,8 @@ integration, automatic bank import, subscription, or in-app purchase.
 - Advertising: technical evidence supports `No`.
 - Analytics/diagnostic collection by the developer: no implementation was
   found.
-- **OWNER ACTION:** Include Apple, Google, Supabase, and any provider-side
-  practices or logs that exist outside this repository when completing the
-  final answers.
+- **OWNER CONFIRMED (2026-08-17):** Apple, Google, Supabase, and provider-side
+  practices outside this repository were included in the final review.
 
 ## Account and deletion checks
 
@@ -127,8 +130,8 @@ integration, automatic bank import, subscription, or in-app purchase.
 - Anonymous feedback is not account-linked and is not part of account
   deletion, backup, restore, sync, SQLite, or CSV contracts.
 
-**OWNER ACTION:** Verify these paths against the deployed production Supabase
-project and final TestFlight build before submission.
+**OWNER CONFIRMED (2026-08-17):** These paths were verified against the
+deployed production services and final TestFlight build.
 
 ## Final App Store Connect owner review
 
