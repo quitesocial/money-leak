@@ -1,0 +1,66 @@
+ML-100 HANDOFF — APP STORE SCREENSHOTS 6.9-INCH
+
+Status: Implementation complete; Figma sibling-section write remains blocked by account seat permissions.
+Version: 1.28.1
+Final asset directory: assets/app-store/ios/en-US/6.9/
+Manifest: assets/app-store/ios/en-US/6.9-manifest.json
+
+DELIVERED
+
+- Five opaque JPEG assets at 1320x2868, quality 96, in the required order.
+- Real iPhone 17 Pro Max captures for Add Transaction, Home, and Analytics & Leaks.
+- English, EUR, 9:41, current one-page Add form, deterministic fictional ledger data, and no keyboard/debug/Metro overlays.
+- Test/docs-only deterministic fixture exporting only transactions and balanceEntries.
+- Dependency-free JPEG filename/signature/SOF/dimension validator exposed as npm run screenshots:validate.
+- Version alignment in package.json, package-lock.json, and project-contract tests.
+- Updated screenshot documentation, QA checklist, and the stable AGENTS.md validation rule.
+
+FIGMA PROVENANCE
+
+File key: h0QVqyKT70KlwgNfgRbrjm
+Original section: 342:6189 (unchanged)
+Requested sibling section name: ML-100 App Store screens — iPhone 6.9 — 1320x2868
+
+1. 342:6083 -> 01-see-where-money-goes.jpg
+2. 342:6181 -> 02-spot-draining-habits.jpg
+3. 342:6085 -> 03-add-income-or-spending-fast.jpg
+4. 342:6184 -> 04-explore-spending.jpg
+5. 342:6088 -> 05-clear-insights.jpg
+
+Duplicate-link clarification: the first device mockup is node 342:6187, a direct child of section 342:6189 rather than a child of frame 342:6083. Screenshot 1 combines both source nodes. The five listed frame sources are unique.
+
+The connected Figma MCP account rejected the create/copy operation with "Full seat" required (debug UUID f29c8f60-ac93-4c29-b2ab-94e8dc6cd3e3). No original node was mutated. Final committed assets were assembled deterministically from read-only Figma copy/colors/New York typography/device assets/closing vector and native simulator captures. After a Full seat is granted, create the requested sibling section and place the same three native captures only inside copied device displays.
+
+CAPTURE WORKFLOW AND PRIVACY
+
+- Simulator: iPhone 17 Pro Max, native 1320x2868.
+- Production-like Expo session: --no-dev --minify.
+- Status bar: 9:41, normal signal/Wi-Fi, charged battery.
+- Fixture totals: salary EUR 1,249.12; normal Food expense EUR 4.56; leak Shopping expense EUR 10.00; resulting balance EUR 1,234.56.
+- Add Transaction: 12.50, Leak, Boredom, Shopping.
+- Captures contain no real person/account data, email, notification, token, backend URL, user/owner/localOwner/device identifier, keyboard, Metro menu, or debug overlay.
+- All temporary runtime fixture wiring, capture-only form defaults/focus edits, and Analytics error suppression were removed. Production runtime contains no fixture import.
+
+VALIDATION
+
+- npm run screenshots:validate: PASS (5/5 JPEG files, each 1320x2868)
+- npm run release:preflight: PASS (9/9 checks)
+- npm test -- --runInBand: PASS (56 suites, 483 tests)
+- npm run typecheck: PASS
+- npm run lint: PASS
+- npm run format:check: PASS
+- npx expo config --json: PASS (version 1.28.1)
+- git diff --check: PASS
+- Manual visual inspection of all five JPEGs: PASS
+
+PRESERVED CONTRACTS / MUST NOT REGRESS
+
+- Runtime routes, bottom tabs, UI behavior, transaction/balance/category models, SQLite/Supabase schemas, auth/session, sync/backup/restore DTOs and automation, Transaction CSV v1, Settings, icon, and splash configuration.
+- app.config.js, release workflow, EAS config, and dependency set.
+- Permanent guest/local behavior and existing service boundaries.
+
+REMAINING OWNER ACTIONS
+
+1. Obtain/assign a Figma Full seat, create the requested sibling section next to 342:6189, and copy the five compositions there without editing the originals.
+2. Upload the five committed JPEGs in numeric filename order to App Store Connect -> English (U.S.) -> iPhone 6.9-inch, then confirm the saved order and cropping.
+3. Prepare separate localized Figma copies and locale directories only if future localizations are required.
