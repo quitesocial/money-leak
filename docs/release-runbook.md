@@ -1,129 +1,156 @@
-# Money Leak Release Runbook
+# Money Leak iOS Release Runbook
 
-This runbook covers the first live CI-driven TestFlight release verification flow for Money Leak's iOS automation.
+This runbook covers the CI-driven production build/upload flow and the manual
+steps required to submit Money Leak `1.28.2` for its first public iPhone
+release.
+
+## Release architecture
+
+- A push to `main` starts `.github/workflows/release-ios.yml`.
+- The workflow continues only when `package.json.version` changed from the
+  previous `main` revision.
+- GitHub Actions installs with Node `20.19.4`, validates the repository, writes
+  the App Store Connect API key only to the runner's temporary directory, and
+  replaces committed placeholder values in the runner copy of `eas.json`.
+- EAS builds the `production` iOS profile, remotely auto-increments the build
+  number, and auto-submits the binary to App Store Connect.
+- EAS upload is not final App Review submission. Add for Review and Submit for
+  Review remain manual owner actions.
 
 ## Preconditions
 
-- The release PR includes the intended `package.json.version` bump.
-- The pull request `Validate` check is required before merge.
-- The repository GitHub Actions secrets are configured:
+- The reviewed release PR contains version `1.28.2` in `package.json` and both
+  root version fields in `package-lock.json`.
+- PR `Validate` passes.
+- The five existing iPhone 6.9-inch screenshots pass
+  `npm run screenshots:validate`.
+- GitHub Actions secrets are configured:
   - `EXPO_TOKEN`
   - `EXPO_ASC_APP_ID`
   - `EXPO_ASC_API_KEY_ID`
   - `EXPO_ASC_API_KEY_ISSUER_ID`
   - `EXPO_ASC_API_KEY_P8_BASE64`
-- For Google login builds, the production GitHub/EAS build environment has the
-  required public Expo values configured:
+- The EAS `production` environment provides the public app configuration:
   - `EXPO_PUBLIC_SUPABASE_URL`
   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
   - `EXPO_PUBLIC_AUTH_REDIRECT_SCHEME`
   - `EXPO_PUBLIC_AUTH_REDIRECT_PATH`
   - `EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER`
   - `EXPO_PUBLIC_ANDROID_PACKAGE`
-- EAS remote iOS build numbers are already aligned with the latest build number in App Store Connect.
+- Production Supabase migrations/RLS, Apple and Google providers, redirect
+  allowlists, and the `delete-account` Edge Function are deployed and tested.
+- EAS remote iOS build numbers are aligned with the latest build already in
+  App Store Connect.
 
-## First Live Verification Flow
+## 1. Validate and merge the release PR
 
-For auth config rebuilds such as ML-57, local `.env` values are not enough.
-Expo bakes `EXPO_PUBLIC_*` values into the native app during the EAS build, so
-adding or changing those values requires a new TestFlight build. The
-`Release iOS` workflow only creates that build when `package.json.version`
-changes.
+1. Review the final diff and the ML-101 handoff.
+2. Confirm PR `Validate` ran release preflight, format, lint, typecheck, tests,
+   and the web export check successfully.
+3. Confirm the version change is intentional and merge the PR to `main`.
 
-### 1. Confirm PR `Validate` passes
+## 2. Confirm GitHub release gating
 
-- Open the release PR.
-- Wait for the `Validate` check from `PR Checks` to pass.
-- Confirm the job ran `npm run release:preflight` before format, lint, typecheck, tests, and the web export check.
+1. Open the `Release iOS` run for the merge commit.
+2. Confirm `Detect version change` reports the previous version and `1.28.2`
+   and sets `should_release=true`.
+3. Confirm secret validation, dependency installation, preflight, tests,
+   typecheck, lint, and format checks pass before the build step.
+4. For any later `main` push without a version change, confirm the workflow
+   exits through `Skip release when version is unchanged` and does not build.
 
-### 2. Merge to `main`
+## 3. Confirm EAS build compatibility
 
-- Merge the PR only after `Validate` passes.
-- Open the GitHub Actions tab and select the `Release iOS` run for the merge commit.
+Apple requires App Store uploads to be built with Xcode 26 or later and the
+corresponding iOS 26 SDK generation. Expo SDK 54 currently maps its automatic
+iOS image to an Xcode 26 image, so this release does not pin an image or perform
+an Expo SDK upgrade.
 
-### 3. Confirm the version-changed release path starts
+1. Open `Build and auto-submit iOS` and follow the EAS build link.
+2. In `Spin up build environment`, record the exact image, Xcode version, and
+   iOS SDK version.
+3. Stop the release if the log does not show Xcode 26+ and iOS 26 SDK+.
+4. Confirm the production build completes and its build number auto-increments.
 
-- Open the `Detect version change` step and confirm the previous and current versions differ.
-- Confirm the workflow continues past `Skip release when version is unchanged`.
-- Confirm `Run release preflight` runs before tests and before `Write App Store Connect API key`, `Inject App Store Connect placeholders`, and `Build and auto-submit iOS`.
+Because the default image is selected dynamically, repository inspection does
+not replace this per-build log check.
 
-Note: `Release iOS` is triggered on every push to `main`. The release path only continues when `package.json.version` changed.
+## 4. Confirm App Store Connect processing
 
-### 4. Confirm the unchanged-version path skips
+1. Confirm EAS auto-submit reports a successful upload.
+2. Open `My Apps -> Money Leak -> TestFlight` in App Store Connect.
+3. Confirm the new version/build appears, completes processing, and has no
+   blocking compliance or binary warning.
+4. Confirm the processed version and build number match the release merge and
+   EAS build.
 
-- Merge or push a later `main` change without modifying `package.json.version`.
-- Open the corresponding `Release iOS` run.
-- Confirm the `Skip release when version is unchanged` step logs the unchanged-version reason.
-- Confirm `Build and auto-submit iOS` does not run.
+## 5. Run final TestFlight QA
 
-### 5. Confirm the EAS build is created
+1. Install the exact processed build on a supported iPhone.
+2. Complete every item in the Final TestFlight smoke QA section of
+   `docs/app-store-submission-checklist.md`.
+3. Record the device/iOS version, build number, account/provider coverage, and
+   PASS/FAIL result.
+4. Do not select an untested replacement build for App Review.
 
-- In the version-changed `Release iOS` run, open the `Build and auto-submit iOS` logs.
-- Confirm EAS reports a build URL or build ID.
-- Confirm the `production` iOS build finishes successfully in EAS.
+## 6. Complete App Store Connect metadata and compliance
 
-### 6. Confirm App Store Connect processing completes
+Use `docs/app-store-metadata.md`, `docs/app-store-privacy-checklist.md`, and
+`docs/app-store-submission-checklist.md` as technical inputs. The owner must
+personally verify and complete:
 
-- After EAS auto-submit finishes, open App Store Connect and go to `My Apps -> Money Leak -> TestFlight`.
-- Confirm the new build appears and enters processing.
-- Wait until processing completes and there are no blocking errors on the build.
+- screenshots and their order;
+- metadata, public Privacy Policy, public Support URL, and review contact;
+- App Privacy answers;
+- age rating, export compliance, and DSA status;
+- territories, Free pricing, and release behavior;
+- App Review Notes and any reviewer access requested.
 
-### 7. Confirm the build appears in TestFlight
+Do not treat repository wording as a legal declaration.
 
-- In TestFlight, confirm the processed build is selectable for distribution.
-- Confirm the version and build number match the release you just merged.
+## 7. Submit manually
 
-### 8. Confirm ML-57 Google login config on device
+1. Select the exact TestFlight-tested build.
+2. Click Add for Review manually.
+3. Review every attached item and compliance answer.
+4. Click Submit for Review manually.
 
-- Install the TestFlight build created from version `1.12.1`.
-- Open Settings on a real device and confirm `Continue with Google` appears.
-- Tap `Continue with Google` and confirm login succeeds, or that any provider
-  or config failure uses safe copy without exposing URLs, keys, tokens, or
-  secrets.
-- Sign out and confirm local transactions and categories remain visible.
-
-## Tester Distribution Paths
-
-### Internal testers
-
-- Open App Store Connect `TestFlight`.
-- Select the processed build.
-- Add the build to the intended internal testing group.
-- Confirm at least one internal tester can see the build in TestFlight.
-
-### External testers
-
-- Open App Store Connect `TestFlight`.
-- If Apple requires Beta App Review for the build, complete the required metadata and submit it for review.
-- After approval, add the build to the intended external testing group.
-- Confirm the build becomes available to external testers.
+No repository automation should perform these final review actions.
 
 ## Troubleshooting
 
 ### Missing GitHub secrets
 
-- Symptom: `Validate release secrets` fails with a missing-secret error.
-- Fix: add the missing repository secret in `Settings -> Secrets and variables -> Actions`.
-- Required secrets are `EXPO_TOKEN`, `EXPO_ASC_APP_ID`, `EXPO_ASC_API_KEY_ID`, `EXPO_ASC_API_KEY_ISSUER_ID`, and `EXPO_ASC_API_KEY_P8_BASE64`.
+If `Validate release secrets` fails, add the named secret in repository Actions
+settings. Never print or commit secret values.
 
-### `.p8` base64 decoding errors
+### App Store Connect API key decoding
 
-- Symptom: `Write App Store Connect API key` fails while running `base64 --decode`.
-- Fix: replace `EXPO_ASC_API_KEY_P8_BASE64` with the raw base64 of the `.p8` file contents, with no quotes or extra whitespace.
-- macOS example:
-
-```sh
-base64 -i AuthKey_XXXXXX.p8
-```
+If the temporary `.p8` write fails, replace `EXPO_ASC_API_KEY_P8_BASE64` with
+the raw base64 representation of the key file, without quotes or extra
+whitespace. The decoded key must remain runner-temporary.
 
 ### EAS remote build number mismatch
 
-- Symptom: the EAS build or submit step fails because the remote iOS build number is behind the latest build already present in App Store Connect.
-- Fix: run `eas build:version:set` locally, choose `ios`, and set the remote build number to the latest build number already visible in App Store Connect.
-- Retry the release after the remote build number is aligned.
+If the build number is behind App Store Connect, use `eas build:version:set`
+for iOS to align the remote value, then produce a new intentional release
+build. Do not add a hardcoded build number to `app.json`.
 
-### App Store Connect processing delays
+### Wrong Xcode/iOS SDK generation
 
-- Symptom: EAS submit succeeds, but the build stays in processing or does not become available in TestFlight yet.
-- Fix: wait and refresh App Store Connect `TestFlight` periodically.
-- If the delay persists, inspect the build details in App Store Connect for processing warnings or account-level blockers before retrying.
+Do not blindly pin an image or start a broad Expo upgrade. Capture the EAS log,
+compare current Apple and Expo requirements, and report the incompatibility as
+a release blocker before changing SDK/build infrastructure.
+
+### App Store Connect processing delay
+
+Wait for normal processing, then inspect the build details and App Store
+Connect system status before retrying. Do not create repeated builds merely
+because processing is still pending.
+
+### Auth, backup, sync, feedback, or deletion failure
+
+Verify the exact build's public EAS environment, Supabase provider settings,
+redirect allowlist, migrations/RLS, and Edge Function deployment. Keep raw
+URLs, keys, tokens, identifiers, and backend errors out of user-facing copy and
+release documentation.

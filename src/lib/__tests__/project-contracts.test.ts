@@ -236,7 +236,7 @@ describe('project contracts', () => {
     expect(validator).not.toMatch(/require\(['"](sharp|canvas|pngjs)/);
   });
 
-  it('keeps ML-100 version bump and Expo metadata aligned', () => {
+  it('keeps ML-101 version and iPhone release metadata aligned', () => {
     const packageJson = JSON.parse(
       readFileSync(join(process.cwd(), 'package.json'), 'utf8'),
     ) as { version: string };
@@ -247,16 +247,36 @@ describe('project contracts', () => {
       join(process.cwd(), 'app.config.js'),
       'utf8',
     );
-    const appJson = readFileSync(join(process.cwd(), 'app.json'), 'utf8');
+    const appJson = JSON.parse(
+      readFileSync(join(process.cwd(), 'app.json'), 'utf8'),
+    ) as {
+      expo: {
+        ios: {
+          buildNumber?: string;
+          infoPlist: { ITSAppUsesNonExemptEncryption: boolean };
+          supportsTablet: boolean;
+          usesAppleSignIn: boolean;
+        };
+        version?: string;
+      };
+    };
     const easJson = readFileSync(join(process.cwd(), 'eas.json'), 'utf8');
 
-    expect(packageJson.version).toBe('1.28.1');
-    expect(packageLock.version).toBe('1.28.1');
-    expect(packageLock.packages[''].version).toBe('1.28.1');
+    expect(packageJson.version).toBe('1.28.2');
+    expect(packageLock.version).toBe('1.28.2');
+    expect(packageLock.packages[''].version).toBe('1.28.2');
     expect(appConfig).toContain(
       "const { version } = require('./package.json');",
     );
-    expect(appJson).not.toContain('"version"');
+    expect(appJson.expo.version).toBeUndefined();
+    expect(appJson.expo.ios).toMatchObject({
+      supportsTablet: false,
+      usesAppleSignIn: true,
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+      },
+    });
+    expect(appJson.expo.ios.buildNumber).toBeUndefined();
     expect(easJson).toContain('"appVersionSource": "remote"');
   });
 });

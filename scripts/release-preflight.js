@@ -53,6 +53,7 @@ function assertEqual(actual, expected, label) {
 }
 
 const packageJson = readJson('package.json');
+const appJson = readJson('app.json');
 let easJson = null;
 
 runCheck(() => {
@@ -69,6 +70,39 @@ runCheck(() => {
   }
 
   ok(`package.json version is valid semver (${version})`);
+});
+
+runCheck(() => {
+  const iosConfig = appJson?.expo?.ios;
+
+  if (!iosConfig || typeof iosConfig !== 'object') {
+    throw new Error('app.json expo.ios configuration is missing');
+  }
+
+  assertEqual(
+    iosConfig.supportsTablet,
+    false,
+    'app.json expo.ios.supportsTablet',
+  );
+  assertEqual(
+    iosConfig.usesAppleSignIn,
+    true,
+    'app.json expo.ios.usesAppleSignIn',
+  );
+  assertEqual(
+    iosConfig.infoPlist?.ITSAppUsesNonExemptEncryption,
+    false,
+    'app.json expo.ios.infoPlist.ITSAppUsesNonExemptEncryption',
+  );
+  assertEqual(
+    iosConfig.buildNumber,
+    undefined,
+    'app.json expo.ios.buildNumber',
+  );
+
+  ok(
+    'app.json keeps the iPhone-only, Apple Sign-In, encryption, and remote build-number contracts',
+  );
 });
 
 runCheck(() => {
