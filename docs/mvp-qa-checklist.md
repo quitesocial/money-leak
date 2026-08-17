@@ -3677,3 +3677,38 @@ Manual QA:
   entries.
 - Figma/manual completion status is recorded in the manifest and handoff; the
   original source section remains untouched.
+
+## ML-101 App Store release hardening
+
+### 73. iPhone-only release candidate and submission readiness
+
+**Automated checks**
+
+1. Confirm version `1.28.2` is aligned across `package.json`,
+   `package-lock.json`, and resolved Expo config.
+2. Confirm resolved iOS config is iPhone-only, keeps Sign in with Apple and the
+   non-exempt-encryption flag, and does not hardcode a build number.
+3. Run the complete validation chain documented in
+   `docs/app-store-submission-checklist.md` and record exact results in
+   `docs/handoffs/ML_101_HANDOFF.txt`.
+4. Confirm the five ML-100 screenshots remain unchanged and pass the existing
+   validator.
+
+**Manual release QA**
+
+1. Run the full TestFlight smoke checklist in
+   `docs/app-store-submission-checklist.md` on the exact processed iPhone build.
+2. Confirm guest mode, Apple/Google auth, account-backed operations, Delete
+   Account, feedback, Privacy Policy, and Support match the App Review Notes.
+3. Confirm the EAS log uses an Apple-accepted Xcode/iOS SDK generation and App
+   Store Connect processes the uploaded build.
+4. Confirm no iPad screenshots or iPad QA claims are attached to this release.
+5. Complete all owner-controlled metadata, privacy, compliance, availability,
+   pricing, and review fields before manually submitting.
+
+**Expected result**
+
+- The repository is an iPhone-only `1.28.2` release candidate with no runtime,
+  data-contract, backend-schema, dependency, or screenshot changes.
+- GitHub/EAS may build and upload the binary, but Add for Review and Submit for
+  Review remain manual owner actions.

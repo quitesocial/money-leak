@@ -1,0 +1,151 @@
+ML-101 HANDOFF — APP STORE RELEASE HARDENING
+
+Last updated: 2026-08-17
+Version: 1.28.2
+Status: Repository work complete and validated. External owner actions and final App Review submission remain intentionally manual.
+
+PURPOSE
+
+Prepare a clean first-public-release candidate that can pass the existing GitHub/EAS production build and upload flow, complete final TestFlight smoke QA, and be manually submitted by the owner through App Store Connect. ML-101 does not redesign the app, replace completed functionality, or automate legal declarations or final review submission.
+
+BASELINE FOUND BEFORE CHANGES
+
+- Branch: main, clean and aligned with origin/main.
+- Commit: 20440bd — Update ML-100 App Store screenshots, documentation, and manifest to reflect manual completion and dimension reconciliation (#135).
+- Version: 1.28.1 in package.json and both package-lock.json root fields.
+- app.json had ios.supportsTablet set to true, although repository evidence contained only the completed English (U.S.) iPhone 6.9-inch screenshot and QA contract.
+- ios.usesAppleSignIn was true.
+- ITSAppUsesNonExemptEncryption was false.
+- eas.json used remote app versioning, production autoIncrement, the production EAS environment, and placeholder-only App Store Connect submit fields.
+- Release iOS already gated the production build on a package.json version change and used EAS production build with auto-submit.
+- All five ML-100 screenshots existed as opaque JPEG files at 1320x2868.
+- Runtime code contained permanent guest/local mode, Apple and Google authentication, authenticated backup/restore/sync, account deletion, and anonymous feedback.
+- docs/privacy-policy.md incorrectly claimed there were no accounts, backend, or cloud sync.
+- docs/app-store-metadata.md asked testers to test iPad and did not contain keywords, release copy, or App Review Notes.
+- The submission checklist and release runbook did not cover the complete first-public-release owner flow.
+- No advertising, analytics, crash-reporting, telemetry, attribution, IAP/subscription, or bank-integration dependency or runtime implementation was found.
+
+FILES CHANGED
+
+1. AGENTS.md
+2. app.json
+3. package.json
+4. package-lock.json
+5. scripts/release-preflight.js
+6. src/lib/__tests__/project-contracts.test.ts
+7. docs/app-store-metadata.md
+8. docs/app-store-privacy-checklist.md
+9. docs/app-store-submission-checklist.md
+10. docs/privacy-policy.md
+11. docs/release-runbook.md
+12. docs/auth-sync-env-contract.md
+13. docs/release-notes/1.28.2.md
+14. docs/mvp-qa-checklist.md
+15. docs/handoffs/ML_101_HANDOFF.txt
+
+RELEASE DECISIONS
+
+- Final version is 1.28.2. This is a patch bump because ML-101 corrects release configuration and documentation without changing runtime product behavior or public data contracts.
+- The first public iOS release is iPhone-only.
+- ios.supportsTablet is false.
+- No iPad screenshots were fabricated and no iPad redesign or QA scope was added.
+- Apple Sign-In, non-exempt-encryption configuration, bundle ID, icon, splash, and native route configuration were preserved.
+- EAS continues to own the remote iOS build number; app.json has no buildNumber.
+- eas.json and both GitHub workflows were preserved.
+- No Expo SDK upgrade or EAS image pin was added. Expo SDK 54's current automatic iOS image is compatible with Apple's Xcode 26 generation requirement, but the exact final image/Xcode/iOS SDK must be confirmed from the production EAS build log.
+- GitHub/EAS may build and upload the binary. Add for Review and Submit for Review remain manual owner actions.
+
+IPHONE / IPAD SUPPORT DECISION
+
+Repository evidence did not establish an intentional iPad launch. The finalized screenshot set, capture workflow, and manual QA are iPhone 6.9-inch only. ML-101 therefore changes ios.supportsTablet from true to false and removes the active TestFlight iPad claim. Historical handoffs remain historical records.
+
+METADATA AUDIT RESULT
+
+- Preserved app name Money Leak, subtitle Spot spending leaks fast, and Finance primary category.
+- Added a 92-character keyword draft.
+- Replaced the description with current implemented functionality only: expense tracking, balance/income additions, current balance/feed, Normal/Leak expenses and reasons, edit/delete, Analytics & Leaks, language/display currency, local reminders, Transaction CSV v1, guest mode, optional Apple/Google auth, account backup/restore/sync, and anonymous feedback.
+- Explicitly excluded bank connections, automatic bank import, FX conversion, ads, subscriptions, and IAP.
+- Added release copy, iPhone TestFlight notes, paste-ready App Review Notes, navigation guidance, and the distinction between Sign Out and Delete Account.
+- No credentials or private review data were added.
+
+PRIVACY AUDIT RESULT
+
+- Local-only/guest data, authenticated Supabase data, and anonymous feedback are now documented separately.
+- Authenticated remote data includes account/profile fields, financial/user content, synced settings, timestamps, and source-device IDs linked to the Supabase user for app functionality.
+- Feedback storage contains rating, optional comment, app version, platform, runtime language, server time, and a server-generated row ID, without account/user/owner/localOwner/device or financial identifiers.
+- The checklist recommends disclosure of feedback rather than assuming Apple's optional-feedback exemption.
+- No repository evidence of advertising, tracking, analytics, crash reporting, telemetry, or attribution was found.
+- docs/privacy-policy.md was rewritten as an accurate technical source draft. Publishing/legal wording, retention, provider logging, and final App Store classifications remain OWNER ACTIONS.
+
+APPLE COMPLIANCE AUDIT RESULT
+
+- app.json keeps usesAppleSignIn true and the expo-apple-authentication plugin.
+- Runtime Apple Sign-In remains available on iOS when production Supabase config is present.
+- Settings still exposes Delete Account for authenticated users through the existing service and server-side Edge Function path.
+- ITSAppUsesNonExemptEncryption remains false; no legal conclusion was made for the owner.
+- Age rating, export compliance, DSA status, territories, pricing, release behavior, review contact, and final review submission are explicitly owner-controlled checklist items.
+
+RELEASE CONFIG AUDIT RESULT
+
+- package.json version change remains the GitHub release gate.
+- Release iOS still validates required secret presence, installs with npm ci, runs repository validation, writes the App Store Connect key to a runner-temporary file, injects submit placeholders only in the runner copy, and runs EAS production build with auto-submit.
+- eas.json still uses appVersionSource remote, production autoIncrement true, and environment production.
+- No App Store Connect secret value, backend secret, build number, or credential was committed.
+- release-preflight now validates the iPhone-only, Apple Sign-In, encryption, and remote-build-number contracts.
+
+FINAL VALIDATION RESULTS
+
+Environment: Node 20.19.4.
+
+- npm run screenshots:validate: PASS. Exactly 5/5 JPEG files passed; each is 1320x2868. Reported sizes were 230967, 393198, 342036, 386105, and 309850 bytes in filename order.
+- npm run release:preflight: PASS. 10 passed, 0 failed.
+- npm test -- --runInBand: PASS. 56 suites, 483 tests, 0 snapshots.
+- npm run typecheck: PASS.
+- npm run lint: PASS.
+- npm run format:check: PASS. All matched files use Prettier code style.
+- npx expo config --json: PASS. Resolved version 1.28.2, sdkVersion 54.0.0, supportsTablet false, usesAppleSignIn true, ITSAppUsesNonExemptEncryption false, and no iOS buildNumber.
+- git diff --check: PASS with no output.
+- Focused project-contract test: PASS. 1 suite, 11 tests.
+
+SCREENSHOT RESULT
+
+- The five ML-100 JPEG assets, filenames, order, dimensions, manifest, and Figma provenance were not changed.
+- No iPad assets were added.
+- Production runtime remains free of app-store-screenshot-fixture imports.
+
+AGENTS.MD RESULT
+
+AGENTS.md gained one durable release rule: iOS App Store distribution is iPhone-only and ios.supportsTablet must stay false unless future work explicitly includes iPad UI QA and App Store screenshots. This prevents the exact release-scope mismatch found in ML-101 and is broader than a one-time task detail. The existing screenshot-validator rule was not duplicated.
+
+REMAINING OWNER ACTIONS
+
+1. Publish or update the external Privacy Policy so it matches the audited data flows, add required legal/operator/retention language, and verify the configured URL opens without a login.
+2. Provide or confirm the required public App Store Connect Support URL. The repository currently identifies only the in-app mailto action.
+3. Review and publish App Privacy answers, including Apple, Google, Supabase, profile/avatar, source-device ID, feedback, provider logging, retention, linked/not-linked status, and purpose classifications.
+4. Verify the intended production Supabase project has all migrations/RLS, Apple and Google provider configuration, redirect allowlists, and the delete-account Edge Function deployed.
+5. Verify the EAS production public environment values and GitHub release secrets are configured without exposing them.
+6. Complete the current age-rating questionnaire, including social-capability questions.
+7. Complete any App Store Connect export-compliance response; the repository only supplies the technical configuration.
+8. Complete DSA trader/non-trader status and any required verification.
+9. Choose territories/availability, confirm Free pricing, and choose the desired release behavior after approval.
+10. Enter App Review contact information, final metadata, public links, and App Review Notes.
+11. Decide whether App Review requires credentials for optional authenticated flows. If requested, enter reviewer-only credentials in App Store Connect and never in the repository.
+12. Upload the five English (U.S.) iPhone 6.9-inch screenshots in numeric filename order.
+13. Merge the reviewed release PR to main and confirm GitHub Release iOS follows the version-changed path.
+14. Inspect the final EAS build log and confirm Xcode 26 or later, iOS 26 SDK or later, remote build-number increment, successful production build, and successful auto-submit.
+15. Confirm App Store Connect accepts and completes processing for the uploaded build.
+16. Run the complete TestFlight smoke QA in docs/app-store-submission-checklist.md on the exact build selected for review.
+17. Select the tested build, click Add for Review manually, review all declarations, and click Submit for Review manually.
+
+COULD NOT BE VERIFIED FROM THE REPOSITORY
+
+- Whether the configured Notion Privacy Policy is publicly accessible and already contains current wording.
+- The final public App Store Support URL.
+- Live production Supabase/provider/Edge Function deployment state.
+- EAS/GitHub secret and public-environment values.
+- The Xcode/iOS SDK used by the not-yet-created final production build.
+- App Store Connect processing, metadata, privacy/compliance declarations, availability, pricing, reviewer access, and TestFlight behavior.
+
+FINAL TECHNICAL READINESS
+
+The repository is technically ready for owner review and merge after the final diff is accepted. External owner gates above must still pass before manual App Review submission. Final App Review submission itself was intentionally not performed or automated.

@@ -62,6 +62,7 @@ nvm use 20.19.4
 - Keep public legal/support links centralized in `src/lib/app-links.ts`; Settings legal/support link failures should show generic safe copy without raw technical errors.
 - Keep native splash configuration in `expo-splash-screen` with `assets/images/splash-logo.png`; do not replace it with a React-level loading screen.
 - Keep app icon assets separate from splash assets. iOS app icons should be square PNGs without transparency or baked-in rounded corners; iOS applies the mask.
+- iOS App Store distribution is iPhone-only. Keep `ios.supportsTablet` set to `false` unless future work explicitly includes iPad UI QA and App Store screenshots.
 - Category icons are now a persisted local category property. Keep `Transaction.category` storing the stable category ID only. Do not add category icons to the transaction CSV v1 format or remote sync/backup schema unless a future task explicitly scopes a data-contract migration.
 - Balance entries are a separate domain from expense Transactions. Balance backup/restore/manual sync uses dedicated balance tables and sync DTOs. Do not encode balance additions as Transactions, and keep Transaction CSV v1 unchanged unless a future task explicitly scopes a CSV migration.
 - Settings currency preference is display formatting only. Do not add FX conversion, per-transaction or per-balance currency fields, Transaction CSV currency columns, or sync/backup schema changes unless a future task explicitly scopes a data-contract migration.
