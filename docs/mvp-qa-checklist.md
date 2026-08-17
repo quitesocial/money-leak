@@ -3658,11 +3658,11 @@ Manual QA:
    Analytics error handling after capture-only edits are removed.
 8. Confirm version `1.28.1` flows from `package.json` through `app.config.js`,
    with no change to EAS config or release workflow.
-9. After a Figma Full seat is available, create the requested sibling section,
-   copy the five source compositions without editing `342:6189`, and place the
-   three native captures only inside their device displays.
-10. Upload the five JPEGs in filename order to App Store Connect under English
-    (U.S.) / iPhone 6.9-inch and confirm the saved order.
+9. Confirm the sibling Figma section was created without editing `342:6189` and
+   that the three native captures appear only inside their copied device
+   displays.
+10. Confirm the five JPEGs were uploaded in filename order to App Store Connect
+    under English (U.S.) / iPhone 6.9-inch and the saved order is correct.
 
 **Expected result**
 
@@ -3675,5 +3675,5 @@ Manual QA:
   config, EAS config, and dependencies are unchanged.
 - The fixture remains test/docs-only and exports only transactions and balance
   entries.
-- Figma write status is recorded in the manifest and handoff; the original
-  source section remains untouched.
+- Figma/manual completion status is recorded in the manifest and handoff; the
+  original source section remains untouched.

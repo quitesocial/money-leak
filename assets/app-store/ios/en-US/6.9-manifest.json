@@ -4,7 +4,8 @@
   "display": "iPhone 6.9-inch",
   "sourceSection": "342:6189",
   "requestedTargetSection": "ML-100 App Store screens — iPhone 6.9 — 1320x2868",
-  "figmaWriteStatus": "blocked-full-seat-required",
+  "figmaWriteStatus": "completed-manually",
+  "manualCompletionConfirmedAt": "2026-08-17",
   "dimensions": {
     "width": 1320,
     "height": 2868
